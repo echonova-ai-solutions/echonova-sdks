@@ -4,7 +4,7 @@ Date: 2026-11-09
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-11-10 for the published API update: partial billing of stopped syntheses, and stream sessions saved as jobs (`session.saved`).
 
 ## Context
 
@@ -14,7 +14,7 @@ The API has two WebSocket protocols, described in the published AsyncAPI spec.
 
 - One socket carries many syntheses, one at a time. A new `synthesize` cancels the running one (barge-in).
 - For each synthesis the server sends `start`, then binary PCM frames, then `done`. Binary frames carry no `requestId`.
-- Each synthesis is charged when it starts, and a cancelled synthesis is still charged.
+- Each synthesis is charged per character when it starts. One that stops after its audio started (a cancel, a barge-in or a speech service failure) costs only the share of audio sent, at least 1 credit, and the rest is refunded. `cancelled` and `error` report the final `creditsConsumed`; a `cancelled` without it was cancelled before it was charged.
 
 **Speech to Text stream.**
 
@@ -47,7 +47,7 @@ Connections drop. Reconnecting and resending looks helpful, but resending a synt
 - `done` and `cancelled` are matched by `requestId`. Duplicates are ignored. When a newer `start` arrives, the older synthesis is marked `superseded`.
 - `synthesize()` follows the server's semantics: it supersedes the running synthesis. `enqueue()` is a client-side queue: the next item is sent only after the current one is `done`, because sending it earlier would cancel the current one.
 - `cancel()` on a request that was never sent is handled locally; nothing goes over the socket.
-- Each synthesis handle moves through `QUEUED → SENT → STREAMING → COMPLETED`, or ends as `CANCELLED`, `FAILED` or `LOST`. A cancellation the caller asked for is an outcome, reported by `result()`, not an exception. Its result reports `charged=True`, as the API documents.
+- Each synthesis handle moves through `QUEUED → SENT → STREAMING → COMPLETED`, or ends as `CANCELLED`, `FAILED` or `LOST`. A cancellation the caller asked for is an outcome, reported by `result()`, not an exception. Its result reports the final `credits_consumed` and `charged=True` when the server reports a cost, `charged=False` for a cancel that came before any charge, and `charged=None` when the SDK resolved the cancel itself (an acknowledgement timeout or a lost socket).
 - **When the connection is lost, each affected handle reports `charge_state`:**
   - `yes`: `start` or audio arrived, so the synthesis started and was charged.
   - `unknown`: it was sent, but nothing arrived for it. It may have started, and so it may already have been charged.
@@ -64,7 +64,7 @@ Connections drop. Reconnecting and resending looks helpful, but resending a synt
 - `sample_rate` is required and has no default, because a wrong rate produces wrong transcripts without any error.
 - `send_audio()` goes through the PCM framer: frames of about 100 ms, never over 64 KiB, always an even number of bytes. It copies its input and waits for the socket to drain.
 - `end_segment()` returns a mark with the audio offset, computed from the bytes the SDK sent.
-- `stop()` waits for the remaining transcripts and `session.ended`. `close()` aborts and discards audio that wasn't transcribed.
+- `stop()` waits for the remaining transcripts, `session.ended` and, when the server sends it, `session.saved`, which says whether the session was kept as a Speech to Text job (`job_id`, `saved` / `empty` / `failed`). `close()` aborts and discards audio that wasn't transcribed.
 - **If a session ends abnormally, the event iterator first delivers every event already received, then raises.** Transcripts that were already sent, and charged, are never lost.
 
 ### Two layers: L0 sessions and L2 helpers built only on public L0 calls

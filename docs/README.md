@@ -28,7 +28,7 @@ These user guides will be written as the SDKs reach beta. Each guide will cover 
   - barge-in, and `speak_stream` for voice agents;
   - microphone and playback recipes;
   - session length limits and rollover;
-  - billing notes: a cancelled synthesis is still charged, and how the limit of 10 open streams per workspace affects concurrent voice calls
+  - billing notes: a synthesis stopped after its audio started costs only the share sent (at least 1 credit), streams are saved as jobs, and how the limit of 10 open streams per workspace affects concurrent voice calls
 - **Error handling:** the error classes, what the SDK retries and why, and using request IDs with support
 - **Webhooks:** verifying signatures, deduplicating events, and acknowledging quickly
 - **Configuration:** timeouts, retries, HTTP proxies, custom HTTP clients, hooks and logging
