@@ -217,6 +217,18 @@ def test_find_candidates_filters_by_text() -> None:
     assert [j.id for j in found] == ["a", "c", "d"]
 
 
+@pytest.mark.parametrize("service", ["text_to_speech", "speech_to_text"])
+def test_find_candidates_skips_stream_jobs(service: str) -> None:
+    created = (SENT_AT + timedelta(seconds=1)).isoformat()
+    jobs = [
+        {"id": "s", "status": "completed", "text": "hello", "createdAt": created, "stream": {"sessionId": "x"}},
+        {"id": "r", "status": "completed", "text": "hello", "createdAt": created},
+    ]
+    client = make_client(lambda r: ok({"items": jobs, "total": 2}))
+    found = getattr(client, service).jobs.find_candidates(SENT_AT)
+    assert [j.id for j in found] == ["r"]  # a lost REST request never made a stream job
+
+
 def test_find_candidates_for_stt_and_naive_datetimes() -> None:
     naive_local = SENT_AT.astimezone().replace(tzinfo=None)
     found = make_client(listing(JOBS)).speech_to_text.jobs.find_candidates(naive_local)

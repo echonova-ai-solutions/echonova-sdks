@@ -17,12 +17,20 @@ class Operation:
     write_timeout: float
     read_timeout: float
     envelope: bool = True  # False when a 2xx body is the raw file (transcript export)
+    secret_response: bool = False  # the 2xx body carries a secret: never copy it into an error's raw_body
 
 
 def _op(
-    name: str, method: str, path: str, write: float = 10.0, read: float = 30.0, *, envelope: bool = True
+    name: str,
+    method: str,
+    path: str,
+    write: float = 10.0,
+    read: float = 30.0,
+    *,
+    envelope: bool = True,
+    secret_response: bool = False,
 ) -> Operation:
-    return Operation(name, method, path, write, read, envelope)
+    return Operation(name, method, path, write, read, envelope, secret_response)
 
 
 TTS_GENERATE = _op("text_to_speech.generate", "POST", "/v1/text-to-speech/sync", read=120)
@@ -48,6 +56,11 @@ CLEAN_JOBS_DELETE = _op("sound_cleaning.jobs.delete", "DELETE", "/v1/sound-clean
 
 WIDGETS_CREATE_TICKET = _op("widgets.create_ticket", "POST", "/v1/widgets/{publicId}/tickets")
 
+# A start is a POST, so it is never resent once it may have reached the server: a retried start opens a second session.
+AGENT_SESSIONS_START = _op("agents.sessions.start", "POST", "/v1/agents/{agentId}/sessions", secret_response=True)
+AGENT_SESSIONS_GET = _op("agents.sessions.get", "GET", "/v1/agents/{agentId}/sessions/{sessionId}")
+AGENT_SESSIONS_END = _op("agents.sessions.end", "POST", "/v1/agents/{agentId}/sessions/{sessionId}/end")
+
 ALL = (
     TTS_GENERATE,
     TTS_JOBS_CREATE,
@@ -66,6 +79,9 @@ ALL = (
     CLEAN_JOBS_GET,
     CLEAN_JOBS_DELETE,
     WIDGETS_CREATE_TICKET,
+    AGENT_SESSIONS_START,
+    AGENT_SESSIONS_GET,
+    AGENT_SESSIONS_END,
 )
 
 # Signed-URL downloads go to storage, not the API: no bucket, generous read timeout.

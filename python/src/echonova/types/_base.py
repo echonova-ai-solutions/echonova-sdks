@@ -67,12 +67,12 @@ def _plain(value: Any) -> Any:
     return value
 
 
-def api_field(api: str, convert: Converter = lambda v: v, *, required: bool = False) -> Any:
-    """Declare a model field read from the API key ``api``."""
+def api_field(api: str, convert: Converter = lambda v: v, *, required: bool = False, secret: bool = False) -> Any:
+    """Declare a model field read from the API key ``api``. A ``secret`` field is left out of ``repr()``."""
     metadata = {"api": api, "convert": convert, "required": required}
     if required:
-        return field(metadata=metadata)
-    return field(default=None, metadata=metadata)
+        return field(metadata=metadata, repr=not secret)
+    return field(default=None, metadata=metadata, repr=not secret)
 
 
 def to_str(value: Any) -> str | None:

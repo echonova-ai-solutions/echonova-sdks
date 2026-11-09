@@ -28,6 +28,9 @@ RESPONSES: list[tuple[str, str, type[Model]]] = [
     ("/v1/sound-cleaning/jobs/{jobId}", "GET", types.CleanJob),
     ("/v1/sound-cleaning/jobs/{jobId}", "DELETE", types.DeleteResult),
     ("/v1/widgets/{publicId}/tickets", "POST", types.WidgetTicket),
+    ("/v1/agents/{agentId}/sessions", "POST", types.StartedAgentSession),
+    ("/v1/agents/{agentId}/sessions/{sessionId}", "GET", types.AgentSession),
+    ("/v1/agents/{agentId}/sessions/{sessionId}/end", "POST", types.AgentSession),
 ]
 LISTS: list[tuple[str, type[Model]]] = [
     ("/v1/text-to-speech/jobs", types.TtsJob),
@@ -42,7 +45,7 @@ def data_schema(path: str, method: str) -> dict[str, Any]:
     return schema
 
 
-# API field name -> the model its nested objects parse into.
+# API field name -> the model its nested objects parse into ((model, field) when it differs by model).
 NESTED: dict[str, type[Model]] = {
     "items": types.Voice,
     "segments": types.SttSegment,
@@ -53,6 +56,10 @@ NESTED: dict[str, type[Model]] = {
     "warnings": types.TerminologyWarning,
     "options": types.CleanJobOptions,
     "metrics": types.CleanMetrics,
+}
+NESTED_BY_MODEL: dict[tuple[type[Model], str], type[Model]] = {
+    (types.TtsJob, "stream"): types.TtsJobStream,
+    (types.SttJob, "stream"): types.SttJobStream,
 }
 
 
@@ -65,8 +72,9 @@ def assert_covers(model: type[Model], schema: dict[str, Any], path: str = "") ->
     for name, prop in props.items():
         prop = resolve(prop)
         inner = prop.get("items") if prop.get("type") == "array" else prop
-        if inner is not None and (schema_properties(inner) or "$ref" in inner):
-            assert_covers(NESTED[name], inner, f"{path}.{name}")
+        if inner is not None and (schema_properties(inner) or "$ref" in inner or "allOf" in inner):
+            nested = NESTED_BY_MODEL.get((model, name)) or NESTED[name]
+            assert_covers(nested, inner, f"{path}.{name}")
 
 
 @pytest.mark.parametrize(("path", "method", "model"), RESPONSES, ids=lambda v: getattr(v, "__name__", v))
@@ -120,6 +128,52 @@ def test_values_from_the_examples() -> None:
     assert stt.segments is not None
     assert stt.segments[0].speaker == "spk0"
     assert stt.id == stt.job_id
+
+
+def test_stream_jobs_say_where_they_came_from() -> None:
+    tts = types.TtsJob._from_json(example_for(resolve({"$ref": "#/components/schemas/V1TtsJobResponseDto"})))
+    assert tts.stream is not None
+    assert tts.stream.session_id == "3f1c2b9e-8a47-4d1e-9b6a-2c5d7e8f9a01"
+    assert tts.stream.synthesis_request_id == "reply-1"  # the API's requestId; .request_id is the HTTP one
+    assert tts.stream.request_id is None
+    assert (tts.stream.cancelled, tts.stream.audio_dropped) == (True, True)
+    assert tts.to_dict()["stream"]["synthesis_request_id"] == "reply-1"
+    stt = types.SttJob._from_json(example_for(resolve({"$ref": "#/components/schemas/V1SttJobResponseDto"})))
+    assert stt.stream is not None
+    assert stt.stream.session_id == "b1f0c2d4-5e6a-4f70-8a91-2c3d4e5f6a7b"
+    assert stt.audio_url is not None
+    assert stt.audio_url.startswith("https://storage.example.com/")
+    rest = types.SttJob._from_json({"id": "j", "status": "completed"})  # a job from the REST endpoints
+    assert (rest.stream, rest.audio_url) == (None, None)
+
+
+def test_started_session_token_is_kept_out_of_repr() -> None:
+    data = {
+        "id": "6651a1b2c3d4e5f6a7b8c9d0",
+        "agentId": "6650a1b2c3d4e5f6a7b8c9d0",
+        "channel": "chat",
+        "status": "active",
+        "startedAt": "2026-11-07T10:00:00.000Z",
+        "endedAt": None,
+        "token": "room-token-do-not-print",
+        "wsUrl": "wss://rooms.echonova.ai",
+        "greeting": "Hello! How can I help?",
+    }
+    started = types.StartedAgentSession._from_json(data, request_id="r1")
+    assert isinstance(started, types.AgentSession)
+    assert started.token == "room-token-do-not-print"
+    assert "room-token-do-not-print" not in repr(started)
+    assert "room-token-do-not-print" not in str(started)
+    assert "ws_url='wss://rooms.echonova.ai'" in repr(started)
+    assert started.to_dict()["token"] == "room-token-do-not-print"
+    assert started.raw["token"] == "room-token-do-not-print"
+    assert (started.channel, started.greeting, started.ended_at) == ("chat", "Hello! How can I help?", None)
+    assert started.started_at == datetime(2026, 11, 7, 10, 0, tzinfo=UTC)
+    with pytest.raises(MalformedEnvelopeError, match="'token'"):
+        types.StartedAgentSession._from_json({**data, "token": None})
+    ended = types.AgentSession._from_json({**data, "status": "ended", "endedAt": "2026-11-07T10:05:30Z"})
+    assert ended.ended_at == datetime(2026, 11, 7, 10, 5, 30, tzinfo=UTC)
+    assert "token" not in ended.to_dict()  # get() and end() never return the token
 
 
 # --- Lenient parsing ----------------------------------------------------------------------------

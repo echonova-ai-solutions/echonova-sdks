@@ -16,7 +16,16 @@ from _support import JOB_ID, MP3, WAV, Recorder, envelope_body, load_mapping, ma
 from echonova import _operations as ops
 from echonova import types
 
-JOB = {"id": JOB_ID, "jobId": JOB_ID, "status": "completed", "ticket": "wtk_x", "deleted": True, "createdAt": None}
+JOB = {
+    "id": JOB_ID,
+    "jobId": JOB_ID,
+    "status": "completed",
+    "ticket": "wtk_x",
+    "deleted": True,
+    "createdAt": None,
+    "token": "room-token",
+}
+AGENT_ID = "6650a1b2c3d4e5f6a7b8c9d0"
 
 
 def respond(request: httpx.Request) -> httpx.Response:
@@ -237,6 +246,35 @@ CASES = [
         "/v1/widgets/wdg_abc/tickets",
         json={},
     ),
+    Case(
+        "agents.sessions.start",
+        lambda c: c.agents.sessions.start(AGENT_ID, channel="chat"),
+        "POST",
+        f"/v1/agents/{AGENT_ID}/sessions",
+        json={"channel": "chat"},
+        result=types.StartedAgentSession,
+    ),
+    Case(
+        "agents.sessions.start default channel",
+        lambda c: c.agents.sessions.start(AGENT_ID),
+        "POST",
+        f"/v1/agents/{AGENT_ID}/sessions",
+        json={},  # the body is required; an omitted channel is voice
+    ),
+    Case(
+        "agents.sessions.get",
+        lambda c: c.agents.sessions.get(AGENT_ID, JOB_ID),
+        "GET",
+        f"/v1/agents/{AGENT_ID}/sessions/{JOB_ID}",
+        result=types.AgentSession,
+    ),
+    Case(
+        "agents.sessions.end",
+        lambda c: c.agents.sessions.end(AGENT_ID, JOB_ID),
+        "POST",
+        f"/v1/agents/{AGENT_ID}/sessions/{JOB_ID}/end",
+        result=types.AgentSession,
+    ),
 ]
 
 
@@ -298,6 +336,25 @@ def test_path_parameters_are_escaped() -> None:
     recorder = Recorder(respond)
     make_client(recorder).text_to_speech.jobs.get("a/b?c")
     assert recorder.last.url.raw_path == b"/v1/text-to-speech/jobs/a%2Fb%3Fc"
+    make_client(recorder).agents.sessions.end("../x", " s/1 ")
+    assert recorder.last.url.raw_path == b"/v1/agents/..%2Fx/sessions/s%2F1/end"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda c: c.agents.sessions.start(""),
+        lambda c: c.agents.sessions.get(AGENT_ID, "  "),
+        lambda c: c.agents.sessions.end(None, JOB_ID),
+    ],
+)
+def test_agent_and_session_ids_are_required(call: Callable[[Any], Any]) -> None:
+    from echonova import UsageError
+
+    recorder = Recorder(respond)
+    with pytest.raises(UsageError):
+        call(make_client(recorder))
+    assert recorder.requests == []
 
 
 def test_export_returns_raw_text_not_an_envelope() -> None:

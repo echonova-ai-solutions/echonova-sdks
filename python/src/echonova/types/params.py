@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Literal, NotRequired
+from typing import NotRequired
 
 from typing_extensions import TypedDict
 
@@ -13,14 +13,16 @@ __all__ = ["CleanOptions", "Keyword", "RequestOptions", "Terminology", "WidgetUs
 
 
 class Keyword(TypedDict):
-    """One terminology entry with options. A plain string is a keyword with no options."""
+    """One terminology entry with options. A plain string is a keyword with no options.
+
+    Terms are written exactly as typed.
+    """
 
     term: str
     variants: NotRequired[Sequence[str]]
     blocked: NotRequired[Sequence[str]]
     context_words: NotRequired[Sequence[str]]
     needs_context: NotRequired[bool]
-    output_script: NotRequired[Literal["latin", "arabic", "as_typed"] | str]
 
 
 class Terminology(TypedDict):

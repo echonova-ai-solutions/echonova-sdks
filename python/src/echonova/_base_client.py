@@ -453,12 +453,15 @@ class BaseClient(Generic[HttpT]):
                     decision = policy.decide_transport(
                         method, "malformed_success", retries_done=retries, body_replayable=replayable
                     )
+                    raw_body = None
+                    if not op.secret_response:  # a body with a secret (a session token) is never kept on an error
+                        raw_body = response.content[:RAW_BODY_LIMIT].decode("utf-8", errors="replace") or None
                     protocol_error = ProtocolError(
                         status_code=status,
                         error_message=f"unexpected response body: {exc}",
                         request_id=request_id,
                         headers=dict(response.headers.items()),
-                        raw_body=response.content[:RAW_BODY_LIMIT].decode("utf-8", errors="replace") or None,
+                        raw_body=raw_body,
                         may_have_executed=executed_flag(decision.may_have_executed, method),
                         rule="malformed_success",
                         sent_at=first_sent_at,

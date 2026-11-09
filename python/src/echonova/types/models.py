@@ -25,12 +25,15 @@ from ._base import (
 )
 
 __all__ = [
+    "AgentSession",
     "CleanJob",
     "CleanJobOptions",
     "CleanMetrics",
     "DeleteResult",
     "JobInitiated",
+    "StartedAgentSession",
     "SttJob",
+    "SttJobStream",
     "SttResult",
     "SttSegment",
     "SttSpeaker",
@@ -42,6 +45,7 @@ __all__ = [
     "TranscriptExportSegment",
     "TranscriptExportSpeaker",
     "TtsJob",
+    "TtsJobStream",
     "TtsResult",
     "Voice",
     "VoiceList",
@@ -118,8 +122,28 @@ class VoiceList(Model):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class TtsJobStream(Model):
+    """Where a job made on the Text to Speech stream came from.
+
+    ``session_id`` is shared by every synthesis on one socket. ``synthesis_request_id``
+    is the API's ``requestId``: the ``request_id`` of the stream ``Synthesis``. It is
+    renamed because ``.request_id`` holds the HTTP request ID on every result.
+    ``cancelled`` is True when the synthesis stopped early, so the audio holds only
+    what was sent; ``audio_dropped`` is True when the audio could not be saved.
+    """
+
+    session_id: str | None = api_field("sessionId", to_str)
+    synthesis_request_id: str | None = api_field("requestId", to_str)
+    cancelled: bool | None = api_field("cancelled", to_bool)
+    audio_dropped: bool | None = api_field("audioDropped", to_bool)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class TtsJob(Model):
-    """A Text to Speech job. ``audio_url`` is re-signed on every get; it expires, so don't store it."""
+    """A Text to Speech job. ``audio_url`` is re-signed on every get; it expires, so don't store it.
+
+    ``stream`` is set only on a job made on the Text to Speech stream.
+    """
 
     id: str = api_field("id", to_str, required=True)
     status: str = api_field("status", to_str, required=True)
@@ -130,6 +154,7 @@ class TtsJob(Model):
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
     error: str | None = api_field("error", to_str)
     created_at: datetime | None = api_field("createdAt", to_datetime)
+    stream: TtsJobStream | None = api_field("stream", to_model(TtsJobStream))
 
 
 # --- Speech to Text -----------------------------------------------------------------------------
@@ -213,8 +238,20 @@ class SttResult(Model):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class SttJobStream(Model):
+    """The Speech to Text stream session a job came from (``SttSession.session_id``)."""
+
+    session_id: str | None = api_field("sessionId", to_str)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SttJob(Model):
-    """A Speech to Text job. ``transcription`` is missing until it completes."""
+    """A Speech to Text job. ``transcription`` is missing until it completes.
+
+    ``stream`` and ``audio_url`` are set only on a job saved from the Speech to Text
+    stream. ``audio_url`` is a signed link to the recording; it expires, so get the
+    job again for a fresh one.
+    """
 
     id: str = api_field("id", to_str, required=True)
     status: str = api_field("status", to_str, required=True)
@@ -229,6 +266,8 @@ class SttJob(Model):
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
     error: str | None = api_field("error", to_str)
     created_at: datetime | None = api_field("createdAt", to_datetime)
+    audio_url: str | None = api_field("audioUrl", to_str)
+    stream: SttJobStream | None = api_field("stream", to_model(SttJobStream))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -310,3 +349,39 @@ class WidgetTicket(Model):
 
     ticket: str = api_field("ticket", to_str, required=True)
     expires_at: datetime | None = api_field("expiresAt", to_datetime)
+
+
+# --- Agents -------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AgentSession(Model):
+    """A live voice or chat session with an agent.
+
+    ``channel`` is ``voice`` or ``chat``. ``status`` is ``active`` while the session
+    is open, then ``ended``, or ``failed`` / ``out_of_credits`` when it stopped
+    early; treat other values as "not active". ``ended_at`` is None while it is open.
+    The session ID is also the conversation ID once it ends.
+    """
+
+    id: str = api_field("id", to_str, required=True)
+    status: str = api_field("status", to_str, required=True)
+    agent_id: str | None = api_field("agentId", to_str)
+    channel: str | None = api_field("channel", to_str)
+    started_at: datetime | None = api_field("startedAt", to_datetime)
+    ended_at: datetime | None = api_field("endedAt", to_datetime)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StartedAgentSession(AgentSession):
+    """The result of ``agents.sessions.start()``: the session, plus how a client joins it.
+
+    ``token`` is a secret, sent only in this response and never again. Hand it
+    only to the client that joins the room at ``ws_url``, and don't log or store
+    it. It is left out of ``repr()``, but ``to_dict()`` and ``.raw`` include it.
+    ``greeting`` is a chat session's first agent message (None for voice).
+    """
+
+    token: str = api_field("token", to_str, required=True, secret=True)
+    ws_url: str | None = api_field("wsUrl", to_str)
+    greeting: str | None = api_field("greeting", to_str)

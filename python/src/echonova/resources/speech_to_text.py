@@ -238,8 +238,9 @@ class SpeechToText(SyncResource):
     ) -> Iterator[TranscribeEvent]:
         """Transcribe a PCM16LE source, rolling over to new sessions past the session limit.
 
-        Yields ``Transcript`` events plus ``StreamErrorEvent``, ``Reconnected`` and
-        ``AudioDropped``; filter with ``isinstance(event, Transcript)`` for text only.
+        Yields ``Transcript`` events plus ``StreamErrorEvent``, ``SessionSaved`` (one per
+        session, with the ``job_id`` it was kept as), ``Reconnected`` and ``AudioDropped``;
+        filter with ``isinstance(event, Transcript)`` for text only.
         """
         from .._streaming import transcribe_stream_sync
 
@@ -455,8 +456,9 @@ class AsyncSpeechToText(AsyncResource):
     ) -> AsyncIterator[TranscribeEvent]:
         """Transcribe a PCM16LE source, rolling over to new sessions past the session limit.
 
-        Yields ``Transcript`` events plus ``StreamErrorEvent``, ``Reconnected`` and
-        ``AudioDropped``; filter with ``isinstance(event, Transcript)`` for text only.
+        Yields ``Transcript`` events plus ``StreamErrorEvent``, ``SessionSaved`` (one per
+        session, with the ``job_id`` it was kept as), ``Reconnected`` and ``AudioDropped``;
+        filter with ``isinstance(event, Transcript)`` for text only.
         A blocking iterable is read on the event loop: use the sync client for those.
         """
         from .._streaming import transcribe_stream

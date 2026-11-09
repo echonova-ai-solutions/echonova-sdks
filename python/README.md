@@ -58,7 +58,7 @@ Default timeouts in seconds (connect is 10 everywhere):
 |---|---|---|
 | Get, list, delete | 10 | 30 |
 | Transcript export | 10 | 60 |
-| `text_to_speech.jobs.create` | 10 | 30 |
+| `text_to_speech.jobs.create`, `agents.sessions.start`, `agents.sessions.end` | 10 | 30 |
 | `text_to_speech.generate` | 10 | 120 |
 | `speech_to_text.jobs.create` | 60 | 120 |
 | `speech_to_text.transcribe`, `sound_cleaning.clean` | 60 | 600 |
@@ -75,6 +75,25 @@ client.text_to_speech.jobs.delete(done)
 ```
 
 Options you don't pass are not sent, so the API's defaults apply.
+
+### Streaming
+
+One socket carries many syntheses, one at a time. Audio arrives as PCM16 mono chunks at `synth.sample_rate`.
+
+```python
+with client.text_to_speech.connect(voice_id=voice_id) as tts:
+    synth = tts.synthesize("مرحبا، كيف يمكنني مساعدتك؟")
+    for chunk in synth:
+        play(chunk)
+    result = synth.result()
+    print(result.outcome, result.credits_consumed)
+```
+
+A new `synthesize()` replaces the one that is running; `enqueue()` plays texts in order; `interrupt()` stops everything (barge-in).
+
+Billing: each synthesis is charged per character when it starts. One that stops after its audio started (a cancel, barge-in, or a speech service failure) costs only the share of audio sent, at least 1 credit; the rest is refunded. `result().credits_consumed` is the final cost the server reported, and `result().charged` is `False` for a synthesis cancelled before it was charged. A failed synthesis raises; its error carries `charge_state` (`"yes"`, `"no"` or `"unknown"`) and, when the server reported it, `credits_consumed`. The SDK never resends a synthesis that may have been charged.
+
+Each synthesis on the stream is also a job: `TtsJob.stream` holds its `session_id`, its `synthesis_request_id` (the `Synthesis.request_id`), and whether it was `cancelled` early or its audio was dropped (`audio_dropped`).
 
 ## Speech to Text
 
@@ -103,6 +122,29 @@ The SDK names the audio type from the file extension (mp3, wav, flac, ogg, opus,
 
 `TerminologyResult.raw_text` holds the API's `raw` field, because `.raw` is the JSON on every result.
 
+### Streaming
+
+Send PCM16 mono audio at the `sample_rate` you declare, and read transcripts as they arrive:
+
+```python
+from echonova.types.streaming import Transcript
+
+with client.speech_to_text.connect(sample_rate=16000, language="ar") as stt:
+    sending = stt.feed_from(microphone_chunks())  # sends on a thread, then calls stop()
+    for event in stt:
+        if isinstance(event, Transcript):
+            print(event.text)
+    summary = sending.result()
+
+if summary.saved_status == "saved":
+    job = client.speech_to_text.jobs.get(summary.job_id)
+    client.download(job.audio_url, to="recording.wav")  # the session's recording
+```
+
+Each session is kept as a job. `stt.job_id` is its ID from the start; after `session.ended` the server sends `SessionSaved(job_id, status)`, where `status` is `saved`, `empty` (nothing was transcribed, so nothing is kept) or `failed`. `stop()` waits briefly for it, and `summary.job_id` and `summary.saved_status` are `None` if it didn't come. A job saved from the stream has `stream.session_id` and `audio_url`, a signed link to the recording.
+
+`client.speech_to_text.transcribe_stream(source, sample_rate=, language=)` handles audio of any length: it cuts segments itself, rolls over to a new session before the session limit, and reconnects after a dropped connection. Each session's `SessionSaved` is passed on with the transcripts.
+
 ## Sound Cleaning
 
 ```python
@@ -111,6 +153,22 @@ print(job.metrics.integrated_lufs, job.credits_consumed)
 client.download(job.output_url, to="clean.wav")
 client.sound_cleaning.jobs.delete(job)
 ```
+
+## Agent sessions
+
+Start a live voice or chat session with an agent from your server. The key needs the `agents:talk` scope.
+
+```python
+session = client.agents.sessions.start(agent_id, channel="voice")  # or "chat"
+send_to_your_client(session.ws_url, session.token)  # only the client that joins the room
+
+status = client.agents.sessions.get(agent_id, session.id).status  # active, ended, failed, out_of_credits
+client.agents.sessions.end(agent_id, session.id)  # ending one that already ended is fine
+```
+
+The room `token` is a secret, returned only by `start()`. Hand it only to the client that joins the room, and don't log or store it. It is left out of `repr()`; `to_dict()` and `.raw` include it. A chat session's first agent message is in `session.greeting`.
+
+`start()` is never sent twice once it may have reached the server, because a retried start opens a second session: a lost response raises an error with `may_have_executed=True`. An agent at its call or chat limit raises `ConcurrencyLimitError`.
 
 ## Jobs, pages and downloads
 
@@ -139,7 +197,7 @@ except echonova.APIStatusError as e:
     print(e.status_code, e.error_message, e.request_id)
 ```
 
-The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors carry `may_have_executed=True` and `sent_at`; `find_candidates()` lists the jobs created since then so you can decide. It never picks one for you.
+The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors carry `may_have_executed=True` and `sent_at`; `find_candidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
 
 After a `429` with `Retry-After`, the client holds further calls to that endpoint until the wait is over, instead of sending more.
 

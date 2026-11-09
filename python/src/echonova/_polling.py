@@ -139,7 +139,10 @@ def candidates_flow(
     sent_at: datetime,
     text: str | None = None,
 ) -> Flow[list[Any]]:
-    """Jobs created at or after ``sent_at`` minus 5 s, newest first. Never picks one for you."""
+    """Jobs created at or after ``sent_at`` minus 5 s, newest first. Never picks one for you.
+
+    Jobs made on a stream (with a ``stream`` block) are skipped: a lost REST request never made one.
+    """
     earliest = _aware(sent_at).astimezone(UTC) - CANDIDATE_WINDOW
     wanted = text.strip() if text is not None else None
     found: list[Any] = []
@@ -159,6 +162,8 @@ def candidates_flow(
             if job.id in seen:
                 continue
             seen.add(job.id)
+            if getattr(job, "stream", None) is not None:
+                continue
             if wanted is not None and (job.text or "").strip() != wanted:
                 continue
             found.append(job)

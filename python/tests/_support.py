@@ -175,6 +175,8 @@ def example_for(schema: dict[str, Any]) -> Any:
         return [example_for(schema.get("items", {}))]
     if "example" in schema and schema["example"] is not None:
         return schema["example"]
+    if schema.get("nullable") and "example" in schema:
+        return None  # documented as null in the example (endedAt of an open session)
     if "enum" in schema:
         return schema["enum"][0]
     return {"string": "text", "number": 1.5, "integer": 1, "boolean": True}.get(schema.get("type", ""))

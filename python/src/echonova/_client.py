@@ -18,6 +18,7 @@ from ._config import DEFAULT_MAX_RETRIES, Runtime, Timeout
 from ._response import ApiResponse, raw_mode
 from ._transport import Action, Authenticate, Call, Failure, Flow, Send, Sleep
 from .errors import EchoNovaError, UsageError
+from .resources.agents import Agents, AgentsWithRawResponse, AsyncAgents, AsyncAgentsWithRawResponse
 from .resources.sound_cleaning import (
     AsyncSoundCleaning,
     AsyncSoundCleaningWithRawResponse,
@@ -78,6 +79,7 @@ class EchoNova(BaseClient[httpx.Client]):
     speech_to_text: SpeechToText
     sound_cleaning: SoundCleaning
     widgets: Widgets
+    agents: Agents
 
     def __init__(
         self,
@@ -130,6 +132,7 @@ class EchoNova(BaseClient[httpx.Client]):
         self.speech_to_text = SpeechToText(self)
         self.sound_cleaning = SoundCleaning(self)
         self.widgets = Widgets(self)
+        self.agents = Agents(self)
 
     @cached_property
     def with_raw_response(self) -> EchoNovaWithRawResponse:
@@ -268,6 +271,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
     speech_to_text: AsyncSpeechToText
     sound_cleaning: AsyncSoundCleaning
     widgets: AsyncWidgets
+    agents: AsyncAgents
 
     def __init__(
         self,
@@ -318,6 +322,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
         self.speech_to_text = AsyncSpeechToText(self)
         self.sound_cleaning = AsyncSoundCleaning(self)
         self.widgets = AsyncWidgets(self)
+        self.agents = AsyncAgents(self)
 
     @cached_property
     def with_raw_response(self) -> AsyncEchoNovaWithRawResponse:
@@ -460,6 +465,7 @@ class EchoNovaWithRawResponse:
         self.speech_to_text = SpeechToTextWithRawResponse(client.speech_to_text)
         self.sound_cleaning = SoundCleaningWithRawResponse(client.sound_cleaning)
         self.widgets = WidgetsWithRawResponse(client.widgets)
+        self.agents = AgentsWithRawResponse(client.agents)
 
 
 class AsyncEchoNovaWithRawResponse:
@@ -468,3 +474,4 @@ class AsyncEchoNovaWithRawResponse:
         self.speech_to_text = AsyncSpeechToTextWithRawResponse(client.speech_to_text)
         self.sound_cleaning = AsyncSoundCleaningWithRawResponse(client.sound_cleaning)
         self.widgets = AsyncWidgetsWithRawResponse(client.widgets)
+        self.agents = AsyncAgentsWithRawResponse(client.agents)

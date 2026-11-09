@@ -45,6 +45,8 @@ def test_same_resources_methods_and_parameters() -> None:
         "client.speech_to_text.jobs.export",
         "client.sound_cleaning.jobs.download",
         "client.widgets.create_ticket",
+        "client.agents.sessions.start",
+        "client.agents.sessions.end",
         "client.download",
         "client.with_options",
     ]:
@@ -65,6 +67,7 @@ def test_same_raw_response_surface() -> None:
 
     assert names(sync_raw) == names(async_raw)
     assert "text_to_speech.jobs.list" in names(sync_raw)
+    assert {"agents.sessions.start", "agents.sessions.get", "agents.sessions.end"} <= names(sync_raw)
 
 
 @pytest.mark.parametrize("name", ["_ws_base_url", "_user_agent", "_auth_headers", "_async_auth_headers"])
