@@ -1,5 +1,6 @@
 /**
- * The EchoNova client: configuration, authentication and the HTTP transport.
+ * The EchoNova client: configuration, authentication, the HTTP transport and
+ * the service namespaces.
  *
  * ```ts
  * import EchoNova from 'echonova';
@@ -8,15 +9,31 @@
  */
 
 import * as Errors from './errors.js';
-import { HttpTransport, type AuthContext, type FetchLike, type HeaderValues } from './core/http.js';
+import { download as downloadLink, type DownloadOptions } from './core/download.js';
+import {
+  HttpTransport,
+  type AuthContext,
+  type FetchLike,
+  type HeaderValues,
+  type OnRequestHook,
+  type OnResponseHook,
+} from './core/http.js';
 import { isLogLevel, makeLogger, type Logger, type LogLevel } from './core/logger.js';
+import { PollLimiter } from './core/polling.js';
 import { RateLimitTracker, type RateLimitInfo } from './core/ratelimit.js';
 import { RetryPolicy } from './core/retry.js';
 import { loadRules } from './core/rules.js';
+import { defaultRuntime, type Runtime } from './core/runtime.js';
+import { Agents } from './resources/agents.js';
+import type { ClientContext } from './resources/resource.js';
+import { SoundCleaning } from './resources/sound-cleaning.js';
+import { SpeechToText } from './resources/speech-to-text.js';
+import { TextToSpeech } from './resources/text-to-speech.js';
+import { Widgets } from './resources/widgets.js';
 import { isBrowserLike, readEnv, runtimeInfo } from './runtime/detect.js';
 import { VERSION } from './version.js';
 
-export type { AuthContext, FetchLike } from './core/http.js';
+export type { AuthContext, FetchLike, OnRequestHook, OnResponseHook, RequestDetails } from './core/http.js';
 
 export const DEFAULT_BASE_URL = 'https://api.echonova.ai';
 
@@ -48,12 +65,14 @@ export interface ClientOptions {
   timeout?: number | undefined;
   /** Retries for failures that are safe to retry. Default 2. A POST that may have run is never retried. */
   maxRetries?: number | undefined;
+  /** Total milliseconds for one call, retries and rate-limit waits included. Default: none. */
+  deadline?: number | undefined;
   /**
    * Wait for the rate-limit window to reset when the last response said no
    * requests remain, instead of sending a request that would be throttled. Default true.
    */
   rateLimitPreflight?: boolean | undefined;
-  /** Headers sent with every request. A `null` value removes a default header. */
+  /** Headers sent with every API request. A `null` value removes a default header. */
   defaultHeaders?: HeaderValues | undefined;
   /** A custom `fetch` implementation. Defaults to `globalThis.fetch`. */
   fetch?: FetchLike | undefined;
@@ -66,6 +85,22 @@ export interface ClientOptions {
   logLevel?: LogLevel | undefined;
   /** Where log lines go. Defaults to `console`. */
   logger?: Logger | undefined;
+  /** Called before each attempt of an API call (not downloads). It may change the headers. */
+  onRequest?: OnRequestHook | undefined;
+  /** Called with each API response (not downloads), after the SDK has read its body. */
+  onResponse?: OnResponseHook | undefined;
+}
+
+/** Client-side rate-limit state for one API key, shared with `withOptions()` copies. */
+interface Limits {
+  tracker: RateLimitTracker;
+  limiter: PollLimiter;
+}
+
+/** @internal Options the SDK and its tests pass between clients. Not part of the public API. */
+export interface InternalClientOptions extends ClientOptions {
+  _runtime?: Partial<Runtime> | undefined;
+  _shared?: { lifecycle: AbortController; limits: Limits | undefined } | undefined;
 }
 
 /** Show a key as `ek_…c21d`: enough to tell keys apart, useless to an attacker. Short keys are hidden entirely. */
@@ -94,6 +129,18 @@ function normalizeBaseURL(value: string): string {
   }
   if (url.search || url.hash) throw new Errors.UsageError('baseURL must not have a query string or fragment');
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+}
+
+/** Merge header sets: later ones win, names compared case-insensitively, `null` removes. */
+function mergeHeaders(...sources: Array<HeaderValues | undefined>): Record<string, string> {
+  const merged = new Map<string, [string, string]>();
+  for (const source of sources) {
+    for (const [name, value] of Object.entries(source ?? {})) {
+      if (value === null) merged.delete(name.toLowerCase());
+      else if (value !== undefined) merged.set(name.toLowerCase(), [name, value]);
+    }
+  }
+  return Object.fromEntries(merged.values());
 }
 
 const transports = new WeakMap<EchoNova, HttpTransport>();
@@ -150,15 +197,33 @@ export class EchoNova {
   readonly timeout: number | null;
   readonly maxRetries: number;
 
-  readonly #apiKey: string | null;
-  readonly #hasAuthHook: boolean;
-
   // --- Resources --------------------------------------------------------------------------
-  // The service namespaces (textToSpeech, speechToText, soundCleaning) are added here once
-  // their API is final. Each one is built in the constructor from `transportOf(this)`; see
-  // src/resources/resource.ts.
+  /** Text to Speech: `generate`, `voices` and async `jobs`. */
+  readonly textToSpeech: TextToSpeech;
+  /** Speech to Text: `transcribe` and async `jobs` with transcript export. */
+  readonly speechToText: SpeechToText;
+  /** Sound Cleaning: `clean` and its `jobs`. */
+  readonly soundCleaning: SoundCleaning;
+  /** Agents widget tickets. */
+  readonly widgets: Widgets;
+  /** Live agent sessions. */
+  readonly agents: Agents;
+
+  readonly #apiKey: string | null;
+  readonly #auth: AuthHook | undefined;
+  readonly #options: InternalClientOptions;
+  readonly #lifecycle: AbortController;
+  readonly #ownsLifecycle: boolean;
+  readonly #limits: Limits;
+  readonly #runtime: Runtime;
+  readonly #logger: Logger;
+  readonly #policy: RetryPolicy;
+  readonly #fetch: FetchLike;
+  readonly #userAgent: string | null;
+  readonly #rateLimitPreflight: boolean;
 
   constructor(options: ClientOptions = {}) {
+    const internal = options as InternalClientOptions;
     const auth = options.auth;
     // With an auth hook the environment key is not used: it must never reach a custom proxy by accident.
     const keyOption = options.apiKey === undefined && auth === undefined ? readEnv('ECHONOVA_API_KEY') : options.apiKey;
@@ -182,16 +247,22 @@ export class EchoNova {
           'or pass `dangerouslyAllowBrowser: true` if you understand the risk.',
       );
     }
-    if (apiKey !== null && !apiKey.startsWith('ek_')) {
-      logger.warn("the API key does not start with 'ek_'; check it is an EchoNova API key");
-    }
-    if (new URL(baseURL).pathname.replace(/\/+$/, '').endsWith('/v1')) {
-      logger.warn('baseURL ends with /v1, but request paths already start with /v1');
+    if (!internal._shared) {
+      if (apiKey !== null && !apiKey.startsWith('ek_')) {
+        logger.warn("the API key does not start with 'ek_'; check it is an EchoNova API key");
+      }
+      if (new URL(baseURL).pathname.replace(/\/+$/, '').endsWith('/v1')) {
+        logger.warn('baseURL ends with /v1, but request paths already start with /v1');
+      }
     }
 
     const timeout = options.timeout ?? null;
     if (timeout !== null && !(Number.isFinite(timeout) && timeout > 0)) {
       throw new Errors.UsageError('timeout must be a positive number of milliseconds');
+    }
+    const deadline = options.deadline ?? null;
+    if (deadline !== null && !(Number.isFinite(deadline) && deadline > 0)) {
+      throw new Errors.UsageError('deadline must be a positive number of milliseconds');
     }
     const maxRetries = options.maxRetries ?? loadRules().defaults.maxRetries;
     if (!Number.isInteger(maxRetries) || maxRetries < 0) {
@@ -203,44 +274,184 @@ export class EchoNova {
       throw new Errors.UnsupportedEnvironmentError('fetch is not available in this runtime; pass `fetch` in the options');
     }
 
+    const runtime: Runtime = { ...defaultRuntime, ...internal._runtime };
+    const shared = internal._shared;
     this.#apiKey = apiKey;
-    this.#hasAuthHook = auth !== undefined;
+    this.#auth = auth;
+    this.#options = { ...options, apiKey, baseURL };
+    this.#lifecycle = shared?.lifecycle ?? new AbortController();
+    this.#ownsLifecycle = shared === undefined;
+    this.#limits = shared?.limits ?? {
+      tracker: new RateLimitTracker({ clock: runtime.clock }),
+      limiter: new PollLimiter({ clock: runtime.clock }),
+    };
+    this.#runtime = runtime;
+    this.#logger = logger;
+    this.#policy = new RetryPolicy({ maxRetries, random: runtime.random });
+    this.#fetch = fetchImpl;
+    this.#userAgent = userAgent();
+    this.#rateLimitPreflight = options.rateLimitPreflight ?? true;
     this.baseURL = baseURL;
     this.timeout = timeout;
     this.maxRetries = maxRetries;
 
-    transports.set(
-      this,
-      new HttpTransport({
-        baseURL,
-        fetch: fetchImpl,
-        timeout,
-        maxRetries,
-        defaultHeaders: { ...options.defaultHeaders },
-        authHeaders: async (context) => {
-          const headers: Record<string, string | null | undefined> = {};
-          if (apiKey !== null) headers['Authorization'] = `Bearer ${apiKey}`;
-          if (auth) Object.assign(headers, await auth(context));
-          return headers;
-        },
-        userAgent: userAgent(),
-        logger,
-        rateLimitPreflight: options.rateLimitPreflight ?? true,
-        tracker: new RateLimitTracker(),
-        policy: new RetryPolicy({ maxRetries }),
-      }),
+    const transport = new HttpTransport({
+      baseURL,
+      fetch: fetchImpl,
+      timeout,
+      maxRetries,
+      deadline,
+      defaultHeaders: { ...options.defaultHeaders },
+      authHeaders: (context) => this.#credentials(context),
+      userAgent: this.#userAgent,
+      logger,
+      rateLimitPreflight: this.#rateLimitPreflight,
+      tracker: this.#limits.tracker,
+      policy: this.#policy,
+      onRequest: options.onRequest,
+      onResponse: options.onResponse,
+      closeSignal: this.#lifecycle.signal,
+      sleep: runtime.sleep,
+      now: () => runtime.clock() * 1000,
+      date: runtime.now,
+    });
+    transports.set(this, transport);
+
+    const context: ClientContext = {
+      transport,
+      limiter: this.#limits.limiter,
+      runtime,
+      logger,
+      download: (url, opts) => this.download(url, opts),
+    };
+    this.textToSpeech = new TextToSpeech(context);
+    this.speechToText = new SpeechToText(context);
+    this.soundCleaning = new SoundCleaning(context);
+    this.widgets = new Widgets(context);
+    this.agents = new Agents(context);
+  }
+
+  /** The API key and the `auth` hook's headers, for one request. */
+  async #credentials(context: AuthContext): Promise<Record<string, string | null | undefined>> {
+    const headers: Record<string, string | null | undefined> = {};
+    if (this.#apiKey !== null) headers['Authorization'] = `Bearer ${this.#apiKey}`;
+    if (this.#auth) Object.assign(headers, await this.#auth(context));
+    return headers;
+  }
+
+  /** The last rate-limit headers seen for each operation (`"textToSpeech.jobs.get"`, ...). */
+  get rateLimits(): Readonly<Record<string, RateLimitInfo>> {
+    return this.#limits.tracker.snapshot();
+  }
+
+  /**
+   * A copy with some options changed. It shares this client's lifecycle and, when
+   * the key, `baseURL` and `auth` are unchanged, its rate-limit state. Close this
+   * client, not the copy.
+   */
+  withOptions(options: ClientOptions = {}): EchoNova {
+    const changes = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined)) as ClientOptions;
+    const merged: InternalClientOptions = { ...this.#options, ...changes };
+    const sameIdentity =
+      merged.apiKey === this.#options.apiKey && merged.baseURL === this.#options.baseURL && merged.auth === this.#options.auth;
+    merged._runtime = this.#runtime;
+    merged._shared = { lifecycle: this.#lifecycle, limits: sameIdentity ? this.#limits : undefined };
+    return new EchoNova(merged);
+  }
+
+  /**
+   * Download a signed link (`audioUrl`, `outputUrl`) without sending your API
+   * key, retrying transient failures. With `to` (Node.js, Bun, Deno), streams to
+   * that file (or into that directory, keeping the link's file name) and resolves
+   * to the path; otherwise resolves to the bytes. An expired link throws
+   * `DownloadExpiredError`: get the job again for a fresh one.
+   */
+  download(url: string | null | undefined, options: DownloadOptions & { to: string }): Promise<string>;
+  download(url: string | null | undefined, options?: DownloadOptions): Promise<Uint8Array>;
+  download(url: string | null | undefined, options?: DownloadOptions): Promise<Uint8Array | string> {
+    return downloadLink(
+      {
+        fetch: this.#fetch,
+        userAgent: this.#userAgent,
+        policy: this.#policy,
+        runtime: this.#runtime,
+        logger: this.#logger,
+        closeSignal: this.#lifecycle.signal,
+      },
+      url,
+      options,
     );
   }
 
-  /** The last rate-limit headers seen for each operation. */
-  get rateLimits(): Readonly<Record<string, RateLimitInfo>> {
-    return transportOf(this).tracker.snapshot();
+  /**
+   * Stop using this client: in-flight requests are cancelled and new ones throw
+   * `UsageError`. Copies made with `withOptions()` close with it; closing a copy does nothing.
+   */
+  async close(): Promise<void> {
+    if (this.#ownsLifecycle && !this.#lifecycle.signal.aborted) {
+      this.#lifecycle.abort(new Errors.UsageError('the client was closed'));
+    }
+  }
+
+  /** `await using client = new EchoNova()` closes the client at the end of the scope. */
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
+  }
+
+  // --- For the streaming layer (internal; not part of the public API) ----------------------
+
+  /** @internal The WebSocket base URL: `https` becomes `wss` and `http` becomes `ws`. */
+  get _wsBaseURL(): string {
+    return this.baseURL.replace(/^http/, 'ws');
+  }
+
+  /**
+   * @internal Headers for one WebSocket upgrade: `defaultHeaders`, then the API key
+   * (`Authorization`), then the `auth` hook's headers. Never log the result.
+   */
+  async _authHeaders(context: AuthContext = { method: 'GET', url: this._wsBaseURL }): Promise<Record<string, string>> {
+    return mergeHeaders(this.#options.defaultHeaders, await this.#credentials(context));
+  }
+
+  /** @internal The `User-Agent` to send, or null in browsers (which don't allow setting it). */
+  get _userAgent(): string | null {
+    return this.#userAgent;
+  }
+
+  /** @internal The retry policy (maxRetries, backoff, the shared retry table). */
+  get _retryPolicy(): RetryPolicy {
+    return this.#policy;
+  }
+
+  /** @internal Per-operation rate-limit state, shared with `withOptions()` copies for the same key. */
+  get _rateLimitTracker(): RateLimitTracker {
+    return this.#limits.tracker;
+  }
+
+  /** @internal Whether calls wait for an exhausted rate-limit window before sending. */
+  get _rateLimitPreflight(): boolean {
+    return this.#rateLimitPreflight;
+  }
+
+  /** @internal The client's logger (already filtered by level). */
+  get _logger(): Logger {
+    return this.#logger;
+  }
+
+  /** @internal Clock, sleep and randomness (replaced in tests). */
+  get _runtime(): Runtime {
+    return this.#runtime;
+  }
+
+  /** @internal Aborts when the client is closed. */
+  get _closeSignal(): AbortSignal {
+    return this.#lifecycle.signal;
   }
 
   /** `EchoNova(baseURL='https://api.echonova.ai', apiKey='ek_…c21d')`. Never shows the key itself. */
   toString(): string {
     const key = redactKey(this.#apiKey);
-    const auth = this.#hasAuthHook ? ', auth=<hook>' : '';
+    const auth = this.#auth ? ', auth=<hook>' : '';
     return `EchoNova(baseURL='${this.baseURL}', apiKey=${key === null ? 'null' : `'${key}'`}${auth})`;
   }
 

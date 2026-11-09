@@ -11,10 +11,11 @@
 
 import {
   APIConnectionError,
-  APIStatusError,
   APITimeoutError,
+  EchoNovaError,
   ProtocolError,
   RateLimitError,
+  UsageError,
 } from '../errors.js';
 import { classifyResponse, buildStatusError, executedFlag } from './classifier.js';
 import { header, headersToRecord, MalformedEnvelopeError, parseErrorBody, unwrapSuccess } from './envelope.js';
@@ -22,6 +23,9 @@ import type { Logger } from './logger.js';
 import type { RateLimitInfo, RateLimitTracker } from './ratelimit.js';
 import { RetryPolicy, type RetryDecision } from './retry.js';
 import type { Phase } from './rules.js';
+import { defaultSleep } from './runtime.js';
+
+export { defaultSleep } from './runtime.js';
 
 /** The subset of `fetch` the SDK uses. Any WHATWG-compatible implementation works. */
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -30,7 +34,25 @@ export type HeaderValues = Readonly<Record<string, string | null | undefined>>;
 
 export type RequestBody = string | Uint8Array | ArrayBuffer | Blob | FormData | URLSearchParams | ReadableStream<Uint8Array>;
 
-export interface RequestSpec {
+/** An upload body that can be opened once per attempt (a file reopened, bytes reused, a stream once). */
+export interface UploadBody {
+  /** A fresh body for one attempt, with its content type when `fetch` can't set it (a streamed multipart body). */
+  open(): Promise<{ body: RequestBody; contentType?: string | undefined }>;
+  /** Whether a failed attempt may be sent again: false once a one-shot stream has been read. */
+  replayable(): boolean;
+}
+
+/** What the SDK passes to a parser and keeps for `withResponse()`. */
+export interface ResponseMeta {
+  status: number;
+  headers: Headers;
+  requestId: string | null;
+  /** A DELETE whose first attempt got no response and whose retry got 404: the job was already deleted. */
+  alreadyDeleted: boolean;
+}
+
+// `any` keeps a plain `RequestSpec` assignable to every `RequestSpec<T>`.
+export interface RequestSpec<T = any> {
   method: 'GET' | 'POST' | 'DELETE' | (string & {});
   /** Path including the version prefix, e.g. `/v1/text-to-speech/voices`. */
   path: string;
@@ -45,15 +67,26 @@ export interface RequestSpec {
   body?: RequestBody | undefined;
   /** Override replayability, e.g. `false` for a body that is consumed when read. */
   bodyReplayable?: boolean | undefined;
+  /** An audio upload. Sent with `redirect: 'error'`, so `fetch` never buffers it for a redirect. */
+  upload?: UploadBody | undefined;
   headers?: HeaderValues | undefined;
   /** Per-call timeout in milliseconds (one attempt). */
   timeout?: number | undefined;
   /** The operation's default timeout in milliseconds, used when neither the call nor the client sets one. */
   defaultTimeout?: number | undefined;
+  /** Total milliseconds for the call, retries and waits included. */
+  deadline?: number | null | undefined;
   maxRetries?: number | undefined;
   signal?: AbortSignal | undefined;
   /** `envelope` (default): unwrap `data`. `bytes`: raw body (file downloads such as transcript export). */
   responseType?: 'envelope' | 'bytes' | undefined;
+  /**
+   * Turns the response data into the result. Runs inside the retry loop: a
+   * `MalformedEnvelopeError` is handled like a malformed body (rule R4).
+   */
+  parse?: ((data: unknown, meta: ResponseMeta) => T) | undefined;
+  /** The response holds a secret: never copy its body into an error. */
+  sensitive?: boolean | undefined;
 }
 
 export interface APIResponse<T> {
@@ -66,12 +99,32 @@ export interface APIResponse<T> {
   attempts: number;
   /** A DELETE whose first attempt got no response and whose retry got 404: the job was already deleted. */
   alreadyDeleted: boolean;
+  /** The HTTP response. Its body has already been read. */
+  response: Response;
 }
 
 export interface AuthContext {
   method: string;
   url: string;
 }
+
+/** One attempt of an API call, as passed to the `onRequest` and `onResponse` hooks. */
+export interface RequestDetails {
+  /** The SDK operation, e.g. `textToSpeech.jobs.get`. */
+  operation: string;
+  method: string;
+  url: string;
+  /** The headers about to be sent. A hook may add or change them. They include your credentials. */
+  headers: Headers;
+  /** 1 for the first attempt. */
+  attempt: number;
+  /** This attempt's deadline in milliseconds. */
+  timeout: number;
+}
+
+export type OnRequestHook = (request: RequestDetails) => void | Promise<void>;
+/** Called with each HTTP response from the API (not downloads), after the SDK has read its body. */
+export type OnResponseHook = (response: Response, request: RequestDetails) => void | Promise<void>;
 
 export interface TransportOptions {
   baseURL: string;
@@ -87,10 +140,18 @@ export interface TransportOptions {
   rateLimitPreflight: boolean;
   tracker: RateLimitTracker;
   policy: RetryPolicy;
+  /** Client-wide total deadline per call, in milliseconds. */
+  deadline?: number | null | undefined;
+  onRequest?: OnRequestHook | undefined;
+  onResponse?: OnResponseHook | undefined;
+  /** Aborts in-flight requests and refuses new ones once the client is closed. */
+  closeSignal?: AbortSignal | undefined;
   /** Waits `ms` milliseconds; rejects with the signal's reason if aborted. */
   sleep?: ((ms: number, signal?: AbortSignal) => Promise<void>) | undefined;
-  /** Monotonic milliseconds, for elapsed-time logs. */
+  /** Monotonic milliseconds, for elapsed time and deadlines. */
   now?: (() => number) | undefined;
+  /** Wall-clock time, for `sentAt`. */
+  date?: (() => Date) | undefined;
 }
 
 export const FALLBACK_TIMEOUT_MS = 60_000;
@@ -101,6 +162,10 @@ const PHASE_MESSAGES: Readonly<Record<Phase, string>> = {
   no_response: 'No response from {target} after the request was sent',
   malformed_success: 'Unexpected response body from {target}',
 };
+
+export function phaseMessage(phase: Phase, target: string): string {
+  return PHASE_MESSAGES[phase].replace('{target}', target);
+}
 
 const method = (what: string): string => what.slice(0, what.indexOf(' '));
 
@@ -132,47 +197,77 @@ export function failurePhase(error: unknown): Phase {
   return 'no_response';
 }
 
-export function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason);
-      return;
-    }
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      reject(signal?.reason);
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    signal?.addEventListener('abort', onAbort, { once: true });
+/** True when `fetch` refused to follow a redirect (`redirect: 'error'`). */
+function isRedirectRefusal(error: unknown): boolean {
+  const cause = (error as { cause?: { message?: unknown } } | null)?.cause;
+  return typeof cause?.message === 'string' && /redirect/i.test(cause.message);
+}
+
+/** An SDK error raised while `fetch` read the request body (such as an upload stream that yielded text). */
+function bodyError(error: unknown): EchoNovaError | null {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth += 1) {
+    if (current instanceof EchoNovaError) return current;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/**
+ * Settle with `promise`, or reject with the signal's reason as soon as it aborts,
+ * even when a custom `fetch` or response body ignores the signal.
+ */
+export function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    promise.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
   });
 }
 
-/** One attempt's signal: aborts on the caller's signal or when the attempt's deadline passes. */
-function attemptSignal(user: AbortSignal | undefined, timeoutMs: number) {
+/** One attempt's signal: aborts on the caller's signal, on client close, or when the attempt's deadline passes. */
+export function attemptSignal(signals: ReadonlyArray<AbortSignal | undefined>, timeoutMs: number) {
   const controller = new AbortController();
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new DOMException(`request timed out after ${timeoutMs} ms`, 'TimeoutError'));
-  }, timeoutMs);
-  const onAbort = (): void => controller.abort(user?.reason);
-  if (user?.aborted) controller.abort(user.reason);
-  else user?.addEventListener('abort', onAbort, { once: true });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  /** (Re)start the deadline: `ms` from now. */
+  const arm = (ms: number): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new DOMException(`request timed out after ${ms} ms`, 'TimeoutError'));
+    }, ms);
+  };
+  arm(timeoutMs);
+  const listeners: Array<() => void> = [];
+  for (const signal of signals) {
+    if (!signal) continue;
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      continue;
+    }
+    const onAbort = (): void => controller.abort(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    listeners.push(() => signal.removeEventListener('abort', onAbort));
+  }
   return {
     signal: controller.signal,
     timedOut: () => timedOut,
+    /** Restart the deadline, e.g. while a download is still receiving data. */
+    reset: arm,
     done: () => {
       clearTimeout(timer);
-      user?.removeEventListener('abort', onAbort);
+      for (const remove of listeners) remove();
     },
   };
 }
 
-function isReplayable(body: RequestBody | undefined): boolean {
-  return !(typeof ReadableStream !== 'undefined' && body instanceof ReadableStream);
+function isStream(body: unknown): body is ReadableStream {
+  return typeof ReadableStream !== 'undefined' && body instanceof ReadableStream;
 }
 
 function isSuccess(status: number): boolean {
@@ -184,9 +279,11 @@ export class HttpTransport {
   readonly maxRetries: number;
   readonly timeout: number | null;
   readonly tracker: RateLimitTracker;
+  readonly policy: RetryPolicy;
   readonly #options: TransportOptions;
   readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   readonly #now: () => number;
+  readonly #date: () => Date;
 
   constructor(options: TransportOptions) {
     this.#options = options;
@@ -194,8 +291,10 @@ export class HttpTransport {
     this.maxRetries = options.maxRetries;
     this.timeout = options.timeout;
     this.tracker = options.tracker;
+    this.policy = options.policy;
     this.#sleep = options.sleep ?? defaultSleep;
     this.#now = options.now ?? (() => performance.now());
+    this.#date = options.date ?? (() => new Date());
   }
 
   buildURL(path: string, query?: RequestSpec['query']): string {
@@ -209,7 +308,7 @@ export class HttpTransport {
     return text ? `${url}?${text}` : url;
   }
 
-  async #headers(spec: RequestSpec, url: string): Promise<Headers> {
+  async #headers(spec: RequestSpec<unknown>, url: string): Promise<Headers> {
     const headers = new Headers();
     const apply = (values: HeaderValues | undefined): void => {
       if (!values) return;
@@ -230,20 +329,22 @@ export class HttpTransport {
   /**
    * Wait while the bucket is blocked by a throttle 429 or its window is used up,
    * instead of sending a request that would only extend the block. A wait longer
-   * than the policy's `maxRetryAfter` throws `RateLimitError` without sending.
+   * than the policy's `maxRetryAfter` (or past the deadline) throws `RateLimitError` without sending.
    */
   async #waitForBucket(
     bucket: string,
     policy: RetryPolicy,
     firstSentAt: Date | null,
     signal: AbortSignal | undefined,
+    deadlineAt: number | null,
   ): Promise<void> {
     for (;;) {
       const seconds = this.tracker.waitTime(bucket, { preflight: this.#options.rateLimitPreflight });
       if (seconds <= 0) return;
-      if (seconds > policy.maxRetryAfter) {
+      if (seconds > policy.maxRetryAfter || (deadlineAt !== null && this.#now() + seconds * 1000 > deadlineAt)) {
+        const sent = firstSentAt === null ? 'nothing was sent' : 'the request was not sent again';
         throw new RateLimitError({
-          message: `the rate limit for ${bucket} clears in ${seconds.toFixed(0)} s, beyond what this call may wait; nothing was sent`,
+          message: `the rate limit for ${bucket} clears in ${seconds.toFixed(0)} s, beyond what this call may wait; ${sent}`,
           retryAfter: seconds,
           sentAt: firstSentAt,
         });
@@ -253,7 +354,11 @@ export class HttpTransport {
     }
   }
 
-  async request<T = unknown>(spec: RequestSpec): Promise<APIResponse<T>> {
+  #checkOpen(what: string): void {
+    if (this.#options.closeSignal?.aborted) throw new UsageError(`the client is closed; ${what} was not sent`);
+  }
+
+  async request<T = unknown>(spec: RequestSpec<T>): Promise<APIResponse<T>> {
     const method = spec.method.toUpperCase();
     const what = `${method} ${spec.route ?? spec.path}`;
     const url = this.buildURL(spec.path, spec.query);
@@ -261,9 +366,15 @@ export class HttpTransport {
     const base = this.#options.policy;
     const policy =
       maxRetries === base.maxRetries ? base : new RetryPolicy({ maxRetries, maxRetryAfter: base.maxRetryAfter, rules: base.rules });
-    const replayable = spec.bodyReplayable ?? isReplayable(spec.body);
+    const upload = spec.upload;
+    const replayable = (): boolean =>
+      upload ? upload.replayable() : (spec.bodyReplayable ?? !isStream(spec.body));
     const timeoutMs = spec.timeout ?? this.timeout ?? spec.defaultTimeout ?? FALLBACK_TIMEOUT_MS;
+    const deadlineMs = spec.deadline ?? this.#options.deadline ?? null;
+    const deadlineAt = deadlineMs === null ? null : this.#now() + deadlineMs;
+    const closeSignal = this.#options.closeSignal;
     const log = this.#options.logger;
+    this.#checkOpen(what);
 
     let retriesDone = 0;
     // The first attempt's send time: where to start looking for a job a lost POST may have created.
@@ -272,6 +383,7 @@ export class HttpTransport {
     let anAttemptWentUnanswered = false;
     const retryAfterDelay = async (decision: RetryDecision, reason: string): Promise<boolean> => {
       if (!decision.retry) return false;
+      if (deadlineAt !== null && this.#now() + decision.delay * 1000 >= deadlineAt) return false;
       log.info(`retrying ${what} in ${decision.delay.toFixed(2)} s (attempt ${retriesDone + 1} failed: ${reason})`);
       await this.#sleep(decision.delay * 1000, spec.signal);
       retriesDone += 1;
@@ -280,35 +392,73 @@ export class HttpTransport {
 
     for (;;) {
       spec.signal?.throwIfAborted();
-      await this.#waitForBucket(spec.bucket, policy, firstSentAt, spec.signal);
+      this.#checkOpen(what);
+      await this.#waitForBucket(spec.bucket, policy, firstSentAt, spec.signal, deadlineAt);
+      let attemptTimeout = timeoutMs;
+      if (deadlineAt !== null) {
+        const remaining = Math.floor(deadlineAt - this.#now());
+        if (remaining <= 0) {
+          throw new APITimeoutError(`the deadline of ${deadlineMs} ms expired before ${what} was sent`, {
+            kind: 'total',
+            sentAt: firstSentAt,
+          });
+        }
+        attemptTimeout = Math.min(timeoutMs, remaining);
+      }
       const attempt = retriesDone + 1;
       const headers = await this.#headers(spec, url);
-      const init: RequestInit & { duplex?: 'half' } = { method, headers, redirect: 'manual' };
-      if (spec.json !== undefined) init.body = JSON.stringify(spec.json);
-      else if (spec.body !== undefined) {
-        init.body = spec.body as BodyInit;
-        if (!isReplayable(spec.body)) init.duplex = 'half';
+      const init: RequestInit & { duplex?: 'half' } = { method, headers, redirect: upload ? 'error' : 'manual' };
+      let body: RequestBody | undefined = spec.body;
+      if (spec.json !== undefined) body = JSON.stringify(spec.json);
+      else if (upload) {
+        const opened = await upload.open();
+        body = opened.body;
+        if (opened.contentType) headers.set('Content-Type', opened.contentType);
       }
+      if (body !== undefined) {
+        init.body = body as BodyInit;
+        if (isStream(body)) init.duplex = 'half';
+      }
+      const details: RequestDetails = { operation: spec.bucket, method, url, headers, attempt, timeout: attemptTimeout };
+      await this.#options.onRequest?.(details);
 
-      const deadline = attemptSignal(spec.signal, timeoutMs);
+      const deadline = attemptSignal([spec.signal, closeSignal], attemptTimeout);
       init.signal = deadline.signal;
-      firstSentAt ??= new Date();
+      firstSentAt ??= this.#date();
       const started = this.#now();
       let response: Response;
       let bytes: Uint8Array;
       try {
-        response = await this.#options.fetch(url, init);
-        bytes = new Uint8Array(await response.arrayBuffer());
+        response = await abortable(this.#options.fetch(url, init), deadline.signal);
+        bytes = new Uint8Array(await abortable(response.arrayBuffer(), deadline.signal));
       } catch (error) {
         deadline.done();
         if (spec.signal?.aborted) throw spec.signal.reason ?? error;
+        if (closeSignal?.aborted) {
+          throw new APIConnectionError(`${what} was cancelled because the client was closed`, {
+            mayHaveExecuted: executedFlag('unknown', method),
+            sentAt: firstSentAt,
+            cause: error,
+          });
+        }
         const timedOut = deadline.timedOut();
+        // The body broke before it was fully sent, so the request can't have run.
+        const fromBody = upload && !timedOut ? bodyError(error) : null;
+        if (fromBody) throw fromBody;
+        if (upload && !timedOut && isRedirectRefusal(error)) {
+          throw new ProtocolError({
+            errorMessage: `the server answered ${what} with a redirect, which the SDK does not follow for uploads`,
+            mayHaveExecuted: executedFlag('unknown', method),
+            sentAt: firstSentAt,
+            cause: error,
+          });
+        }
         const phase: Phase = timedOut ? 'no_response' : failurePhase(error);
         anAttemptWentUnanswered ||= phase === 'no_response';
         log.debug(`${what} failed: ${timedOut ? 'timeout' : phase} (attempt ${attempt})`);
-        const decision = policy.decideTransport(method, phase, { retriesDone, bodyReplayable: replayable });
+        const decision = policy.decideTransport(method, phase, { retriesDone, bodyReplayable: replayable() });
         if (await retryAfterDelay(decision, decision.row)) continue;
-        throw this.#connectionError(what, phase, decision, { timedOut, timeoutMs, sentAt: firstSentAt, cause: error });
+        throw this.#connectionError(what, phase, decision, { timedOut, timeoutMs: attemptTimeout, sentAt: firstSentAt, cause: error });
       }
       deadline.done();
 
@@ -317,22 +467,26 @@ export class HttpTransport {
       const rateLimit = this.tracker.observe(spec.bucket, response.headers);
       const elapsed = Math.round(this.#now() - started);
       log.debug(`${what} -> ${status} request_id=${requestId ?? '-'} attempt=${attempt} elapsed=${elapsed}ms`);
-      const meta = { status, headers: response.headers, requestId, rateLimit, attempts: attempt };
+      await this.#options.onResponse?.(response, details);
+      const meta = { status, headers: response.headers, requestId, rateLimit, attempts: attempt, response };
+      const finish = (data: unknown, alreadyDeleted: boolean): APIResponse<T> => {
+        const parsed = spec.parse ? spec.parse(data, { status, headers: response.headers, requestId, alreadyDeleted }) : (data as T);
+        return { ...meta, data: parsed, alreadyDeleted };
+      };
 
       if (isSuccess(status)) {
-        if (spec.responseType === 'bytes') return { ...meta, data: bytes as T, alreadyDeleted: false };
         try {
-          return { ...meta, data: unwrapSuccess(bytes) as T, alreadyDeleted: false };
+          return finish(spec.responseType === 'bytes' ? bytes : unwrapSuccess(bytes), false);
         } catch (error) {
           if (!(error instanceof MalformedEnvelopeError)) throw error;
-          const decision = policy.decideTransport(method, 'malformed_success', { retriesDone, bodyReplayable: replayable });
+          const decision = policy.decideTransport(method, 'malformed_success', { retriesDone, bodyReplayable: replayable() });
           if (await retryAfterDelay(decision, decision.row)) continue;
           throw new ProtocolError({
             statusCode: status,
             errorMessage: `unexpected response body: ${error.message}`,
             requestId,
             headers: headersToRecord(response.headers),
-            rawBody: parseErrorBody(bytes).rawBody,
+            rawBody: spec.sensitive ? null : parseErrorBody(bytes).rawBody,
             mayHaveExecuted: executedFlag(decision.mayHaveExecuted, method),
             rule: 'malformed_success',
             sentAt: firstSentAt,
@@ -357,10 +511,10 @@ export class HttpTransport {
       const { rule, retryAfter } = classifyResponse(status, response.headers, bytes, { rules: policy.rules });
       if (method === 'DELETE' && anAttemptWentUnanswered && rule.error === 'JobNotFoundError') {
         // An earlier attempt was probably processed, so the job is gone (rule R3).
-        return { ...meta, data: { deleted: true } as T, alreadyDeleted: true };
+        return finish({ deleted: true }, true);
       }
       if (rule.blocksBucket && retryAfter !== null) this.tracker.block(spec.bucket, retryAfter);
-      const decision = policy.decideStatus(method, rule, { retriesDone, retryAfter, bodyReplayable: replayable });
+      const decision = policy.decideStatus(method, rule, { retriesDone, retryAfter, bodyReplayable: replayable() });
       if (await retryAfterDelay(decision, decision.row)) continue;
       throw buildStatusError(status, response.headers, bytes, {
         method,
@@ -385,7 +539,7 @@ export class HttpTransport {
       : cause instanceof Error
         ? `${cause.name}: ${cause.message}`
         : String(cause);
-    let message = `${PHASE_MESSAGES[phase].replace('{target}', what)}: ${detail}`;
+    let message = `${phaseMessage(phase, what)}: ${detail}`;
     if (mayHaveExecuted) message += '. It may have run and been charged: check recent jobs before sending it again.';
     const init = {
       mayHaveExecuted,
