@@ -1,0 +1,40 @@
+name: API spec drift
+
+# Nightly: compare the live published API specs with the vendored, pinned copies.
+# A difference opens (or updates) an issue so the SDKs can be triaged.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare live specs with spec/spec-lock.json
+        id: check
+        run: |
+          set +e
+          python3 tools/spec_sync.py --check > drift.txt 2>&1
+          status=$?
+          cat drift.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Open an issue
+        if: steps.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="API spec drift detected"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
+          body="$(printf 'The published API specs no longer match spec/spec-lock.json.\n\n```\n%s\n```\n\nRun `python3 tools/spec_sync.py`, review the diff, and triage SDK changes.' "$(cat drift.txt)")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
