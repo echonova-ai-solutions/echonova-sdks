@@ -1,0 +1,277 @@
+{
+  "source": "tools/build_webhook_vectors.py",
+  "vectors": [
+    {
+      "name": "tts job.completed",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.completed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "f5a64f1a25117a7a223a7c54a7b1d0eac687150a947797c96b52dd2981b1fa8e"
+      },
+      "body": "{\"jobId\":\"000000000000000000000001\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"tts\",\"durationSeconds\":3.4,\"text\":\"مرحبا بكم في إيكونوفا\",\"audioUrl\":\"https://storage.example.com/tts/out.wav?sig=redacted\"}",
+      "expect": "valid",
+      "expect_type": "JobCompleted"
+    },
+    {
+      "name": "stt job.completed with terminology",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.completed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "e038e9cabc0981cfc0c2cbb50233c252b4bedb6ac604da23f692657d295d06ff"
+      },
+      "body": "{\"jobId\":\"000000000000000000000002\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"durationSeconds\":12.5,\"transcription\":\"hello from the KYC team\",\"terminology\":{\"raw\":\"hello from the kyc team\",\"corrected\":\"hello from the KYC team\",\"edits\":[],\"nearMisses\":[],\"warnings\":[],\"mapperStatus\":\"applied\",\"mapperVersion\":\"1\"}}",
+      "expect": "valid",
+      "expect_type": "JobCompleted"
+    },
+    {
+      "name": "job.failed",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "291476e9e15b25e0491744d8f0e8e3bd222104a0a50a93f9f9c5d2ac4cc23ad5"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "valid",
+      "expect_type": "JobFailed"
+    },
+    {
+      "name": "spending.warning",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "spending.warning",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "2b551979c8a191c4dee967ffbaadeb754f1803f8d9aa50e4ca76178304275f5f"
+      },
+      "body": "{\"apiKeyId\":\"000000000000000000000a01\",\"apiKeyName\":\"production\",\"creditsUsed\":8000,\"creditLimit\":10000,\"percentageUsed\":80}",
+      "expect": "valid",
+      "expect_type": "SpendingWarning"
+    },
+    {
+      "name": "spending.exhausted",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "spending.exhausted",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "4e16612b1325a92d4c8f253caec01eff9d1c03fe5a07ed2153ce0050986eaec9"
+      },
+      "body": "{\"apiKeyId\":\"000000000000000000000a01\",\"apiKeyName\":\"production\",\"creditsUsed\":10000,\"creditLimit\":10000}",
+      "expect": "valid",
+      "expect_type": "SpendingExhausted"
+    },
+    {
+      "name": "unknown event name parses",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.archived",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "486bdd49dfdee729246264c5bda1770164da56cc9d634a3ad84da15985fc6978"
+      },
+      "body": "{\"jobId\":\"000000000000000000000004\"}",
+      "expect": "valid",
+      "expect_type": "UnknownEvent"
+    },
+    {
+      "name": "second secret in the list matches",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000",
+        "whsec_TEST1111111111111111111111111111111111111111"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "596306a530061e01d7335022d071551951ec57f564c8f56b011e9bcbbc3e1d0a"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "valid",
+      "expect_type": "JobFailed"
+    },
+    {
+      "name": "timestamp at the edge of tolerance",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300500",
+        "X-Webhook-Signature": "46444862d1aa90c0a464a6982c8d8e3d198fc28a1c4e8549d008bc76e42672a1"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "valid",
+      "expect_type": "JobFailed"
+    },
+    {
+      "name": "uppercase hex signature accepted",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "291476E9E15B25E0491744D8F0E8E3BD222104A0A50A93F9F9C5D2AC4CC23AD5"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "valid",
+      "expect_type": "JobFailed"
+    },
+    {
+      "name": "wrong secret",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "596306a530061e01d7335022d071551951ec57f564c8f56b011e9bcbbc3e1d0a"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "signature"
+    },
+    {
+      "name": "tampered body",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "291476e9e15b25e0491744d8f0e8e3bd222104a0a50a93f9f9c5d2ac4cc23ad5"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":null}",
+      "expect": "invalid",
+      "reason": "signature"
+    },
+    {
+      "name": "re-serialised body (pretty-printed) does not match",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "291476e9e15b25e0491744d8f0e8e3bd222104a0a50a93f9f9c5d2ac4cc23ad5"
+      },
+      "body": "{\n  \"jobId\": \"000000000000000000000003\",\n  \"apiKeyId\": \"000000000000000000000a01\",\n  \"service\": \"stt\",\n  \"error\": \"Transcription failed. Try again.\"\n}",
+      "expect": "invalid",
+      "reason": "signature"
+    },
+    {
+      "name": "stale timestamp",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300499",
+        "X-Webhook-Signature": "60c49f57abaed3031061ea546f07c84504620a9b4b23775e7a9585bf70425ae1"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "timestamp"
+    },
+    {
+      "name": "timestamp too far in the future",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762301101",
+        "X-Webhook-Signature": "f13ea4b9ebce2f92d51e5ad158b09a907ab550857f523bca4eb3a65b58892e9f"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "timestamp"
+    },
+    {
+      "name": "non-numeric timestamp",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "yesterday",
+        "X-Webhook-Signature": "cd5add731a380bdf2937ee1e9381621c1f299e71d77a757bffe41d4ca9d7e07a"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "timestamp"
+    },
+    {
+      "name": "signature with a sha256= prefix is not the gateway's format",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "sha256=291476e9e15b25e0491744d8f0e8e3bd222104a0a50a93f9f9c5d2ac4cc23ad5"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "signature"
+    },
+    {
+      "name": "missing signature header",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "headers"
+    }
+  ]
+}
