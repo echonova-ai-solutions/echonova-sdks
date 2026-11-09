@@ -53,6 +53,15 @@ class _SttBase:
         return self._protocol.session_id
 
     @property
+    def job_id(self) -> str | None:
+        """The ID this session's job gets once it is saved (from ``session.started``).
+
+        Whether it was saved arrives at the end, in ``SessionSaved`` and in
+        ``stop().saved_status``.
+        """
+        return self._protocol.job_id
+
+    @property
     def language(self) -> str | None:
         return self._protocol.language
 
@@ -84,7 +93,7 @@ class _SttBase:
 
     @property
     def summary(self) -> SessionSummary | None:
-        """Totals from ``session.ended``, once it has arrived."""
+        """Totals from ``session.ended``, once it has arrived (with ``session.saved``, once that has too)."""
         return self._protocol.summary()
 
     @property
@@ -200,7 +209,12 @@ class AsyncSttSession(_SttBase):
             return reply
 
     async def stop(self, timeout: float | None = DEFAULT_STOP_TIMEOUT) -> SessionSummary:
-        """Finish: transcribe the remaining audio, wait for the last transcripts and ``session.ended``."""
+        """Finish: transcribe the remaining audio, wait for the last transcripts and ``session.ended``.
+
+        ``session.saved`` and the close usually follow at once; ``stop()`` waits briefly
+        for them. The summary's ``job_id`` and ``saved_status`` are None if
+        ``session.saved`` did not come.
+        """
         protocol = self._protocol
         if not (protocol.closed or protocol.stop_requested or protocol.ended or protocol.fatal):
             async with self._out_lock:
@@ -210,11 +224,15 @@ class AsyncSttSession(_SttBase):
                     await self._send(frame)
                 await self._send(STOP_FRAME)
         try:
-            await self._wait_until(lambda: protocol.closed, timeout, "stop_drain")
+            await self._wait_until(lambda: protocol.closed or protocol.ended is not None, timeout, "stop_drain")
         except APITimeoutError:
             if self._link is not None:
                 self._link.abort(None)
             raise
+        await self._settle()
+        if not protocol.closed and self._link is not None:
+            logger.debug("no close after session.ended; closing the Speech to Text session")
+            await self._link.close()
         if protocol.fatal is not None:
             raise protocol.fatal
         summary = protocol.summary()
@@ -287,7 +305,7 @@ class AsyncSttSession(_SttBase):
         event.set()
 
     async def _settle(self) -> None:
-        """After ``session.ended``, wait for the close: it decides which error, if any, applies."""
+        """After ``session.ended``, wait briefly for ``session.saved`` and the close (which decides any error)."""
         link = self._link
         if self._protocol.ended is not None and not self._protocol.closed and link is not None:
             await wait_event(link.done, self._options.close_timeout)
@@ -440,7 +458,12 @@ class SttSession(_SttBase):
             return reply
 
     def stop(self, timeout: float | None = DEFAULT_STOP_TIMEOUT) -> SessionSummary:
-        """Finish: transcribe the remaining audio, wait for the last transcripts and ``session.ended``."""
+        """Finish: transcribe the remaining audio, wait for the last transcripts and ``session.ended``.
+
+        ``session.saved`` and the close usually follow at once; ``stop()`` waits briefly
+        for them. The summary's ``job_id`` and ``saved_status`` are None if
+        ``session.saved`` did not come.
+        """
         protocol = self._protocol
         with self._out_lock:
             with self._lock:
@@ -452,11 +475,15 @@ class SttSession(_SttBase):
                     self._send(frame)
                 self._send(STOP_FRAME)
         try:
-            self._wait_until(lambda: protocol.closed, timeout, "stop_drain")
+            self._wait_until(lambda: protocol.closed or protocol.ended is not None, timeout, "stop_drain")
         except APITimeoutError:
             if self._link is not None:
                 self._link.abort(None)
             raise
+        self._settle()
+        if not protocol.closed and self._link is not None:
+            logger.debug("no close after session.ended; closing the Speech to Text session")
+            self._link.close()
         if protocol.fatal is not None:
             raise protocol.fatal
         summary = protocol.summary()
@@ -527,7 +554,7 @@ class SttSession(_SttBase):
     # --- Internals -----------------------------------------------------------------------------------
 
     def _settle(self) -> None:
-        """After ``session.ended``, wait for the close: it decides which error, if any, applies."""
+        """After ``session.ended``, wait briefly for ``session.saved`` and the close (which decides any error)."""
         link = self._link
         if self._protocol.ended is not None and not self._protocol.closed and link is not None:
             link.done.wait(self._options.close_timeout)

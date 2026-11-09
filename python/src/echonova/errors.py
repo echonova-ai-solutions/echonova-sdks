@@ -60,6 +60,10 @@ class EchoNovaError(Exception):
     charge_state: ChargeState | None = None
     """For a failed or lost Text to Speech synthesis: whether it was charged ("yes", "no" or "unknown")."""
 
+    credits_consumed: float | None = None
+    """For a Text to Speech synthesis that failed after its audio started: what it finally cost (the share
+    of audio sent, at least 1 credit), when the server reported it."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message

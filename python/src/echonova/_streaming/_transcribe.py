@@ -11,6 +11,8 @@
   paying twice. Segments that were cut but got no result are not replayed; they
   are reported as ``AudioDropped``.
 - It never reconnects after a billing or protocol close (4002, 4029, 1008, 1009).
+- Each session is kept as a job of its own: ``SessionSaved`` is passed on for
+  every session that reports one, including those ended by a rollover.
 """
 
 from __future__ import annotations
@@ -40,7 +42,16 @@ from ._link import AttemptLimiter
 from ._options import ReconnectPolicy, StreamOptions
 from ._stt_protocol import Piece, SegmentPlan
 from ._stt_session import AsyncSttSession, SttSession, Terminology, stt_query
-from ._types import AudioDropped, Reconnected, StreamErrorEvent, SttEvent, TranscribeEvent, Transcript, UnknownEvent
+from ._types import (
+    AudioDropped,
+    Reconnected,
+    SessionSaved,
+    StreamErrorEvent,
+    SttEvent,
+    TranscribeEvent,
+    Transcript,
+    UnknownEvent,
+)
 
 logger = logging.getLogger("echonova.streaming")
 
@@ -126,7 +137,7 @@ class _Bookkeeping:
             if event.code == "upstream_error":  # this segment failed; the session goes on
                 self.plan.result()
             return event
-        if isinstance(event, UnknownEvent):
+        if isinstance(event, (SessionSaved, UnknownEvent)):
             return event
         return None
 
@@ -411,6 +422,7 @@ def transcribe_stream(
     """Transcribe ``source`` (PCM16LE mono chunks) and yield events as they arrive.
 
     Yields ``Transcript`` events, plus ``StreamErrorEvent`` (one segment failed),
+    ``SessionSaved`` (a session was kept as a job: one per session),
     ``Reconnected`` and ``AudioDropped``. ``realtime=True`` paces sending at 1x,
     to simulate a live source with a file.
     """

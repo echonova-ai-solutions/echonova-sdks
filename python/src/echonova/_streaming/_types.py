@@ -41,9 +41,23 @@ class SynthesisMetrics:
 class SynthesisResult:
     """How a synthesis ended.
 
-    ``charged`` is True when the synthesis was billed, False when it was not, and
-    None when the SDK can't tell (for example, a cancel the server never confirmed).
-    Credits and duration are only known for a completed synthesis.
+    A synthesis is charged per character when it starts. One that stops after its
+    audio started (a cancel, or a newer synthesis replacing it) costs only the share
+    of audio sent, at least 1 credit, and the rest is refunded.
+
+    ``credits_consumed`` is the final cost the server reported: on ``done`` for a
+    completed synthesis, and on ``cancelled`` for a cancelled or superseded one. It
+    is None when the server reported none.
+
+    ``charged`` is True when the synthesis was billed (the server reported its cost,
+    or its audio had started), and False when it was not: never sent, or cancelled
+    before it was charged. It is None when the SDK ended it itself before its audio
+    started, so it can't tell: a cancel the server never confirmed, or a lost
+    connection.
+
+    ``duration_seconds`` and ``characters`` come from ``done``, so only a completed
+    synthesis has them. ``raw`` is the final frame (``done`` or ``cancelled``) as
+    received.
     """
 
     request_id: str
@@ -76,12 +90,20 @@ class SegmentMark:
 
 @dataclass(frozen=True, slots=True)
 class SessionSummary:
-    """Totals from ``session.ended``."""
+    """Totals from ``session.ended``, and whether the session was kept as a job.
+
+    ``job_id`` and ``saved_status`` come from ``session.saved``; both are None if it
+    never arrived. ``saved_status`` is ``saved`` (get the job with
+    ``speech_to_text.jobs.get(job_id)``), ``empty`` (nothing was transcribed, so
+    nothing is kept) or ``failed`` (the session could not be kept).
+    """
 
     reason: str
     total_seconds: float
     credits_consumed: float
     session_id: str | None = None
+    job_id: str | None = None
+    saved_status: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,11 +147,26 @@ class StreamErrorEvent:
 
 @dataclass(frozen=True, slots=True)
 class SessionEnded:
-    """The server ended the session. It is the last event of a session."""
+    """The server ended the session. Only ``SessionSaved`` can follow it."""
 
     reason: str
     total_seconds: float
     credits_consumed: float
+    raw: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class SessionSaved:
+    """Whether the session was kept as a job. It usually follows ``SessionEnded``.
+
+    ``status`` is ``saved`` (the job is in ``speech_to_text.jobs.get(job_id)``),
+    ``empty`` (nothing was transcribed, so nothing is kept) or ``failed`` (the
+    session could not be kept). ``session_id`` is the session it belongs to.
+    """
+
+    job_id: str
+    status: str
+    session_id: str | None = None
     raw: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
 
@@ -174,5 +211,5 @@ class AudioDropped:
         return sum(mark.duration_s for mark in self.segment_marks)
 
 
-SttEvent: TypeAlias = Transcript | TerminologySet | StreamErrorEvent | SessionEnded | UnknownEvent
-TranscribeEvent: TypeAlias = Transcript | StreamErrorEvent | Reconnected | AudioDropped | UnknownEvent
+SttEvent: TypeAlias = Transcript | TerminologySet | StreamErrorEvent | SessionEnded | SessionSaved | UnknownEvent
+TranscribeEvent: TypeAlias = Transcript | StreamErrorEvent | SessionSaved | Reconnected | AudioDropped | UnknownEvent

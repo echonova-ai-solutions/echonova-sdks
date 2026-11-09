@@ -91,6 +91,8 @@ def test_new_synthesis_supersedes_the_running_one(
         tts.close()
     assert first_result.outcome == "superseded"
     assert first_result.charged is True
+    assert first_result.credits_consumed == server.tts_conns[0].credits[first.request_id]  # the share sent
+    assert first_result.credits_consumed < len("[slow] first")
     assert len(second_audio) == 3
     assert "cancel" not in frame_types(server)  # the server replaced it; no cancel frame needed
 
@@ -105,12 +107,31 @@ def test_cancel_and_context_manager_exit(
         synth.cancel()
         result = synth.result()
         assert (result.outcome, result.charged) == ("cancelled", True)
+        assert result.credits_consumed == server.tts_conns[0].credits[synth.request_id]
+        assert 1 <= result.credits_consumed < len("[slow] long text")  # only the share of audio sent
         assert frame_types(server).count("cancel") == 1
         tts.cancel()  # nothing running: must not send another cancel
         time.sleep(0.05)
         assert frame_types(server).count("cancel") == 1
     finally:
         tts.close()
+
+
+def test_cancel_before_start_costs_nothing(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    server.tts.start_delay = 0.5  # the server charges when it starts; the cancel comes first
+    tts = open_tts(mode, opts, bridge, voice_id="v1")
+    try:
+        synth = tts.synthesize("hello")
+        wait_for(lambda: synth.state == "sent")
+        synth.cancel()
+        result = synth.result()
+    finally:
+        tts.close()
+    assert (result.outcome, result.charged, result.credits_consumed) == ("cancelled", False, None)
+    assert synth.charge_state == "no"
+    assert server.tts_conns[0].charged == []
 
 
 def test_async_context_manager_exit_cancels(server: MockServer, opts: StreamOptions) -> None:
@@ -217,6 +238,7 @@ def test_mid_stream_upstream_error_keeps_audio_then_raises(
             synth.chunks()
         assert synth.charge_state == "yes"
         assert charge_state_of(info.value) == "yes"
+        assert info.value.credits_consumed == server.tts_conns[0].credits[synth.request_id]
         assert len(synth_frames(server)) == 1  # charged: never resent
     finally:
         tts.close()

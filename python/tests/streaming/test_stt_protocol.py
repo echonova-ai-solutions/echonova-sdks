@@ -18,6 +18,7 @@ from echonova import (
 )
 from echonova._streaming import (
     SessionEnded,
+    SessionSaved,
     SessionSummary,
     StreamErrorEvent,
     TerminologySet,
@@ -34,6 +35,7 @@ STARTED = {
     "language": "ar",
     "sampleRate": 16000,
     "maxSessionSeconds": 1500,
+    "jobId": "job-1",
 }
 
 
@@ -58,6 +60,35 @@ def transcript(text: str = "hi", **extra: Any) -> dict[str, Any]:
 def test_session_started() -> None:
     p = started()
     assert (p.state, p.session_id, p.language, p.max_session_seconds, p.started_at) == ("open", "s1", "ar", 1500, 5.0)
+    assert p.job_id == "job-1"
+
+
+@pytest.mark.parametrize("status", ["saved", "empty", "failed"])
+def test_session_saved_follows_session_ended(status: str) -> None:
+    p = started()
+    p.receive_event({"type": "session.ended", "reason": "stopped", "totalSeconds": 2, "creditsConsumed": 6.7}, 6.0)
+    assert p.summary() == SessionSummary("stopped", 2.0, 6.7, "s1")  # not saved yet: job_id is unknown
+    p.receive_event({"type": "session.saved", "jobId": "job-1", "status": status}, 6.1)
+    p.receive_event({"type": "session.saved", "jobId": "job-1", "status": "failed"}, 6.2)  # a repeat is ignored
+    p.connection_closed(CloseInfo(1000, "stopped"))
+    assert [type(e) for e in p.events] == [SessionEnded, SessionSaved]
+    saved = p.events[-1]
+    assert saved == SessionSaved("job-1", status, "s1")
+    assert saved.raw == {"type": "session.saved", "jobId": "job-1", "status": status}
+    assert p.summary() == SessionSummary("stopped", 2.0, 6.7, "s1", "job-1", status)
+    assert p.fatal is None
+
+
+def test_session_saved_is_read_leniently() -> None:
+    p = started()
+    p.receive_event({"type": "session.ended", "reason": "stopped", "totalSeconds": 0, "creditsConsumed": 0}, 6.0)
+    p.receive_event({"type": "session.saved"}, 6.1)  # no jobId or status: the job ID comes from session.started
+    summary = p.summary()
+    assert summary is not None
+    assert (summary.job_id, summary.saved_status) == ("job-1", "unknown")
+    legacy = SttProtocol(16_000)
+    legacy.receive_event({k: v for k, v in STARTED.items() if k != "jobId"}, 5.0)
+    assert legacy.job_id is None
 
 
 def test_audio_is_framed_even_and_at_most_64_kib() -> None:

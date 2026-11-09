@@ -14,11 +14,18 @@ Correlation rules:
   and the SDK never depends on a reply to it: a cancel that is not
   acknowledged within ``cancel_ack_timeout`` is treated as done.
 
+Billing: a synthesis is charged per character when it starts. One that stops
+after its audio started (a cancel, a newer synthesis, or a speech service
+failure) costs only the share of audio sent, at least 1 credit. ``cancelled``,
+and ``error`` after audio started, carry that final ``creditsConsumed``; it is
+absent from ``cancelled`` when the synthesis was cancelled before it was charged.
+
 ``charge_state`` is the SDK's conservative estimate: ``yes`` once ``start`` or
-audio arrived (or the server confirmed a cancel), ``unknown`` when a request was
-sent but neither arrived, ``no`` when it was never sent or was rejected or
-failed before any audio. A request in the ``unknown`` state is never resent
-automatically, so it can't be paid for twice.
+audio arrived, or the server reported a cost; ``unknown`` when a request was
+sent but neither arrived; ``no`` when it was never sent, was rejected or failed
+before any audio, or the server confirmed a cancel without a cost. A request in
+the ``unknown`` state is never resent automatically, so it can't be paid for
+twice, and neither is one the server reported a cost for.
 """
 
 from __future__ import annotations
@@ -73,7 +80,8 @@ class SynthesisCore:
         self.dropped_frames = 0
         self.sample_rate: int | None = None
         self.start_event: Mapping[str, Any] | None = None
-        self.done_event: Mapping[str, Any] | None = None
+        self.end_event: Mapping[str, Any] | None = None  # the done or cancelled frame that ended it
+        self.credits_consumed: float | None = None  # the final cost, when the server reported it
         self.created_at = now
         self.sent_at: float | None = None
         self.started_at: float | None = None
@@ -85,7 +93,6 @@ class SynthesisCore:
         self.cancel_reason: SynthesisOutcome | None = None
         self.cancel_requested_at: float | None = None
         self.cancel_sent = False
-        self.cancel_acked = False
         self.timed_out = False
         self.supersedes: list[SynthesisCore] = []
         self.error: EchoNovaError | None = None
@@ -133,16 +140,16 @@ class SynthesisCore:
         outcome = self.outcome
         if outcome is None:
             raise RuntimeError("synthesis has not finished")  # callers check first
-        done = self.done_event or {}
+        end = self.end_event or {}
         return SynthesisResult(
             request_id=self.request_id,
             outcome=outcome,
             charged=self.charged,
-            duration_seconds=_number(done.get("durationSeconds")),
-            characters=_int(done.get("characters")),
-            credits_consumed=_number(done.get("creditsConsumed")),
+            duration_seconds=_number(end.get("durationSeconds")),
+            characters=_int(end.get("characters")),
+            credits_consumed=self.credits_consumed,
             sample_rate=self.sample_rate,
-            raw=self.done_event,
+            raw=self.end_event,
         )
 
 
@@ -381,8 +388,7 @@ class TtsProtocol:
         for core in self._in_flight_cores():
             core.sending = False
             if core.state == "cancelling" or (info.local and info.lost_reason is None):
-                charged = True if core.started or core.cancel_acked else None
-                self._finish(core, core.cancel_reason or "cancelled", charged=charged, now=now)
+                self._finish(core, core.cancel_reason or "cancelled", charged=True if core.started else None, now=now)
                 continue
             error = close_error(info, last_error=held, may_have_executed=True if core.started else None)
             if error is None:  # pragma: no cover - close_error returns None only for local or STT-normal closes
@@ -442,9 +448,8 @@ class TtsProtocol:
         for other in self._in_flight_cores():
             if other is core:
                 break
-            charged = True if other.started or other.cancel_acked else None
             outcome = other.cancel_reason if other.state == "cancelling" and other.cancel_reason else "superseded"
-            self._finish(other, outcome, charged=charged, now=now)
+            self._finish(other, outcome, charged=True if other.started else None, now=now)
         core.started = True
         core.started_at = now
         core.start_event = dict(event)
@@ -459,7 +464,8 @@ class TtsProtocol:
         core = self._lookup(event)
         if core is None:
             return
-        core.done_event = dict(event)
+        core.end_event = dict(event)
+        core.credits_consumed = _number(event.get("creditsConsumed"))
         if core.state == "cancelling":
             self._finish(core, core.cancel_reason or "cancelled", charged=True, now=now)
         else:
@@ -469,8 +475,12 @@ class TtsProtocol:
         core = self._lookup(event)
         if core is None:
             return
-        core.cancel_acked = True
-        self._finish(core, core.cancel_reason or "cancelled", charged=True, now=now)
+        core.end_event = dict(event)
+        core.credits_consumed = _number(event.get("creditsConsumed"))
+        # No cost means it was cancelled before it was charged. Audio that had started was charged, though:
+        # then a missing cost only means the server didn't report it.
+        charged = core.credits_consumed is not None or core.started
+        self._finish(core, core.cancel_reason or "cancelled", charged=charged, now=now)
 
     def _on_error(self, event: Mapping[str, Any], now: float) -> None:
         code = event.get("code")
@@ -491,11 +501,16 @@ class TtsProtocol:
                 return
             core = candidates[0]
         error = error_from_frame(event)
+        credits = _number(event.get("creditsConsumed"))  # the final cost, when the synthesis was charged
+        if credits is not None:
+            core.credits_consumed = credits
         if code == "upstream_error":
-            if core.started:  # audio already flowed: count it as charged; no done is expected
-                self._finish(core, "failed", error=attach_charge_state(error, "yes"), charged=True, now=now)
-            elif core.state == "cancelling":
-                self._finish(core, core.cancel_reason or "cancelled", charged=False, now=now)
+            if core.state == "cancelling" and not core.started:
+                self._finish(core, core.cancel_reason or "cancelled", charged=credits is not None, now=now)
+            elif core.started or credits is not None:
+                # Charged (audio already flowed, or the server reports a cost), so never resent; no done follows.
+                charged_error = attach_charge_state(error, "yes", credits_consumed=credits)
+                self._finish(core, "failed", error=charged_error, charged=True, now=now)
             elif core.resends < MAX_RESENDS:  # failed before any audio: the one case the SDK resends
                 core.resends += 1
                 self._in_flight.pop(core.request_id, None)
@@ -507,7 +522,9 @@ class TtsProtocol:
             else:
                 self._finish(core, "failed", error=attach_charge_state(error, "no"), charged=False, now=now)
             return
-        self._finish(core, "failed", error=attach_charge_state(error, "no"), charged=False, now=now)
+        charged = credits is not None
+        attach_charge_state(error, "yes" if charged else "no", credits_consumed=credits)
+        self._finish(core, "failed", error=error, charged=charged, now=now)
         if code == "validation_failed":
             # A rejected request may leave the running one going. The caller asked for it to stop,
             # so cancel it explicitly, unless a newer request is on its way (that one replaces it).

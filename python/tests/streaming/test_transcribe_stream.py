@@ -14,7 +14,14 @@ from stream_adapters import run_transcribe
 from stream_helpers import options_for, pcm
 
 from echonova import InsufficientBalanceError, ProtocolError, StreamConnectionLostError
-from echonova._streaming import AudioDropped, Reconnected, ReconnectPolicy, StreamErrorEvent, Transcript
+from echonova._streaming import (
+    AudioDropped,
+    Reconnected,
+    ReconnectPolicy,
+    SessionSaved,
+    StreamErrorEvent,
+    Transcript,
+)
 
 FAST = ReconnectPolicy(max_attempts=3, initial_delay=0.01)
 SEGMENT = 32_000  # bytes in one 1-second segment at 16 kHz
@@ -69,6 +76,7 @@ def test_cuts_its_own_segments(server: MockServer, mode: str) -> None:
     assert bytes(conn.audio) == audio
     assert [f["type"] for f in conn.received] == ["end_segment"] * 3 + ["stop"]
     assert len(server.stt_conns) == 1
+    assert events[-1] == SessionSaved(conn.job_id, "saved", conn.session_id)
 
 
 def test_whole_buffer_source(server: MockServer, mode: str) -> None:
@@ -108,6 +116,12 @@ def test_rollover_before_the_session_limit(server: MockServer, mode: str) -> Non
         assert conn.close_code == 1000  # each session stopped cleanly
     assert sum(t.duration_seconds for t in transcripts(events)) == pytest.approx(2.0)
     assert [t.index for t in transcripts(events)] == list(range(len(transcripts(events))))
+    # Every session is kept as its own job, and says so before the next one starts.
+    saved = [e for e in events if isinstance(e, SessionSaved)]
+    assert [(e.job_id, e.session_id) for e in saved] == [(c.job_id, c.session_id) for c in server.stt_conns]
+    handovers = [i for i, e in enumerate(events) if isinstance(e, Reconnected)]
+    assert all(isinstance(events[i - 1], SessionSaved) for i in handovers)
+    assert isinstance(events[-1], SessionSaved)
 
 
 def test_reconnects_and_replays_only_uncut_audio(server: MockServer, mode: str) -> None:
@@ -188,7 +202,7 @@ def test_never_reconnects_after_a_billing_close(server: MockServer, mode: str) -
     )
     assert isinstance(error, InsufficientBalanceError)
     assert [t.text for t in transcripts(events)] == ["segment 1"]  # drained first
-    assert isinstance(events[-1], StreamErrorEvent)
+    assert [type(e) for e in events[-2:]] == [StreamErrorEvent, SessionSaved]
     assert len(server.stt_conns) == 1
 
 
@@ -262,7 +276,7 @@ def test_sync_and_async_yield_the_same_events(server: MockServer) -> None:
         assert error is None
         outputs.append([(type(e).__name__, getattr(e, "text", None), getattr(e, "index", None)) for e in events])
     assert outputs[0] == outputs[1]
-    assert len(outputs[0]) == 3
+    assert [kind for kind, *_ in outputs[0]] == ["Transcript"] * 3 + ["SessionSaved"]
 
 
 def test_invalid_arguments_fail_before_connecting(server: MockServer, mode: str) -> None:

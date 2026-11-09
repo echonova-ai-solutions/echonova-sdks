@@ -158,9 +158,14 @@ def close_error(
     )
 
 
-def attach_charge_state(error: EchoNovaError, state: ChargeState) -> EchoNovaError:
-    """Record whether a lost or failed synthesis was charged on its exception (``error.charge_state``)."""
+def attach_charge_state(
+    error: EchoNovaError, state: ChargeState, *, credits_consumed: float | None = None
+) -> EchoNovaError:
+    """Record on a lost or failed synthesis's exception whether it was charged (``error.charge_state``),
+    and the final cost when the server reported it (``error.credits_consumed``)."""
     vars(error)["charge_state"] = state
+    if credits_consumed is not None:
+        vars(error)["credits_consumed"] = credits_consumed
     return error
 
 

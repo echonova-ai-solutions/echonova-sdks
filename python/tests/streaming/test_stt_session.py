@@ -22,6 +22,7 @@ from echonova import (
 )
 from echonova._streaming import (
     SessionEnded,
+    SessionSaved,
     SessionSummary,
     StreamErrorEvent,
     StreamOptions,
@@ -75,8 +76,11 @@ def test_transcribes_segments_and_stops(
     assert not short.expect_result
     assert texts(events) == ["segment 1", "segment 2"]
     assert [e.index for e in events if isinstance(e, Transcript)] == [0, 1]
-    assert isinstance(events[-1], SessionEnded)
-    assert summary == SessionSummary("stopped", 1.5, summary.credits_consumed, stt.session_id)
+    assert [type(e) for e in events[-2:]] == [SessionEnded, SessionSaved]
+    job_id = server.stt_conns[0].job_id
+    assert stt.job_id == job_id  # known from session.started
+    assert events[-1] == SessionSaved(job_id, "saved", stt.session_id)
+    assert summary == SessionSummary("stopped", 1.5, summary.credits_consumed, stt.session_id, job_id, "saved")
     assert stt.closed
 
 
@@ -162,8 +166,10 @@ def test_fatal_end_drains_events_then_raises(
             break
     events, raised = stt.events()
     assert texts(events) == ["segment 1", "segment 2"]  # paid for: never lost
-    assert isinstance(events[-1], SessionEnded)
-    assert events[-1].reason == reason
+    ended, saved = events[-2:]
+    assert isinstance(ended, SessionEnded)
+    assert ended.reason == reason
+    assert saved == SessionSaved(server.stt_conns[0].job_id, "saved", stt.session_id)  # kept, up to the failure
     assert isinstance(raised, error)
     with pytest.raises(error):
         stt.stop()
@@ -193,8 +199,9 @@ def test_max_duration_is_a_normal_end(
     stt.send_audio(pcm(0.5))
     events, error = stt.events()
     assert error is None
-    assert isinstance(events[-1], SessionEnded)
-    assert events[-1].reason == "max_duration"
+    ended = next(e for e in events if isinstance(e, SessionEnded))
+    assert ended.reason == "max_duration"
+    assert isinstance(events[-1], SessionSaved)
     with pytest.raises(SessionEndedError, match="max_duration"):
         stt.send_audio(pcm(0.1))
 
@@ -248,4 +255,74 @@ def test_feed_from(server: MockServer, opts: StreamOptions, mode: str, bridge: B
     assert error is None
     assert summary.reason == "stopped"
     assert len(server.stt_conns[0].audio) == 9_600 + 9_600
+    assert texts(events) == ["segment 1"]
+
+
+# --- session.saved --------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("status", ["saved", "empty", "failed"])
+def test_stop_reports_whether_the_session_was_kept(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None, status: str
+) -> None:
+    server.stt.saved_status = status
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
+    stt.send_audio(pcm(0.5))
+    summary = stt.stop()
+    events, error = stt.events()
+    assert error is None
+    job_id = server.stt_conns[0].job_id
+    assert (summary.job_id, summary.saved_status) == (job_id, status)
+    assert [e for e in events if isinstance(e, SessionSaved)] == [SessionSaved(job_id, status, stt.session_id)]
+
+
+def test_nothing_transcribed_is_not_kept(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
+    summary = stt.stop()
+    assert (summary.job_id, summary.saved_status) == (server.stt_conns[0].job_id, "empty")
+
+
+def test_stop_does_not_need_session_saved(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    server.stt.saved_status = None  # the close comes right after session.ended
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
+    stt.send_audio(pcm(0.5))
+    started = time.monotonic()
+    summary = stt.stop()
+    assert time.monotonic() - started < 0.5  # it returns at the close, without waiting for session.saved
+    events, error = stt.events()
+    assert error is None
+    assert summary.reason == "stopped"
+    assert (summary.job_id, summary.saved_status) == (None, None)
+    assert stt.job_id == server.stt_conns[0].job_id  # still known from session.started
+    assert not any(isinstance(e, SessionSaved) for e in events)
+
+
+def test_stop_waits_briefly_for_session_saved(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    server.stt.saved_delay = 0.3  # within close_timeout (1 s in these tests)
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
+    stt.send_audio(pcm(0.5))
+    summary = stt.stop()
+    assert summary.saved_status == "saved"
+
+
+def test_stop_does_not_hang_when_session_saved_is_late(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    server.stt.saved_delay = 5.0  # neither session.saved nor the close comes within close_timeout (1 s)
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
+    stt.send_audio(pcm(0.5))
+    started = time.monotonic()
+    summary = stt.stop()
+    assert time.monotonic() - started < 3.0
+    assert summary.reason == "stopped"
+    assert (summary.job_id, summary.saved_status) == (None, None)
+    assert stt.closed
+    events, error = stt.events()
+    assert error is None  # the SDK closed it: not an error
     assert texts(events) == ["segment 1"]

@@ -12,7 +12,13 @@ Text to Speech scripting uses markers inside the synthesis text:
 ``[upstream_pre]`` fails before audio the first time that text is seen,
 ``[upstream_pre_always]`` always does, ``[upstream_mid]`` fails after one
 frame, ``[drop]`` kills the connection after one frame, ``[close:CODE]``
-closes with CODE right away.
+closes with CODE right away. A synthesis is charged when its ``start`` goes
+out; one that stops after that reports the share of audio sent (at least 1
+credit) as ``creditsConsumed`` on ``cancelled`` or ``error``.
+
+Speech to Text sends ``jobId`` in ``session.started`` and, after
+``session.ended``, ``session.saved`` with ``SttScript.saved_status`` (``auto``:
+``saved`` when something was transcribed, else ``empty``; None leaves it out).
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import math
 import threading
 import uuid
 from collections import deque
@@ -87,12 +94,15 @@ class SttScript:
     actions: deque[SttAction] = field(default_factory=deque)  # consumed, one per connection
     answer_pings: bool = True
     drain_delay: float = 0.0
+    saved_status: str | None = "auto"  # session.saved status: auto, saved, empty, failed; None leaves it out
+    saved_delay: float = 0.0  # pause between session.ended and session.saved
 
 
 @dataclass
 class TtsConnRecord:
     received: list[Any] = field(default_factory=list)  # parsed JSON frames (or bytes)
     charged: list[str] = field(default_factory=list)
+    credits: dict[str, float] = field(default_factory=dict)  # final cost of a synthesis that stopped early
     close_code: int | None = None
 
 
@@ -102,6 +112,7 @@ class SttConnRecord:
     audio: bytearray = field(default_factory=bytearray)
     received: list[Any] = field(default_factory=list)
     session_id: str = ""
+    job_id: str = ""
     close_code: int | None = None
 
 
@@ -257,6 +268,7 @@ class _TtsConn:
         self.record = TtsConnRecord()
         server.tts_conns.append(self.record)
         self.running: tuple[str, asyncio.Task[None]] | None = None
+        self.progress: dict[str, tuple[int, int, int]] = {}  # rid -> (frames sent, frames planned, characters)
 
     async def run(self) -> None:
         idle = _Timer(self.script.idle_timeout, lambda: self._close(4008, "idle_timeout"))
@@ -304,13 +316,26 @@ class _TtsConn:
         with contextlib.suppress(ConnectionClosed):
             await self.ws.close(code, reason)
 
+    def _cost(self, rid: str) -> int | None:
+        """What a synthesis that stopped early finally costs: the share of audio sent, at least 1 credit."""
+        if rid not in self.record.charged:
+            return None  # cancelled before it was charged
+        sent, planned, characters = self.progress[rid]
+        cost = max(1, math.ceil(characters * sent / planned))
+        self.record.credits[rid] = cost
+        return cost
+
     async def _cancel_running(self) -> None:
         if self.running is None:
             return  # scenario: a cancel with nothing running gets no reply
         rid, task = self.running
         self.running = None
         task.cancel()
-        await _send_json(self.ws, {"type": "cancelled", "requestId": rid})
+        payload: dict[str, Any] = {"type": "cancelled", "requestId": rid}
+        cost = self._cost(rid)
+        if cost is not None:
+            payload["creditsConsumed"] = cost
+        await _send_json(self.ws, payload)
 
     async def _synthesize(self, frame: dict[str, Any]) -> None:
         rid = frame.get("requestId") if isinstance(frame.get("requestId"), str) else str(uuid.uuid4())
@@ -337,7 +362,6 @@ class _TtsConn:
             code = int(text.split("[close:", 1)[1].split("]", 1)[0])
             await self._close(code, "scripted")
             return
-        self.record.charged.append(rid)
         task = asyncio.ensure_future(self._stream(rid, text))
         self.running = (rid, task)
 
@@ -349,8 +373,7 @@ class _TtsConn:
             if "[nostart]" in text:
                 await asyncio.sleep(3600)
             if ("[upstream_pre]" in text and first_time) or "[upstream_pre_always]" in text:
-                self.record.charged.remove(rid)  # scenario: not charged
-                await _send_json(
+                await _send_json(  # scenario: fails before start, so nothing is charged
                     self.ws,
                     {
                         "type": "error",
@@ -363,6 +386,10 @@ class _TtsConn:
                 return
             if script.start_delay:
                 await asyncio.sleep(script.start_delay)
+            slow = "[slow]" in text
+            frames = 40 if slow else script.frames
+            self.record.charged.append(rid)  # charged per character when it starts
+            self.progress[rid] = (0, frames, len(text.strip()))
             await _send_json(
                 self.ws,
                 {
@@ -373,11 +400,10 @@ class _TtsConn:
                     "channels": 1,
                 },
             )
-            slow = "[slow]" in text
-            frames = 40 if slow else script.frames
             for i in range(frames):
                 with contextlib.suppress(ConnectionClosed):
                     await self.ws.send(bytes([i % 256]) * script.frame_bytes)
+                self.progress[rid] = (i + 1, frames, len(text.strip()))
                 if i == 0 and "[upstream_mid]" in text:
                     await _send_json(
                         self.ws,
@@ -386,6 +412,7 @@ class _TtsConn:
                             "code": "upstream_error",
                             "message": "stopped during this synthesis",
                             "requestId": rid,
+                            "creditsConsumed": self._cost(rid),
                         },
                     )
                     self._finished(rid)
@@ -421,8 +448,9 @@ class _SttConn:
         self.server = server
         self.script = server.stt
         self.ws = ws
-        self.record = SttConnRecord(session_id=uuid.uuid4().hex)
+        self.record = SttConnRecord(session_id=uuid.uuid4().hex, job_id=uuid.uuid4().hex[:24])
         server.stt_conns.append(self.record)
+        self.started_sent = False
         self.action = self.script.actions.popleft() if self.script.actions else None
         self.segment = bytearray()
         self.segments = 0
@@ -497,8 +525,10 @@ class _SttConn:
                 "language": self.record.query.get("language", "ar"),
                 "sampleRate": self.sample_rate,
                 "maxSessionSeconds": self.script.max_session_seconds,
+                "jobId": self.record.job_id,
             },
         )
+        self.started_sent = True
 
     async def _audio(self, data: bytes) -> None:
         if len(data) > MAX_FRAME:
@@ -575,6 +605,13 @@ class _SttConn:
                 "creditsConsumed": round(self.credits, 3),
             },
         )
+        status = self.script.saved_status
+        if status is not None and self.started_sent:
+            if status == "auto":
+                status = "saved" if self.total_seconds > 0 else "empty"
+            if self.script.saved_delay:
+                await asyncio.sleep(self.script.saved_delay)
+            await _send_json(self.ws, {"type": "session.saved", "jobId": self.record.job_id, "status": status})
         with contextlib.suppress(ConnectionClosed):
             await self.ws.close(code, reason)
 

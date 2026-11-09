@@ -129,9 +129,10 @@ def test_supersede_with_cancelled_ack() -> None:
     h.audio(2)  # A's audio still in flight: dropped
     assert a.dropped_frames == 2
     assert len(a.chunks) == 2
-    h.event("cancelled", requestId="r1")
+    h.event("cancelled", requestId="r1", creditsConsumed=2)
     assert a.state == "superseded"
-    assert a.result().charged is True
+    result = a.result()
+    assert (result.charged, result.credits_consumed) == (True, 2.0)  # only the share of audio sent
     h.start("r2")
     h.audio(1)
     assert len(b.chunks) == 1
@@ -220,9 +221,51 @@ def test_cancel_in_flight_sends_one_cancel_and_waits_for_the_ack() -> None:
     h.p.cancel(a, h.now)
     h.p.cancel(a, h.now)
     assert h.flush() == [{"type": "cancel"}]
-    h.event("cancelled", requestId="r1")
+    h.event("cancelled", requestId="r1", creditsConsumed=1)
     assert a.state == "cancelled"
-    assert a.result().charged is True
+    result = a.result()
+    assert (result.outcome, result.charged, result.credits_consumed) == ("cancelled", True, 1.0)
+    assert result.raw == {"type": "cancelled", "requestId": "r1", "creditsConsumed": 1}
+    assert (result.duration_seconds, result.characters) == (None, None)  # only done carries them
+    assert a.charge_state == "yes"
+
+
+def test_cancelled_without_a_cost_was_not_charged() -> None:
+    h = Harness()
+    a = h.synth()
+    h.flush()
+    h.p.cancel(a, h.now)
+    h.flush()
+    h.event("cancelled", requestId="r1")  # cancelled before it was charged
+    result = a.result()
+    assert (result.outcome, result.charged, result.credits_consumed) == ("cancelled", False, None)
+    assert a.charge_state == "no"
+
+
+def test_cancelled_without_a_cost_after_audio_started_still_counts_as_charged() -> None:
+    h = Harness()
+    a = h.synth()
+    h.flush()
+    h.start("r1")
+    h.audio(1)
+    h.p.cancel(a, h.now)
+    h.flush()
+    h.event("cancelled", requestId="r1")  # a server that doesn't report the cost
+    result = a.result()
+    assert (result.charged, result.credits_consumed) == (True, None)
+    assert a.charge_state == "yes"
+
+
+def test_superseded_without_a_cost_before_start_was_not_charged() -> None:
+    h = Harness()
+    a = h.synth("first")
+    h.flush()
+    b = h.synth("second")
+    h.flush()
+    h.event("cancelled", requestId="r1")
+    h.start("r2")
+    assert (a.state, a.charged, a.charge_state) == ("superseded", False, "no")
+    assert b.state == "streaming"
 
 
 @pytest.mark.parametrize(("started", "charged"), [(True, True), (False, None)])
@@ -308,8 +351,46 @@ def test_mid_stream_upstream_error_fails_and_is_charged() -> None:
     h.event("error", code="upstream_error", message="stopped during this synthesis", requestId="r1")
     assert a.state == "failed"
     assert a.charge_state == "yes"
+    assert a.error is not None
+    assert a.error.credits_consumed is None  # this server did not report the cost
     assert len(a.chunks) == 1  # audio already received is kept
     assert h.flush() == []
+
+
+def test_mid_stream_upstream_error_reports_the_final_cost() -> None:
+    h = Harness()
+    a = h.synth("a")
+    h.flush()
+    h.start("r1")
+    h.audio(1)
+    h.event("error", code="upstream_error", message="stopped", requestId="r1", creditsConsumed=3)
+    assert (a.state, a.charged, a.credits_consumed) == ("failed", True, 3.0)
+    assert isinstance(a.error, UpstreamError)
+    assert (a.error.charge_state, a.error.credits_consumed) == ("yes", 3.0)
+    assert charge_state_of(a.error) == "yes"
+    assert h.flush() == []  # charged: never resent
+
+
+def test_upstream_error_with_a_cost_is_never_resent() -> None:
+    h = Harness()
+    a = h.synth("a")
+    h.flush()
+    h.event("error", code="upstream_error", message="stopped", requestId="r1", creditsConsumed=1)
+    assert a.state == "failed"
+    assert a.resends == 0
+    assert a.charge_state == "yes"
+    assert h.flush() == []
+
+
+def test_upstream_error_on_a_cancelling_request_ends_it_as_cancelled() -> None:
+    h = Harness()
+    a = h.synth("a")
+    h.flush()
+    h.p.cancel(a, h.now)
+    h.flush()
+    h.event("error", code="upstream_error", message="stopped", requestId="r1", creditsConsumed=1)
+    result = a.result()
+    assert (result.outcome, result.charged, result.credits_consumed) == ("cancelled", True, 1.0)
 
 
 def test_rejected_request_leaves_the_running_one_and_the_sdk_cancels_it() -> None:

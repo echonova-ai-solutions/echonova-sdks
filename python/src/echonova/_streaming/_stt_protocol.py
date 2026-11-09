@@ -30,6 +30,7 @@ from ._pcm_framer import BYTES_PER_SAMPLE, PcmFramer
 from ._types import (
     SegmentMark,
     SessionEnded,
+    SessionSaved,
     SessionSummary,
     StreamErrorEvent,
     SttEvent,
@@ -61,10 +62,12 @@ class SttProtocol:
         self.started = False
         self.started_at: float | None = None
         self.session_id: str | None = None
+        self.job_id: str | None = None  # from session.started: the ID the job gets once it is saved
         self.language: str | None = None
         self.server_sample_rate: int | None = None
         self.max_session_seconds: float | None = None
         self.ended: SessionEnded | None = None
+        self.saved: SessionSaved | None = None
         self.fatal: EchoNovaError | None = None
         self.closed = False
         self.close_info: CloseInfo | None = None
@@ -136,6 +139,7 @@ class SttProtocol:
                 self.started = True
                 self.started_at = now
                 self.session_id = _str(event.get("sessionId"))
+                self.job_id = _str(event.get("jobId"))
                 self.language = _str(event.get("language"))
                 rate = event.get("sampleRate")
                 self.server_sample_rate = rate if isinstance(rate, int) and not isinstance(rate, bool) else None
@@ -175,6 +179,16 @@ class SttProtocol:
             self.ended = ended
             self.events.append(ended)
             self.state = "ended"
+        elif kind == "session.saved":
+            if self.saved is None:
+                saved = SessionSaved(
+                    job_id=_str(event.get("jobId")) or self.job_id or "",
+                    status=_str(event.get("status")) or "unknown",
+                    session_id=self.session_id,
+                    raw=dict(event),
+                )
+                self.saved = saved
+                self.events.append(saved)
         elif kind == "error":
             error = error_from_frame(event, session_id=self.session_id)
             self._last_error = dict(event)
@@ -247,11 +261,14 @@ class SttProtocol:
     def summary(self) -> SessionSummary | None:
         if self.ended is None:
             return None
+        saved = self.saved
         return SessionSummary(
             reason=self.ended.reason,
             total_seconds=self.ended.total_seconds,
             credits_consumed=self.ended.credits_consumed,
             session_id=self.session_id,
+            job_id=(saved.job_id or None) if saved is not None else None,
+            saved_status=saved.status if saved is not None else None,
         )
 
 

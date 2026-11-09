@@ -135,7 +135,12 @@ class AsyncSynthesis(_SynthesisBase):
         return Audio(b"".join(chunks), self._core.sample_rate or 0)
 
     async def cancel(self) -> None:
-        """Stop this synthesis. A cancelled synthesis that the server had accepted is still charged."""
+        """Stop this synthesis.
+
+        Once its audio has started, it costs only the share of audio sent (at least 1
+        credit); cancelled before it was charged, it costs nothing.
+        ``result().credits_consumed`` is the final cost, when the server reports it.
+        """
         self._session._cancel_core(self._core)
 
     def __await__(self) -> Generator[Any, None, AsyncSynthesis]:
@@ -570,7 +575,12 @@ class Synthesis(_SynthesisBase):
         return Audio(b"".join(self), self._core.sample_rate or 0)
 
     def cancel(self) -> None:
-        """Stop this synthesis. A cancelled synthesis that the server had accepted is still charged."""
+        """Stop this synthesis.
+
+        Once its audio has started, it costs only the share of audio sent (at least 1
+        credit); cancelled before it was charged, it costs nothing.
+        ``result().credits_consumed`` is the final cost, when the server reports it.
+        """
         self._session._cancel_core(self._core)
 
     def __enter__(self) -> Synthesis:
