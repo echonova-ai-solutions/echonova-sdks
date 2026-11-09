@@ -87,7 +87,24 @@ Options you don't pass are not sent, so the API's defaults apply.
 
 ### Streaming
 
-Streaming Text to Speech (`client.textToSpeech.connect()`, `speak()`) is coming in this release.
+Keep one socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synth.sampleRate`, well before the whole text is spoken.
+
+```ts
+await using tts = await client.textToSpeech.connect({ voiceId });
+const synth = tts.synthesize('أهلاً بك، كيف يمكنني مساعدتك؟');
+for await (const pcm of synth) {
+  speaker.write(pcm);
+  if (userStartedTalking()) break; // leaving the loop cancels the synthesis
+}
+const { outcome, creditsConsumed, charged } = await synth.result;
+
+// A voice agent: LLM text in, gap-free audio out, sentence by sentence
+for await (const pcm of tts.speakStream(llmTextDeltas())) speaker.write(pcm);
+
+const audio = await client.textToSpeech.speak('مرحبا', { voiceId }); // one-shot: Audio with toWav()
+```
+
+A synthesis is charged per character when it starts. One stopped after its audio started (a cancel, a barge-in or a service failure) costs only the share of audio sent, at least 1 credit; `result.creditsConsumed` reports the final cost. The SDK never resends a synthesis that was sent but not started, because it may already have been charged.
 
 ## Speech to Text
 
@@ -118,7 +135,25 @@ Uploads are never read into memory: a path is streamed from disk (`fs.openAsBlob
 
 ### Streaming
 
-Streaming Speech to Text (`client.speechToText.connect()`, `transcribeStream()`) is coming in this release.
+Send live PCM16LE mono audio and receive transcripts as each segment is cut (every 15 s of audio, or when you call `endSegment()`).
+
+```ts
+await using stt = await client.speechToText.connect({ sampleRate: 16_000, language: 'ar' });
+const feeding = stt.feedFrom(microphone()); // sends the audio, then stop()
+for await (const event of stt) {
+  if (event.type === 'transcript') console.log(event.text);
+}
+const summary = await feeding; // { reason, totalSeconds, creditsConsumed, jobId, savedStatus }
+
+// Long or file-backed audio: rolls over to a new session before the session limit
+for await (const event of client.speechToText.transcribeStream(chunks, { sampleRate: 16_000, language: 'en' })) {
+  if (event.type === 'transcript') console.log(event.text);
+}
+```
+
+Sessions never reconnect on their own; `transcribeStream()` does, replaying only audio that was never cut into a segment. Each session is saved as a Speech to Text job: `summary.jobId`, or a `session.saved` event. Streaming code loads on first use, so it costs nothing until you open a stream; its helpers (`Audio`, `pcmToWav`, `connectTts`, ...) are importable from `echonova/streaming`.
+
+In browsers, streams only work in proxy mode: set `stream: { query: async () => ({ access_token: await getStreamToken() }) }`, because a browser can't send headers on a WebSocket.
 
 ## Sound Cleaning
 

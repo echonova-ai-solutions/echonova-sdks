@@ -1,24 +1,42 @@
-// Fail if the REST core grows past its size budget (minified + gzipped, no
-// runtime dependencies). Run after `npm run build`.
+// Fail if the SDK grows past its size budgets (minified + gzipped). Run after `npm run build`.
+//  - REST: what `import { EchoNova } from 'echonova'` costs. Streaming is reached only through
+//    import(), so it is left out here, as it is for anyone who never opens a stream.
+//  - Streaming: the lazily loaded part, measured on its own ('ws' is external; browsers use WebSocket).
 import { build } from 'esbuild';
 import { gzipSync } from 'node:zlib';
 
-const BUDGET_BYTES = 25 * 1024;
-
-const result = await build({
-  entryPoints: [new URL('../dist/index.js', import.meta.url).pathname],
-  bundle: true,
-  minify: true,
-  format: 'esm',
-  platform: 'neutral',
-  write: false,
-  logLevel: 'warning',
-});
-const code = result.outputFiles[0].contents;
-const gzipped = gzipSync(code, { level: 9 }).length;
+const BUDGETS = { rest: 25 * 1024, streaming: 25 * 1024 };
+const dist = (file) => new URL(`../dist/${file}`, import.meta.url).pathname;
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
-console.log(`core bundle: ${kb(code.length)} minified, ${kb(gzipped)} min+gz (budget ${kb(BUDGET_BYTES)})`);
-if (gzipped > BUDGET_BYTES) {
+
+// Keep dynamically imported modules (the streaming chunk) out of the REST measurement.
+const skipDynamicImports = {
+  name: 'skip-dynamic-imports',
+  setup(b) {
+    b.onResolve({ filter: /.*/ }, (args) => (args.kind === 'dynamic-import' ? { path: args.path, external: true } : undefined));
+  },
+};
+
+async function measure(name, entry, plugins) {
+  const result = await build({
+    entryPoints: [dist(entry)],
+    bundle: true,
+    minify: true,
+    format: 'esm',
+    platform: 'neutral',
+    external: ['ws'],
+    plugins,
+    write: false,
+    logLevel: 'warning',
+  });
+  const code = result.outputFiles[0].contents;
+  const gzipped = gzipSync(code, { level: 9 }).length;
+  console.log(`${name} bundle: ${kb(code.length)} minified, ${kb(gzipped)} min+gz (budget ${kb(BUDGETS[name])})`);
+  return gzipped <= BUDGETS[name];
+}
+
+const ok = [await measure('rest', 'index.js', [skipDynamicImports]), await measure('streaming', 'streaming.js', [])];
+if (!ok.every(Boolean)) {
   console.error('over the size budget');
   process.exit(1);
 }

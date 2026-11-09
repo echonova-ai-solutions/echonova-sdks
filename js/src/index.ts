@@ -12,11 +12,13 @@ export type {
   OnRequestHook,
   OnResponseHook,
   RequestDetails,
+  StreamClientOptions,
 } from './client.js';
 export type { HeaderValues } from './core/http.js';
 export type { HeadersLike } from './core/envelope.js';
 export type { Logger, LogLevel } from './core/logger.js';
 export type { RateLimitInfo } from './core/ratelimit.js';
+export type { RetryPolicy } from './core/retry.js';
 
 export { APIPromise } from './core/api-promise.js';
 export type { WithResponse } from './core/api-promise.js';
@@ -137,3 +139,38 @@ export type {
 } from './webhooks.js';
 
 export { VERSION } from './version.js';
+
+// Streaming types. The streaming code itself loads lazily (client.textToSpeech.connect() and friends);
+// its helpers (Audio, pcmToWav, connectTts, ...) are importable from 'echonova/streaming'.
+export type {
+  Audio,
+  AudioDropped,
+  AudioSource,
+  ChargeState,
+  ConnectSttOptions,
+  ConnectTtsOptions,
+  Reconnected,
+  ReconnectPolicy,
+  SegmentMark,
+  SessionEnded,
+  SessionSaved,
+  SessionSavedStatus,
+  SessionSummary,
+  SpeakOptions,
+  StreamErrorEvent,
+  StreamTerminology,
+  SttEvent,
+  SttSession,
+  Synthesis,
+  SynthesisMetrics,
+  SynthesisOptions,
+  SynthesisOutcome,
+  SynthesisResult,
+  SynthesisState,
+  TerminologySet,
+  TranscribeEvent,
+  TranscribeStreamOptions,
+  Transcript,
+  TtsSession,
+  UnknownStreamEvent,
+} from './streaming/index.js';

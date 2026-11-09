@@ -8,6 +8,7 @@ import type { PagePromise } from '../core/pagination.js';
 import { findCandidates, TTS_POLL_INTERVAL_MS, waitForJob, type WaitOptions } from '../core/polling.js';
 import type { DeleteResult, JobInitiated, TtsJob, TtsResult, Voice, VoiceList } from '../types/models.js';
 import type { ListParams, RequestOptions, SpeechParams } from '../types/params.js';
+import type { Audio, ConnectTtsOptions, SpeakOptions, TtsSession } from '../streaming/index.js';
 import { APIResource, compact, itemsOf, jobIdOf, model, parseDelete, type ClientContext, type JobRef } from './resource.js';
 
 const speechBody = (p: SpeechParams) => ({
@@ -109,6 +110,21 @@ export class TextToSpeech extends APIResource {
     super(client);
     this.voices = new Voices(client);
     this.jobs = new TtsJobs(client);
+  }
+
+  /**
+   * Open a streaming Text to Speech session: `await using tts = await client.textToSpeech.connect({ voiceId })`.
+   * The options apply to every synthesis on it. Streaming code is loaded on first use.
+   */
+  async connect(init: ConnectTtsOptions): Promise<TtsSession> {
+    const streaming = await import('../streaming/index.js');
+    return streaming.connectTts(this._client.streamOptions(), init);
+  }
+
+  /** Synthesize `text` over a stream of its own and return the PCM audio (lower latency than `generate`). */
+  async speak(text: string, init: SpeakOptions): Promise<Audio> {
+    const streaming = await import('../streaming/index.js');
+    return streaming.speak(this._client.streamOptions(), text, init);
   }
 
   /** Synthesize speech and wait for it. `audioUrl` is a signed WAV link that expires. */

@@ -19,6 +19,7 @@ import type { PollLimiter } from '../core/polling.js';
 import type { Runtime } from '../core/runtime.js';
 import type { DeleteResult } from '../types/models.js';
 import type { ListParams, RequestOptions } from '../types/params.js';
+import type { StreamOptions } from '../streaming/options.js';
 
 /** What a resource needs from its client. Internal. */
 export interface ClientContext {
@@ -27,6 +28,8 @@ export interface ClientContext {
   runtime: Runtime;
   logger: Logger;
   download(url: string | null | undefined, options?: DownloadOptions): Promise<Uint8Array | string>;
+  /** Stream settings derived from the client (loaded lazily by the streaming methods). */
+  streamOptions(): StreamOptions;
 }
 
 /** A job ID, or any job object: `JobInitiated`, `TtsJob`, `SttResult`, ... */

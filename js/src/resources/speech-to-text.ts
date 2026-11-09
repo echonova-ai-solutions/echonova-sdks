@@ -8,6 +8,13 @@ import type { PagePromise } from '../core/pagination.js';
 import { findCandidates, STT_POLL_INTERVAL_MS, waitForJob, type WaitOptions } from '../core/polling.js';
 import type { DeleteResult, JobInitiated, SttJob, SttResult, TranscriptExport } from '../types/models.js';
 import type { ExportFormat, ExportParams, ListParams, RequestOptions, TranscribeParams } from '../types/params.js';
+import type {
+  AudioSource,
+  ConnectSttOptions,
+  SttSession,
+  TranscribeEvent,
+  TranscribeStreamOptions,
+} from '../streaming/index.js';
 import { APIResource, jobIdOf, model, parseDelete, type ClientContext, type JobRef } from './resource.js';
 
 /** Multipart fields. Their names are snake_case, and `terminology` travels as a JSON string. */
@@ -114,6 +121,26 @@ export class SpeechToText extends APIResource {
   constructor(client: ClientContext) {
     super(client);
     this.jobs = new SttJobs(client);
+  }
+
+  /**
+   * Open a live Speech to Text session for PCM16LE mono audio. Resolves once the
+   * session has started (and `terminology` is confirmed). Sessions never
+   * reconnect on their own. Streaming code is loaded on first use.
+   */
+  async connect(init: ConnectSttOptions): Promise<SttSession> {
+    const streaming = await import('../streaming/index.js');
+    return streaming.connectStt(this._client.streamOptions(), init);
+  }
+
+  /**
+   * Transcribe a PCM16LE source, rolling over to new sessions past the session
+   * limit. Yields `Transcript` events plus `StreamErrorEvent`, `Reconnected`,
+   * `AudioDropped` and `SessionSaved`. Argument errors surface on the first `next()`.
+   */
+  async *transcribeStream(source: AudioSource, init: TranscribeStreamOptions): AsyncGenerator<TranscribeEvent> {
+    const streaming = await import('../streaming/index.js');
+    yield* streaming.transcribeStream(this._client.streamOptions(), source, init);
   }
 
   /** Transcribe an audio file and wait for the result. */

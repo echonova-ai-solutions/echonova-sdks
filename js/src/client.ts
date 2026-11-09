@@ -26,6 +26,7 @@ import { loadRules } from './core/rules.js';
 import { defaultRuntime, type Runtime } from './core/runtime.js';
 import { Agents } from './resources/agents.js';
 import type { ClientContext } from './resources/resource.js';
+import type { QueryProvider, StreamOptions } from './streaming/options.js';
 import { SoundCleaning } from './resources/sound-cleaning.js';
 import { SpeechToText } from './resources/speech-to-text.js';
 import { TextToSpeech } from './resources/text-to-speech.js';
@@ -89,6 +90,24 @@ export interface ClientOptions {
   onRequest?: OnRequestHook | undefined;
   /** Called with each API response (not downloads), after the SDK has read its body. */
   onResponse?: OnResponseHook | undefined;
+  /** Settings for streaming sessions (`textToSpeech.connect()`, `speechToText.connect()`, ...). */
+  stream?: StreamClientOptions | undefined;
+}
+
+/** Streaming settings on the client. Durations are in milliseconds. */
+export interface StreamClientOptions {
+  /**
+   * Query parameters added to the stream URL, called before every connection
+   * attempt. For proxy mode in browsers, which can't set headers on a WebSocket:
+   * for example `async () => ({ access_token: await getStreamToken() })`.
+   */
+  query?: QueryProvider | undefined;
+  /** Send a keepalive ping after this long without sending anything. Default 30 s; `null` turns it off. */
+  keepalive?: number | null | undefined;
+  /** Keep retrying "Too many concurrent streams" for up to this long. Default off. */
+  waitForSlot?: number | null | undefined;
+  /** Opening handshake timeout. Default 10 s. */
+  openTimeout?: number | undefined;
 }
 
 /** Client-side rate-limit state for one API key, shared with `withOptions()` copies. */
@@ -323,6 +342,7 @@ export class EchoNova {
       runtime,
       logger,
       download: (url, opts) => this.download(url, opts),
+      streamOptions: () => this._streamOptions(),
     };
     this.textToSpeech = new TextToSpeech(context);
     this.speechToText = new SpeechToText(context);
@@ -431,6 +451,23 @@ export class EchoNova {
   /** @internal Whether calls wait for an exhausted rate-limit window before sending. */
   get _rateLimitPreflight(): boolean {
     return this.#rateLimitPreflight;
+  }
+
+  /** @internal Stream settings derived from this client: URL, credentials, User-Agent, retries. */
+  _streamOptions(): StreamOptions {
+    const stream = this.#options.stream ?? {};
+    return {
+      wsBaseURL: this._wsBaseURL,
+      headers: () => this._authHeaders(),
+      query: stream.query,
+      userAgent: this._userAgent,
+      usesApiKey: this.#apiKey !== null,
+      retryPolicy: this._retryPolicy,
+      logger: this._logger,
+      keepalive: stream.keepalive,
+      waitForSlot: stream.waitForSlot,
+      openTimeout: stream.openTimeout,
+    };
   }
 
   /** @internal The client's logger (already filtered by level). */
