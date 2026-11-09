@@ -19,6 +19,7 @@ import 'resources/sound_cleaning.dart';
 import 'resources/speech_to_text.dart';
 import 'resources/text_to_speech.dart';
 import 'runtime.dart';
+import 'streaming/options.dart';
 import 'transport/http_transport.dart';
 
 /// The EchoNova API's address.
@@ -142,10 +143,16 @@ class EchoNova {
   /// also authenticate with cookies by passing an [httpClient] that sends
   /// them.
   ///
+  /// [streamQuery] adds query parameters to stream URLs, called before every
+  /// connection attempt. Browsers can't send headers on a WebSocket, so on
+  /// Flutter web use it (or cookies) to authenticate streams with your proxy,
+  /// for example `() async => {'access_token': await streamToken()}`.
+  ///
   /// The other options are as for [EchoNova.new].
   factory EchoNova.proxy({
     required Uri baseUrl,
     required FutureOr<Map<String, String>> Function() auth,
+    FutureOr<Map<String, String>> Function()? streamQuery,
     Duration? timeout,
     Duration? deadline,
     int maxRetries = 2,
@@ -159,6 +166,7 @@ class EchoNova {
       baseUrl: baseUrl,
       apiKey: null,
       authHeaders: auth,
+      streamQuery: streamQuery,
       timeout: timeout,
       deadline: deadline,
       maxRetries: maxRetries,
@@ -177,6 +185,7 @@ class EchoNova {
     required this.baseUrl,
     required String? apiKey,
     required AuthHeaders authHeaders,
+    StreamParameters? streamQuery,
     required this.timeout,
     required this.deadline,
     required this.maxRetries,
@@ -186,6 +195,7 @@ class EchoNova {
     required bool ownsShared,
   })  : _apiKey = apiKey,
         _authHeaders = authHeaders,
+        _streamQuery = streamQuery,
         _shared = shared,
         _ownsShared = ownsShared,
         _transport = HttpTransport(
@@ -233,6 +243,7 @@ class EchoNova {
 
   final String? _apiKey;
   final AuthHeaders _authHeaders;
+  final StreamParameters? _streamQuery;
   final _Shared _shared;
   final bool _ownsShared;
   final HttpTransport _transport;
@@ -299,6 +310,7 @@ class EchoNova {
       baseUrl: baseUrl,
       apiKey: _apiKey,
       authHeaders: _authHeaders,
+      streamQuery: _streamQuery,
       timeout: timeout ?? this.timeout,
       deadline: deadline ?? this.deadline,
       maxRetries: retries,
@@ -411,6 +423,19 @@ class EchoNova {
   /// The clocks, sleep and randomness this client uses.
   @internal
   ClientRuntime get runtime => _shared.runtime;
+
+  /// Stream settings derived from this client: URL, credentials, User-Agent,
+  /// retries and the proxy stream query.
+  @internal
+  StreamOptions streamOptions() => StreamOptions(
+        wsBaseUri: wsBaseUri,
+        headers: streamHeaders,
+        query: _streamQuery,
+        userAgent: userAgent,
+        retryPolicy: retryPolicy,
+        clock: runtime.clock,
+        sleep: runtime.sleep,
+      );
 
   /// Closes the HTTP connections this client opened. Doesn't close an
   /// `httpClient` you passed in. On a `withOptions` copy it does nothing.

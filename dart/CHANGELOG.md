@@ -15,3 +15,7 @@
 - `…WithResponse` methods returning `RawResponse` (status, headers, request ID, rate limit).
 - Downloads of signed links without credentials; an expired link throws `DownloadExpiredException`.
 - Webhook verification with `verifyWebhook`.
+- Streaming Text to Speech (`textToSpeech.connect`, `speak`): synthesize, enqueue, `speakStream` for LLM text, cancel and interrupt, `Stream<Uint8List>` audio, and the final cost of every synthesis.
+- Streaming Speech to Text (`speechToText.connect`, `transcribeStream`): framed audio with backpressure, segments, terminology, `stop`, saved sessions (`SessionSaved`, `jobId`), and rollover past the session limit.
+- Flutter web streaming through a proxy, authenticated with cookies or `EchoNova.proxy(streamQuery:)`.
+- `Audio` and WAV helpers.

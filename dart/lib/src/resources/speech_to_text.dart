@@ -17,6 +17,10 @@ import '../pagination.dart';
 import '../params.dart';
 import '../polling.dart';
 import '../response.dart';
+import '../streaming/api.dart' as streaming;
+import '../streaming/options.dart' show ReconnectPolicy;
+import '../streaming/stt_session.dart' show SttSession;
+import '../streaming/types.dart';
 import '../transport/http_transport.dart' show ApiRequest, ApiResponse;
 import 'context.dart';
 
@@ -67,6 +71,52 @@ final class SpeechToText {
 
   /// Async jobs.
   final SttJobs jobs;
+
+  /// Opens a live Speech to Text session for PCM16LE mono audio at
+  /// [sampleRate] Hz. Completes once the session has started (and
+  /// [terminology] is confirmed). Sessions never reconnect on their own.
+  Future<SttSession> connect({
+    required int sampleRate,
+    required String language,
+    Terminology? terminology,
+    String encoding = 'pcm_s16le',
+    Duration? waitForSlot,
+  }) =>
+      streaming.connectStt(
+        _context.client.streamOptions(),
+        sampleRate: sampleRate,
+        language: language,
+        terminology: terminology?.toJson(),
+        encoding: encoding,
+        waitForSlot: waitForSlot,
+      );
+
+  /// Transcribes a PCM16LE [source], rolling over to new sessions past the
+  /// session limit. Emits [Transcript] events plus [StreamErrorEvent],
+  /// [Reconnected], [AudioDropped] and [SessionSaved].
+  Stream<TranscribeEvent> transcribeStream(
+    Stream<List<int>> source, {
+    required int sampleRate,
+    required String language,
+    Terminology? terminology,
+    Duration segmentLength = const Duration(seconds: 14),
+    ReconnectPolicy reconnect = const ReconnectPolicy(),
+    bool realtime = false,
+    String encoding = 'pcm_s16le',
+    Duration? waitForSlot,
+  }) =>
+      streaming.transcribeStream(
+        _context.client.streamOptions(),
+        source,
+        sampleRate: sampleRate,
+        language: language,
+        terminology: terminology?.toJson(),
+        segmentLength: segmentLength,
+        reconnect: reconnect,
+        realtime: realtime,
+        encoding: encoding,
+        waitForSlot: waitForSlot,
+      );
 
   /// The client this belongs to. Internal: for the streaming layer.
   @internal

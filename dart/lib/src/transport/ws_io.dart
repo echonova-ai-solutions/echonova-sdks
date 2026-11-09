@@ -199,14 +199,48 @@ String _describe(Object error) => switch (error) {
     };
 
 final class _IoWebSocketConnection implements WebSocketConnection {
-  _IoWebSocketConnection(Socket upgraded, this.handshakeHeaders)
+  _IoWebSocketConnection(this._raw, this.handshakeHeaders)
       : _socket = WebSocket.fromUpgradedSocket(
-          upgraded,
+          _raw,
           serverSide: false,
           compression: CompressionOptions.compressionOff,
+        ) {
+    // Everything the SDK sends goes through one controller bound to the
+    // socket, so the socket's backpressure (it pauses its source while the
+    // OS send buffer is full) shows up as pause and resume here.
+    _out = StreamController<Object>(
+      sync: true,
+      onPause: () => _paused = true,
+      onResume: () {
+        _paused = false;
+        _wake();
+      },
+      onCancel: () {
+        _gone = true;
+        _wake();
+      },
+    );
+    _bound = _socket.addStream(_out.stream).then<void>(
+          (_) {},
+          onError: (Object _) {},
         );
+  }
 
+  /// The upgraded TCP (or TLS) socket, kept to drop the connection at once.
+  final Socket _raw;
   final WebSocket _socket;
+  late final StreamController<Object> _out;
+  late final Future<void> _bound;
+  bool _paused = false;
+  bool _gone = false;
+  bool _closing = false;
+  Completer<void>? _resumed;
+
+  void _wake() {
+    final waiter = _resumed;
+    _resumed = null;
+    waiter?.complete();
+  }
 
   @override
   final Map<String, String> handshakeHeaders;
@@ -222,17 +256,58 @@ final class _IoWebSocketConnection implements WebSocketConnection {
   );
 
   @override
-  void sendText(String text) => _socket.add(text);
+  void sendText(String text) {
+    if (_gone || _closing) return;
+    _out.add(text);
+  }
 
   @override
-  void sendBytes(List<int> bytes) => _socket.add(bytes);
+  void sendBytes(List<int> bytes) {
+    if (_gone || _closing) return;
+    _out.add(bytes);
+  }
 
   @override
-  Future<void> close([int? code, String? reason]) =>
-      _socket.close(code, reason);
+  Future<void> flush() async {
+    while (_paused && !_gone && !_closing) {
+      await (_resumed ??= Completer<void>()).future;
+    }
+  }
 
   @override
-  int? get closeCode => _socket.closeCode;
+  Future<void> close([int? code, String? reason]) async {
+    if (!_closing) {
+      _closing = true;
+      _wake();
+      // The socket's sink is bound to [_out]; it must be released before the
+      // close frame can be sent.
+      unawaited(_out.close());
+    }
+    await _bound;
+    try {
+      await _socket.close(code, reason);
+    } on Object {
+      // Already closed or failed; [messages] reports how it ended.
+    }
+  }
+
+  @override
+  void abort() {
+    _closing = true;
+    _wake();
+    _raw.destroy();
+  }
+
+  @override
+  int? get closeCode {
+    final code = _socket.closeCode;
+    if (code == null) return null;
+    // When the socket fails, or a frame from the server can't be read,
+    // dart:io closes with a code of its own (1002 or 1007) and no reason. No
+    // close frame came from the server: the connection was lost.
+    if (_socket.closeReason == null && !_closing) return abnormalClosure;
+    return code;
+  }
 
   @override
   String? get closeReason => _socket.closeReason;

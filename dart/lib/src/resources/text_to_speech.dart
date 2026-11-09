@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../audio.dart' show Audio;
 import '../client.dart';
 import '../errors.dart';
 import '../models/text_to_speech.dart';
@@ -12,6 +13,8 @@ import '../operations.dart';
 import '../pagination.dart';
 import '../polling.dart';
 import '../response.dart';
+import '../streaming/api.dart' as streaming;
+import '../streaming/tts_session.dart' show TtsSession;
 import '../transport/http_transport.dart' show ApiRequest, ApiResponse;
 import 'context.dart';
 
@@ -50,6 +53,53 @@ final class TextToSpeech {
         jobs = TtsJobs._(_context);
 
   final ClientContext _context;
+
+  /// Opens a streaming Text to Speech session. The options apply to every
+  /// synthesis on it; [waitForSlot] keeps retrying for that long when the
+  /// workspace has no free stream slot. Close it with [TtsSession.close].
+  Future<TtsSession> connect({
+    required String voiceId,
+    double? speed,
+    double? cfg,
+    int? numSteps,
+    bool? tashkeel,
+    bool? normalize,
+    Duration? waitForSlot,
+  }) =>
+      streaming.connectTts(
+        _context.client.streamOptions(),
+        voiceId: voiceId,
+        speed: speed,
+        cfg: cfg,
+        numSteps: numSteps,
+        tashkeel: tashkeel,
+        normalize: normalize,
+        waitForSlot: waitForSlot,
+      );
+
+  /// Synthesizes [text] over a stream of its own and returns the PCM audio
+  /// (lower latency than [generate]).
+  Future<Audio> speak(
+    String text, {
+    required String voiceId,
+    double? speed,
+    double? cfg,
+    int? numSteps,
+    bool? tashkeel,
+    bool? normalize,
+    Duration? waitForSlot,
+  }) =>
+      streaming.speak(
+        _context.client.streamOptions(),
+        text,
+        voiceId: voiceId,
+        speed: speed,
+        cfg: cfg,
+        numSteps: numSteps,
+        tashkeel: tashkeel,
+        normalize: normalize,
+        waitForSlot: waitForSlot,
+      );
 
   /// The voices you can use.
   final Voices voices;

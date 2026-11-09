@@ -244,7 +244,51 @@ Every result has `requestId` and `raw` (the API's JSON, including fields this ve
 
 ## Streaming
 
-Streaming Text to Speech and Speech to Text (`connect`, `speak`, `transcribeStream`) are being added to this package and will be documented here.
+Keep one Text to Speech socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synthesis.sampleRate`, well before the whole text is spoken.
+
+```dart
+final tts = await client.textToSpeech.connect(voiceId: voiceId);
+final synthesis = tts.synthesize('أهلاً بك، كيف يمكنني مساعدتك؟');
+await for (final pcm in synthesis.audio) {
+  player.feed(pcm);
+  if (userStartedTalking()) break; // cancelling the subscription cancels the synthesis
+}
+final result = await synthesis.result; // outcome, creditsConsumed, charged
+await for (final pcm in tts.speakStream(llmTextDeltas)) {
+  player.feed(pcm); // a voice agent: LLM text in, audio out, sentence by sentence
+}
+await tts.close();
+
+final audio = await client.textToSpeech.speak('مرحبا', voiceId: voiceId); // one-shot; audio.toWav()
+```
+
+A synthesis is charged per character when it starts. One stopped after its audio started (a cancel, a barge-in or a service failure) costs only the share of audio sent, at least 1 credit; `result.creditsConsumed` reports the final cost. The SDK never resends a synthesis that was sent but not started, because it may already have been charged.
+
+Speech to Text takes live PCM16LE mono audio and sends transcripts as each segment is cut (every 15 s of audio, or at `endSegment()`):
+
+```dart
+final stt = await client.speechToText.connect(sampleRate: 16000, language: 'ar');
+final feeding = stt.feedFrom(microphone); // sends the audio, then stop()
+await for (final event in stt.events) {
+  switch (event) {
+    case Transcript(:final text):
+      print(text);
+    case SessionSaved(:final jobId):
+      print('saved as job $jobId');
+    default:
+  }
+}
+final summary = await feeding; // reason, totalSeconds, creditsConsumed, jobId, savedStatus
+
+// Long or file-backed audio: rolls over to a new session before the session limit
+await for (final event in client.speechToText.transcribeStream(chunks, sampleRate: 16000, language: 'en')) {
+  if (event is Transcript) print(event.text);
+}
+```
+
+Sessions never reconnect on their own; `transcribeStream` does, replaying only audio that was never cut into a segment. Each session is saved as a Speech to Text job.
+
+**Flutter web:** browsers can't send headers on a WebSocket, so streams there only work through your proxy, authenticated with cookies or `EchoNova.proxy(streamQuery: () async => {'access_token': await streamToken()})`. On Android, iOS and desktop, the proxy's `auth` headers are sent as usual.
 
 ## Webhooks
 

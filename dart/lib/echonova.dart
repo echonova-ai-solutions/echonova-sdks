@@ -28,5 +28,7 @@ export 'src/resources/sound_cleaning.dart' show CleanJobs, SoundCleaning;
 export 'src/resources/speech_to_text.dart' show SpeechToText, SttJobs;
 export 'src/resources/text_to_speech.dart' show TextToSpeech, TtsJobs, Voices;
 export 'src/response.dart' show RawResponse, RequestOptions;
+export 'src/streaming/streaming.dart'
+    hide connectStt, connectTts, speak, transcribeStream, StreamOptions;
 export 'src/version.dart' show packageVersion;
 export 'src/webhooks.dart';
