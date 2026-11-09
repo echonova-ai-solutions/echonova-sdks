@@ -1,0 +1,7 @@
+# Dart tool output
+.dart_tool/
+build/
+doc/api/
+
+# A library package does not commit its lock file
+pubspec.lock

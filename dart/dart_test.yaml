@@ -1,0 +1,4 @@
+tags:
+  live:
+    # Uses the network; see test/live/. Never part of the default run.
+    timeout: 30s
