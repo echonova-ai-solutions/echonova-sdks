@@ -1,0 +1,123 @@
+{
+  "$comment": "Shared by every EchoNova SDK. Classifies an HTTP error (REST response or WebSocket handshake) into an error class, and decides whether it may be retried. Rules are tried in order; the first match wins. A message match compares the envelope's errorMessage after trimming whitespace. 'json' is true when the body parsed as the EchoNova envelope. 'retry_after' is true when a Retry-After header was present. Retry columns: GET, DELETE, POST are REST methods; WS is the WebSocket handshake ('opt_in' means only with wait_for_slot). may_have_executed applies to POST only: 'no', 'yes' or 'unknown'. Rows R1-R18 refer to the SDK plan's retry table. Change this file only together with its vectors.",
+  "version": 1,
+
+  "taxonomy": {
+    "EchoNovaError": null,
+    "UsageError": "EchoNovaError",
+    "SessionEndedError": "UsageError",
+    "UnsupportedEnvironmentError": "EchoNovaError",
+    "APIConnectionError": "EchoNovaError",
+    "APITimeoutError": "APIConnectionError",
+    "StreamConnectionLostError": "APIConnectionError",
+    "APIStatusError": "EchoNovaError",
+    "InvalidRequestError": "APIStatusError",
+    "AuthenticationError": "APIStatusError",
+    "PermissionDeniedError": "APIStatusError",
+    "FeatureNotEnabledError": "PermissionDeniedError",
+    "NotFoundError": "APIStatusError",
+    "VoiceNotFoundError": "NotFoundError",
+    "JobNotFoundError": "NotFoundError",
+    "RequestTimeoutError": "APIStatusError",
+    "BillingError": "APIStatusError",
+    "InsufficientBalanceError": "BillingError",
+    "SpendingLimitError": "BillingError",
+    "RateLimitError": "APIStatusError",
+    "ConcurrencyLimitError": "APIStatusError",
+    "ServerError": "APIStatusError",
+    "ServiceUnavailableError": "ServerError",
+    "GatewayError": "ServerError",
+    "UpstreamError": "ServerError",
+    "ProtocolError": "APIStatusError",
+    "StreamClosedError": "EchoNovaError",
+    "ServerRestartingError": "StreamClosedError",
+    "SessionExpiredError": "StreamClosedError",
+    "JobFailedError": "EchoNovaError",
+    "JobWaitTimeoutError": "EchoNovaError",
+    "DownloadExpiredError": "EchoNovaError",
+    "WebhookVerificationError": "EchoNovaError"
+  },
+
+  "transport": [
+    {"row": "R1", "phase": "connect", "description": "DNS, TCP or TLS failure: no byte was sent.", "error": "APIConnectionError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "backoff"}, "may_have_executed": "no"},
+    {"row": "R2", "phase": "send_incomplete", "description": "The request body was not fully written (only detectable in some HTTP clients), so the request can't have been processed. Retried only when the body can be replayed.", "error": "APIConnectionError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "backoff"}, "may_have_executed": "no"},
+    {"row": "R3", "phase": "no_response", "description": "The request was fully sent but no response arrived (read timeout, reset). A POST may have been processed and charged, so it is not sent again. A DELETE retried after this treats 404 as already deleted.", "error": "APIConnectionError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": true, "delay": "backoff"}, "may_have_executed": "yes"},
+    {"row": "R4", "phase": "malformed_success", "description": "A 2xx response whose body is not a valid envelope.", "error": "ProtocolError", "retry": {"GET": "once", "DELETE": false, "POST": false, "WS": false, "delay": "backoff"}, "may_have_executed": "yes"}
+  ],
+
+  "rules": [
+    {"id": "spending_limit", "row": "R9", "match": {"status": 429, "message_equals": "Monthly spending limit exhausted"}, "error": "SpendingLimitError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "concurrent_streams", "row": "R8", "match": {"status": 429, "message_equals": "Too many concurrent streams"}, "error": "ConcurrencyLimitError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": "opt_in", "delay": "backoff"}, "may_have_executed": "no"},
+    {"id": "throttled", "row": "R8", "match": {"status": 429, "retry_after": true}, "error": "RateLimitError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "retry_after"}, "may_have_executed": "no", "blocks_bucket": true},
+    {"id": "rate_limited_other", "row": "R8", "match": {"status": 429}, "error": "RateLimitError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+
+    {"id": "insufficient_balance", "row": "R7", "match": {"status": 402}, "error": "InsufficientBalanceError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "unauthorized", "row": "R6", "match": {"status": 401}, "error": "AuthenticationError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "streaming_disabled", "row": "R6", "match": {"status": 503, "message_equals": "Streaming is not enabled"}, "error": "FeatureNotEnabledError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "forbidden", "row": "R6", "match": {"status": 403}, "error": "PermissionDeniedError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+
+    {"id": "voice_not_found", "row": "R5", "match": {"status": 404, "message_equals": "Voice not found"}, "error": "VoiceNotFoundError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "job_not_found", "row": "R5", "match": {"status": 404, "message_suffix": "Job not found"}, "error": "JobNotFoundError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "not_found", "row": "R5", "match": {"status": 404}, "error": "NotFoundError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "invalid_request", "row": "R5", "match": {"status": [400, 405, 409, 413, 415, 422]}, "error": "InvalidRequestError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"},
+    {"id": "request_timeout", "row": "R10", "match": {"status": 408}, "error": "RequestTimeoutError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "backoff"}, "may_have_executed": "no"},
+
+    {"id": "unavailable_refunded", "row": "R13", "match": {"status": 503, "json": true, "message_contains": "temporarily unavailable"}, "error": "ServiceUnavailableError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "retry_after_or_backoff"}, "may_have_executed": "no"},
+    {"id": "storage_delete_failed", "row": "R14", "match": {"status": 503, "json": true, "message_equals": "The stored file could not be deleted. Try again."}, "error": "ServiceUnavailableError", "retry": {"GET": false, "DELETE": true, "POST": false, "WS": false, "delay": "backoff"}, "may_have_executed": "no"},
+    {"id": "ingress_unavailable", "row": "R15", "match": {"status": 503, "json": false}, "error": "ServiceUnavailableError", "retry": {"GET": true, "DELETE": true, "POST": true, "WS": true, "delay": "retry_after_or_backoff"}, "may_have_executed": "no", "from_proxy": true},
+    {"id": "unavailable_other", "row": "R16", "match": {"status": 503}, "error": "ServiceUnavailableError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": true, "delay": "retry_after_or_backoff"}, "may_have_executed": "unknown"},
+    {"id": "bad_gateway", "row": "R12", "match": {"status": 502}, "error": "GatewayError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": true, "delay": "backoff"}, "may_have_executed": "unknown"},
+    {"id": "ingress_timeout", "row": "R18", "match": {"status": 504, "json": false}, "error": "GatewayError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": false, "delay": "backoff"}, "may_have_executed": "yes", "from_proxy": true},
+    {"id": "gateway_timeout", "row": "R17", "match": {"status": 504}, "error": "GatewayError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": false, "delay": "backoff"}, "may_have_executed": "unknown"},
+    {"id": "internal_error", "row": "R11", "match": {"status": 500}, "error": "ServerError", "retry": {"GET": true, "DELETE": true, "POST": false, "WS": false, "delay": "backoff"}, "may_have_executed": "unknown"},
+    {"id": "server_error_other", "row": "R11", "match": {"status_range": [500, 599]}, "error": "ServerError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "unknown"},
+    {"id": "client_error_other", "row": "R5", "match": {"status_range": [400, 499]}, "error": "APIStatusError", "retry": {"GET": false, "DELETE": false, "POST": false, "WS": false, "delay": "none"}, "may_have_executed": "no"}
+  ],
+
+  "unexpected_status": {
+    "description": "A status that is neither 2xx nor 4xx/5xx (1xx, 3xx). Redirects are never followed. Raised as ProtocolError and never retried; for a POST, may_have_executed is unknown.",
+    "error": "ProtocolError",
+    "retry": false,
+    "may_have_executed": "unknown"
+  },
+
+  "defaults": {
+    "max_retries": 2,
+    "backoff": {"initial_seconds": 0.5, "multiplier": 2.0, "max_seconds": 8.0, "jitter": [0.5, 1.0]},
+    "retry_after_jitter_seconds": [0.0, 1.0],
+    "max_retry_after_seconds": 60,
+    "ws_handshake_max_retry_after_seconds": 30
+  },
+
+  "vectors": [
+    {"status": 429, "json": true, "retry_after": false, "message": "Monthly spending limit exhausted", "expect_rule": "spending_limit", "expect_error": "SpendingLimitError"},
+    {"status": 429, "json": true, "retry_after": true, "message": "ThrottlerException: Too Many Requests", "expect_rule": "throttled", "expect_error": "RateLimitError"},
+    {"status": 429, "json": true, "retry_after": false, "message": "Too many concurrent streams", "expect_rule": "concurrent_streams", "expect_error": "ConcurrencyLimitError"},
+    {"status": 429, "json": true, "retry_after": false, "message": "Some new limit", "expect_rule": "rate_limited_other", "expect_error": "RateLimitError"},
+    {"status": 402, "json": true, "retry_after": false, "message": "Insufficient subscription balance", "expect_rule": "insufficient_balance", "expect_error": "InsufficientBalanceError"},
+    {"status": 401, "json": true, "retry_after": false, "message": "Unauthorized", "expect_rule": "unauthorized", "expect_error": "AuthenticationError"},
+    {"status": 403, "json": true, "retry_after": false, "message": "This API key does not have access to Text-to-Speech services", "expect_rule": "forbidden", "expect_error": "PermissionDeniedError"},
+    {"status": 403, "json": true, "retry_after": false, "message": "Subscription expired or inactive", "expect_rule": "forbidden", "expect_error": "PermissionDeniedError"},
+    {"status": 503, "json": true, "retry_after": false, "message": "Streaming is not enabled", "expect_rule": "streaming_disabled", "expect_error": "FeatureNotEnabledError"},
+    {"status": 404, "json": true, "retry_after": false, "message": "Voice not found", "expect_rule": "voice_not_found", "expect_error": "VoiceNotFoundError"},
+    {"status": 404, "json": true, "retry_after": false, "message": "TTS Job not found", "expect_rule": "job_not_found", "expect_error": "JobNotFoundError"},
+    {"status": 404, "json": true, "retry_after": false, "message": "Clean Job not found", "expect_rule": "job_not_found", "expect_error": "JobNotFoundError"},
+    {"status": 404, "json": true, "retry_after": false, "message": "widget_not_found", "expect_rule": "not_found", "expect_error": "NotFoundError"},
+    {"status": 400, "json": true, "retry_after": false, "message": "text must be shorter than or equal to 500 characters, text must be longer than or equal to 1 characters, text must be a string", "expect_rule": "invalid_request", "expect_error": "InvalidRequestError"},
+    {"status": 409, "json": true, "retry_after": false, "message": "widget_disabled", "expect_rule": "invalid_request", "expect_error": "InvalidRequestError"},
+    {"status": 413, "json": true, "retry_after": false, "message": "File too large", "expect_rule": "invalid_request", "expect_error": "InvalidRequestError"},
+    {"status": 408, "json": false, "retry_after": false, "message": null, "expect_rule": "request_timeout", "expect_error": "RequestTimeoutError"},
+    {"status": 503, "json": true, "retry_after": false, "message": "Speech generation is temporarily unavailable. Please try again.", "expect_rule": "unavailable_refunded", "expect_error": "ServiceUnavailableError"},
+    {"status": 503, "json": true, "retry_after": false, "message": "Audio processing is temporarily unavailable. Please try again.", "expect_rule": "unavailable_refunded", "expect_error": "ServiceUnavailableError"},
+    {"status": 503, "json": true, "retry_after": false, "message": "The stored file could not be deleted. Try again.", "expect_rule": "storage_delete_failed", "expect_error": "ServiceUnavailableError"},
+    {"status": 503, "json": false, "retry_after": false, "message": null, "expect_rule": "ingress_unavailable", "expect_error": "ServiceUnavailableError"},
+    {"status": 503, "json": true, "retry_after": false, "message": "Database unavailable", "expect_rule": "unavailable_other", "expect_error": "ServiceUnavailableError"},
+    {"status": 502, "json": true, "retry_after": false, "message": "Bad Gateway", "expect_rule": "bad_gateway", "expect_error": "GatewayError"},
+    {"status": 502, "json": false, "retry_after": false, "message": null, "expect_rule": "bad_gateway", "expect_error": "GatewayError"},
+    {"status": 504, "json": false, "retry_after": false, "message": null, "expect_rule": "ingress_timeout", "expect_error": "GatewayError"},
+    {"status": 504, "json": true, "retry_after": false, "message": "Database timed out", "expect_rule": "gateway_timeout", "expect_error": "GatewayError"},
+    {"status": 500, "json": true, "retry_after": false, "message": "Something went wrong", "expect_rule": "internal_error", "expect_error": "ServerError"},
+    {"status": 501, "json": false, "retry_after": false, "message": null, "expect_rule": "server_error_other", "expect_error": "ServerError"},
+    {"status": 418, "json": true, "retry_after": false, "message": "I'm a teapot", "expect_rule": "client_error_other", "expect_error": "APIStatusError"}
+  ]
+}
