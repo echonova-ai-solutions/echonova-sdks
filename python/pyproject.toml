@@ -31,6 +31,8 @@ dependencies = [
 
 [project.urls]
 Documentation = "https://echonova.ai/docs/developers"
+Source = "https://github.com/echonova-ai-solutions/echonova-sdks/tree/main/python"
+Issues = "https://github.com/echonova-ai-solutions/echonova-sdks/issues"
 
 [dependency-groups]
 dev = [
