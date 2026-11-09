@@ -7,7 +7,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ._config import Runtime
@@ -140,7 +140,7 @@ def candidates_flow(
     text: str | None = None,
 ) -> Flow[list[Any]]:
     """Jobs created at or after ``sent_at`` minus 5 s, newest first. Never picks one for you."""
-    earliest = _aware(sent_at).astimezone(timezone.utc) - CANDIDATE_WINDOW
+    earliest = _aware(sent_at).astimezone(UTC) - CANDIDATE_WINDOW
     wanted = text.strip() if text is not None else None
     found: list[Any] = []
     seen: set[str] = set()

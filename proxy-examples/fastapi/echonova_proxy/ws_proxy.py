@@ -116,7 +116,7 @@ async def handle_ws(websocket: WebSocket) -> None:
             return log(
                 "ws.rejected", status=refused.status_code, upstream_request_id=refused.headers.get("x-request-id")
             )
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             await deny_error(websocket, 504, rid)
             return log("ws.rejected", status=504, upstream_error="TimeoutError")
         except OSError as exc:
@@ -177,7 +177,7 @@ async def _relay(app: WebSocket, upstream: ClientConnection, counts: dict[str, i
     if result is None:
         try:
             result = await asyncio.wait_for(other, timeout=15)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             result = None
     else:
         other.cancel()

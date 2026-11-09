@@ -18,7 +18,7 @@ Streaming adds a technical constraint: the SDK must be able to read a rejected W
 
 | SDK | Minimum | Also supported |
 | --- | --- | --- |
-| Python | CPython 3.10 | every later CPython release |
+| Python | CPython 3.11 | every later CPython release |
 | JavaScript/TypeScript | Node.js 22 | Bun, Deno 2; REST on Cloudflare Workers and Vercel Edge |
 | Dart | Dart 3.5 | Flutter on Android, iOS, desktop and web |
 
@@ -55,4 +55,4 @@ Dart has no fixed end-of-life schedule. A change to the Dart minimum follows the
 - CI must run a version matrix for each SDK, which costs time and is worth it.
 - Some runtimes get REST without streaming. The docs say which deployment setups support streaming, including serverless platforms that can't hold a socket open for 25 to 30 minutes.
 - Raising a minimum version outside this policy needs a major release.
-- CPython 3.10 reached end of life in October 2026, just before the first Python release. The Python SDK still supports it at launch, as its package metadata declares. Dropping it follows the policy above: a minor release, announced one release ahead.
+- CPython 3.10 reached end of life in October 2026, before the first Python release, so the Python SDK starts at 3.11 and never supports an end-of-life version.

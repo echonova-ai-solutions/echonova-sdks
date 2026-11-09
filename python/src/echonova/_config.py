@@ -8,7 +8,7 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -61,7 +61,7 @@ class Runtime:
     """Clocks and sleeps used by the client. Tests replace them to run without real waiting."""
 
     clock: Callable[[], float] = time.monotonic
-    now: Callable[[], datetime] = field(default=lambda: datetime.now(timezone.utc))
+    now: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     sleep: Callable[[float], Any] = time.sleep
     async_sleep: Callable[[float], Any] | None = None  # asyncio.sleep when None
     random: Callable[[], float] = random.random

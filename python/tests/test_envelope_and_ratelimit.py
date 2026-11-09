@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -54,7 +54,7 @@ def test_parse_retry_after(value: str | None, expected: float | None) -> None:
 
 
 def test_parse_retry_after_http_date() -> None:
-    now = datetime(2026, 11, 5, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 11, 5, 12, 0, 0, tzinfo=UTC)
     assert parse_retry_after("Thu, 05 Nov 2026 12:00:45 GMT", now=now) == 45.0
 
 

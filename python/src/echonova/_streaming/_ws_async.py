@@ -57,7 +57,7 @@ async def open_websocket(
             delay = retry.on_status(response.status_code, response.headers, bytes(response.body or b""), clock())
         except InvalidURI as exc:
             raise UsageError(f"invalid stream URL: {exc}") from exc
-        except (OSError, asyncio.TimeoutError, TimeoutError, InvalidHandshake, ConnectionClosed) as exc:
+        except (OSError, TimeoutError, InvalidHandshake, ConnectionClosed) as exc:
             delay = retry.on_network(exc, url)
         logger.debug("stream handshake failed; retrying in %.2f s", delay)
         await asyncio.sleep(delay)

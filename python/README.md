@@ -10,7 +10,7 @@ Official Python SDK for the [EchoNova API](https://echonova.ai/docs/developers):
 
 ## Requirements
 
-Python 3.10 or later.
+Python 3.11 or later.
 
 ## Quick start
 

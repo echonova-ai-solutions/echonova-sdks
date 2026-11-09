@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, TypeVar
 
 from .._core._envelope import MalformedEnvelopeError
@@ -124,14 +124,14 @@ _ISO = re.compile(
 def to_datetime(value: Any) -> datetime | None:
     """Parse an ISO 8601 timestamp. A timestamp without an offset is read as UTC."""
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if not isinstance(value, str):
         return None
     match = _ISO.match(value.strip())
     if not match:
         return None
     year, month, day, hour, minute, second, fraction, offset = match.groups()
-    tz = timezone.utc
+    tz = UTC
     if offset and offset not in ("Z", "z"):
         sign = -1 if offset[0] == "-" else 1
         digits = offset[1:].replace(":", "")

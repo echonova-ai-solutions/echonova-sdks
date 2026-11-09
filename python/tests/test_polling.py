@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -184,7 +184,7 @@ def test_many_waiters_share_the_limit() -> None:
 
 # --- find_candidates ----------------------------------------------------------------------------
 
-SENT_AT = datetime(2026, 11, 9, 12, 0, 0, tzinfo=timezone.utc)
+SENT_AT = datetime(2026, 11, 9, 12, 0, 0, tzinfo=UTC)
 
 
 def listing(created: list[tuple[str, float, str]]) -> Callable[[httpx.Request], httpx.Response]:

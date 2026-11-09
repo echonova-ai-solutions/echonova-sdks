@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ class FakeTime:
     def __init__(self, *, random: float = 0.5) -> None:
         self.monotonic = 1000.0
         self.sleeps: list[float] = []
-        self.start = datetime(2026, 11, 9, 12, 0, 0, tzinfo=timezone.utc)
+        self.start = datetime(2026, 11, 9, 12, 0, 0, tzinfo=UTC)
         self.random = random
 
     def clock(self) -> float:

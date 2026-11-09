@@ -9,10 +9,9 @@ from collections.abc import Awaitable, Callable, Mapping
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TypeVar, cast, overload
+from typing import Any, Self, TypeVar, cast, overload
 
 import httpx
-from typing_extensions import Self
 
 from ._base_client import NOT_GIVEN, BaseClient, RequestSpec, _Limits, _Pool, _Sink, check_options
 from ._config import DEFAULT_MAX_RETRIES, Runtime, Timeout

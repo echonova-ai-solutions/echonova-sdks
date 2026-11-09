@@ -30,7 +30,7 @@ You only need the toolchain for the SDK you're working on. The scripts in `tools
 
 ### Python
 
-Requires Python 3.10 or later and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 cd python

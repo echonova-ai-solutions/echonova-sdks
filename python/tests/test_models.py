@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -109,7 +109,7 @@ def test_transcript_export_matches_the_documented_example() -> None:
 
 def test_values_from_the_examples() -> None:
     job = types.TtsJob._from_json(example_for(resolve({"$ref": "#/components/schemas/V1TtsJobResponseDto"})))
-    assert job.created_at == datetime(2026, 9, 15, 10, 21, 4, 512000, tzinfo=timezone.utc)
+    assert job.created_at == datetime(2026, 9, 15, 10, 21, 4, 512000, tzinfo=UTC)
     assert job.credits_consumed == 41
     assert isinstance(job.credits_consumed, int)
     stt = types.SttResult._from_json(example_for(data_schema("/v1/speech-to-text/sync", "POST")))
@@ -173,12 +173,12 @@ def test_lenient_bool() -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("2026-09-15T10:21:04.512Z", datetime(2026, 9, 15, 10, 21, 4, 512000, tzinfo=timezone.utc)),
-        ("2026-09-15T10:21:04Z", datetime(2026, 9, 15, 10, 21, 4, tzinfo=timezone.utc)),
+        ("2026-09-15T10:21:04.512Z", datetime(2026, 9, 15, 10, 21, 4, 512000, tzinfo=UTC)),
+        ("2026-09-15T10:21:04Z", datetime(2026, 9, 15, 10, 21, 4, tzinfo=UTC)),
         ("2026-09-15T10:21:04.1+02:00", datetime(2026, 9, 15, 10, 21, 4, 100000, tzinfo=timezone(timedelta(hours=2)))),
-        ("2026-09-15T10:21:04.123456789Z", datetime(2026, 9, 15, 10, 21, 4, 123456, tzinfo=timezone.utc)),
-        ("2026-09-15 10:21", datetime(2026, 9, 15, 10, 21, tzinfo=timezone.utc)),
-        ("2026-09-15", datetime(2026, 9, 15, tzinfo=timezone.utc)),
+        ("2026-09-15T10:21:04.123456789Z", datetime(2026, 9, 15, 10, 21, 4, 123456, tzinfo=UTC)),
+        ("2026-09-15 10:21", datetime(2026, 9, 15, 10, 21, tzinfo=UTC)),
+        ("2026-09-15", datetime(2026, 9, 15, tzinfo=UTC)),
         ("yesterday", None),
         ("2026-13-45T00:00:00Z", None),
     ],

@@ -2,7 +2,7 @@
 
 A reference backend proxy that lets your apps use EchoNova while the API key stays on your server. Start with [the overview](../README.md): it explains what the proxy does, how to point the SDKs at it and what to check before you deploy.
 
-Python 3.10+, with FastAPI, uvicorn, httpx and websockets.
+Python 3.11+, with FastAPI, uvicorn, httpx and websockets.
 
 ## Run it
 

@@ -7,7 +7,7 @@ name = "echonova"
 dynamic = ["version"]
 description = "Official Python SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 # license: pending product decision P2 (Apache-2.0 recommended). Add before the first public release.
 authors = [{ name = "EchoNova" }]
 keywords = ["echonova", "speech", "tts", "stt", "arabic", "text-to-speech", "speech-to-text"]
@@ -16,7 +16,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -54,7 +53,7 @@ markers = ["live: calls the real EchoNova API (needs ECHONOVA_API_KEY; costs cre
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -69,5 +68,5 @@ extend-immutable-calls = ["echonova.types._base.api_field"]  # a dataclass field
 
 [tool.mypy]
 strict = true
-python_version = "3.10"
+python_version = "3.11"
 files = ["src"]
