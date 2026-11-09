@@ -1,0 +1,80 @@
+name: Feature request
+description: Suggest an improvement to an EchoNova SDK, reference proxy or tool.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion.
+
+        **Never paste an API key (`ek_…`) or a webhook secret (`whsec_…`) in an issue. This repository is public.**
+
+        The SDKs expose only what the EchoNova API supports. To ask for a new API capability, such as a new endpoint, parameter or limit, contact EchoNova support instead.
+
+  - type: dropdown
+    id: sdk
+    attributes:
+      label: SDK
+      multiple: true
+      options:
+        - Python (echonova on PyPI)
+        - JavaScript/TypeScript (echonova on npm)
+        - Dart/Flutter (echonova on pub.dev)
+        - Reference proxy (proxy-examples)
+        - Tools or shared spec
+        - Documentation
+    validations:
+      required: true
+
+  - type: input
+    id: sdk-version
+    attributes:
+      label: SDK version you use
+      placeholder: "0.9.0b1"
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and operating system
+      placeholder: "Python 3.12 on Ubuntu 24.04 / Node.js 22.11 on macOS / Flutter 3.24 on iOS"
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: "Describe your use case, and what is hard or impossible with the SDK today."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: "If you have one in mind, sketch the API you'd like, in a fenced code block."
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+
+  - type: input
+    id: api-docs
+    attributes:
+      label: Related EchoNova API documentation
+      description: "A link to the API reference page this feature uses, if any."
+      placeholder: "https://echonova.ai/docs/developers/…"
+
+  - type: input
+    id: request-id
+    attributes:
+      label: Request ID
+      description: "If this comes from a specific API response, give its request ID: the `X-Request-Id` header, or `request_id` / `requestId` on the SDK's error."
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: "I have removed API keys, webhook secrets, signed download links and personal data from this issue."
+          required: true
+        - label: "I searched the existing issues for this request."

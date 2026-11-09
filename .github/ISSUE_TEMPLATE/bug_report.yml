@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in an EchoNova SDK, reference proxy or tool doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        **Never paste an API key (`ek_…`) or a webhook secret (`whsec_…`) in an issue. This repository is public.** If you posted one by mistake, delete that key in the EchoNova portal straight away and create a new one.
+
+        **Security problems must be reported privately.** Use the repository's **Security** tab, then **Report a vulnerability**, as described in `SECURITY.md`.
+
+  - type: dropdown
+    id: sdk
+    attributes:
+      label: SDK
+      options:
+        - Python (echonova on PyPI)
+        - JavaScript/TypeScript (echonova on npm)
+        - Dart/Flutter (echonova on pub.dev)
+        - Reference proxy (proxy-examples)
+        - Tools or shared spec
+    validations:
+      required: true
+
+  - type: input
+    id: sdk-version
+    attributes:
+      label: SDK version
+      description: "For example from `pip show echonova`, `npm ls echonova` or `dart pub deps`."
+      placeholder: "0.9.0b1"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and operating system
+      description: "The language runtime and its version, and the OS. For a Flutter app, include the Flutter version and the target platform."
+      placeholder: "Python 3.12 on Ubuntu 24.04 / Node.js 22.11 on macOS / Bun / Deno 2 / Flutter 3.24 on Android"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - REST call
+        - Async jobs (create, wait, list, export)
+        - Text to Speech stream
+        - Speech to Text stream
+        - File upload or download
+        - Errors and retries
+        - Webhooks
+        - Installation or packaging
+        - Documentation
+        - Other
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: "Describe what you did and what went wrong."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Code to reproduce
+      description: "The smallest code that shows the problem, in a fenced code block. Read the API key from the environment; don't paste it."
+    validations:
+      required: true
+
+  - type: input
+    id: request-id
+    attributes:
+      label: Request ID
+      description: "If an API call is involved, give the request ID from the error: the `X-Request-Id` response header, `request_id` on a Python error, or `requestId` on a TypeScript or Dart error. For a stream, also give the session ID if you have one. It lets EchoNova find the exact request."
+      placeholder: "3f1c2d9e-…"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output and logs
+      description: "The full error message and stack trace. Remove API keys, webhook secrets, and everything after the `?` in signed download links."
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: "I have removed API keys, webhook secrets, signed download links and personal data from this issue."
+          required: true
+        - label: "I searched the existing issues for this problem."
