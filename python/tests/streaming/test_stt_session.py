@@ -249,7 +249,7 @@ def test_close_without_stop_warns(
 
 def test_feed_from(server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None) -> None:
     stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="ar")
-    chunks = [pcm(0.3)[:9_601], pcm(0.3)]  # odd-length chunk: one byte carried, then dropped at the end
+    chunks = [pcm(0.3) + b"\x00", pcm(0.3)]  # odd-length chunk (9,601 bytes): one byte carried, then dropped at the end
     summary = stt.feed_from(chunks)
     events, error = stt.events()
     assert error is None
