@@ -1,0 +1,61 @@
+{
+  "name": "echonova",
+  "version": "0.0.1-dev.0",
+  "description": "Official JavaScript and TypeScript SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning.",
+  "keywords": [
+    "echonova",
+    "speech",
+    "tts",
+    "stt",
+    "arabic",
+    "text-to-speech",
+    "speech-to-text"
+  ],
+  "homepage": "https://echonova.ai/docs/developers",
+  "author": "EchoNova",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:dist": "node scripts/smoke-dist.mjs && node scripts/smoke-dist.cjs",
+    "size": "node scripts/size.mjs",
+    "lint:package": "attw --pack . && publint --strict && npm run test:dist && npm run size",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
+    "publint": "^0.3.25",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.0",
+    "ws": "^8.22.2"
+  }
+}
