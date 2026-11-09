@@ -7,6 +7,7 @@ This folder holds documentation shared by every EchoNova SDK. The API itself is 
 | Where | What |
 | --- | --- |
 | [`adr/`](adr/README.md) | Architecture decision records: why the SDKs are built the way they are |
+- [Releasing](RELEASING.md): tags, trusted publishing and the one-time registry setup.
 | [`../spec/README.md`](../spec/README.md) | The shared contract every SDK is tested against |
 | [`../python/README.md`](../python/README.md) | The Python SDK |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Development setup, the spec workflow, commit and testing rules |

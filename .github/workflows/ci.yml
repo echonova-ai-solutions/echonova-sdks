@@ -114,6 +114,13 @@ jobs:
       - run: dart test
       - if: matrix.sdk == 'stable'
         run: dart format --output=none --set-exit-if-changed .
+      - if: matrix.sdk == 'stable'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Flutter web stream transport (compiled to JavaScript, run on Node)
+        if: matrix.sdk == 'stable'
+        run: dart test -p node test/streaming/web_transport_test.dart
 
   proxy-fastapi:
     name: Proxy example (FastAPI)
