@@ -11,6 +11,8 @@ Environment:
   ECHONOVA_API_KEY        full-access test key, with a Credit Limit set (required)
   ECHONOVA_TTS_ONLY_KEY   a key limited to Text to Speech (optional: 403 fixtures)
   ECHONOVA_DISABLED_KEY   a disabled key (optional: 401 fixtures)
+  ECHONOVA_AGENT_ID       an agent in the test workspace (optional: agent-session fixtures; starts and
+                          immediately ends one chat session, which uses workspace credits)
   ECHONOVA_BASE_URL       defaults to https://api.echonova.ai
 
 Commands (run from the repo root):
@@ -278,6 +280,18 @@ def cmd_rest(_: argparse.Namespace) -> None:
     rec.call("clean/jobs_list", "GET", f"{clean}/jobs", params={"limit": 2}, expect=200)
     rec.call("clean/job_get", "GET", f"{clean}/jobs/{cleaned['id']}", expect=200)
     rec.call("clean/job_delete", "DELETE", f"{clean}/jobs/{cleaned['id']}", expect=200)
+
+    if agent := require_key("ECHONOVA_AGENT_ID", optional=True):
+        print("Agent sessions")
+        agents = f"/v1/agents/{agent}/sessions"
+        started = rec.call("agents/session_start_chat", "POST", agents, json={"channel": "chat"}, expect=200)
+        session = (started.json().get("data") or {}).get("id")
+        if session:
+            rec.call("agents/session_get", "GET", f"{agents}/{session}", expect=200)
+            rec.call("agents/session_end", "POST", f"{agents}/{session}/end", expect=200)
+            rec.call("agents/session_end_again", "POST", f"{agents}/{session}/end", expect=200)
+        rec.call("agents/session_start_unknown_agent", "POST", "/v1/agents/000000000000000000000000/sessions",
+                 json={"channel": "chat"}, expect=404)
 
     print("Authentication")
     rec.call("auth/missing_key", "GET", f"{tts}/voices", key=None, expect=401)

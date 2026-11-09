@@ -51,6 +51,7 @@ def test_api_urls_keep_their_host_and_query() -> None:
 def test_sensitive_fields_and_headers() -> None:
     s = Scrubber()
     assert s.value({"apiKeyName": "Acme production"}) == {"apiKeyName": "REDACTED"}
+    assert s.value({"token": "eyJhbGciOi.room", "ticket": "wtk_abc"}) == {"token": "REDACTED", "ticket": "REDACTED"}
     headers = s.headers({"Authorization": f"Bearer {KEY}", "X-Request-Id": "abc", "Set-Cookie": "a=b", "Server": "x"})
     assert headers == {"x-request-id": "abc"}
 

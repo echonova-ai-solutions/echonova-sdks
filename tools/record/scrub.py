@@ -24,7 +24,7 @@ URL = re.compile(r"https?://[^\s\"'<>]+")
 
 PLACEHOLDER_STORAGE_HOST = "storage.example.com"
 API_HOSTS = {"api.echonova.ai", "echonova.ai", "www.echonova.ai"}
-SENSITIVE_FIELDS = {"apiKeyName", "workspaceName", "email", "userName", "name_of_key"}
+SENSITIVE_FIELDS = {"apiKeyName", "workspaceName", "email", "userName", "name_of_key", "token", "ticket"}
 
 KEEP_HEADERS = {
     "content-type",
