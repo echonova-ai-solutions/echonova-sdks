@@ -1,0 +1,32 @@
+# Internal working notes: never published (see docs/adr/0012-public-repo-confidentiality.md)
+.internal/
+
+# Recorder output before review and scrubbing
+tools/record/out/
+
+# Secrets
+.env
+.env.*
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# JS / Dart (later phases)
+node_modules/
+.dart_tool/
+
+# Editors
+.idea/
+.vscode/
+.DS_Store
