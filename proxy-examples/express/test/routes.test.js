@@ -22,14 +22,17 @@ test('the REST allow-list is exactly the speech routes of the spec', { skip }, (
       .filter((m) => ['get', 'post', 'put', 'patch', 'delete'].includes(m))
       .map((m) => `${m.toUpperCase()} ${path}`),
   );
+  const SERVER_SIDE_ONLY = [
+    'POST /v1/widgets/{publicId}/tickets',
+    'POST /v1/agents/{agentId}/sessions',
+    'GET /v1/agents/{agentId}/sessions/{sessionId}',
+    'POST /v1/agents/{agentId}/sessions/{sessionId}/end',
+  ];
   const speech = operations.filter((op) => SPEECH_PREFIXES.some((p) => op.split(' ')[1].startsWith(p)));
   assert.deepEqual(new Set(REST_ROUTES.map(([m, p]) => `${m} ${p}`)), new Set(speech));
   assert.equal(REST_ROUTES.length, 16);
-  // Everything else in the spec (the widget ticket route) stays server-side only.
-  assert.deepEqual(
-    operations.filter((op) => !speech.includes(op)),
-    ['POST /v1/widgets/{publicId}/tickets'],
-  );
+  // Everything else in the spec (widget tickets, agent sessions) stays server-side only.
+  assert.deepEqual(new Set(operations.filter((op) => !speech.includes(op))), new Set(SERVER_SIDE_ONLY));
 });
 
 test('the stream allow-list matches the asyncapi channels and their query', { skip }, () => {

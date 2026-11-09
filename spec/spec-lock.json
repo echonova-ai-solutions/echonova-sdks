@@ -3,15 +3,15 @@
   "documents": {
     "openapi.json": {
       "url": "https://api.echonova.ai/openapi.json",
-      "sha256": "43d4759e3faac49578fbdbff013d468a59a46ec58b5ddd015934e30f71726346",
+      "sha256": "cfe0061feb848bb37c154526783ab7ae92d0456f2ca171bf120e4b92feaaa25f",
       "info_version": "1.0.0",
-      "fetched_at": "2026-11-05T11:42:16+00:00"
+      "fetched_at": "2026-11-09T20:08:45+00:00"
     },
     "asyncapi.json": {
       "url": "https://api.echonova.ai/asyncapi.json",
-      "sha256": "d0091fd3f5a35b47d4ab5d9cf22c7f6c01b4804279a40b668a23f42b2778fa76",
+      "sha256": "3d52d44bdce060654477c4c8f131f6128c9843e1dae4ae3397a1a7634eaad00e",
       "info_version": "1.0.0",
-      "fetched_at": "2026-11-05T11:42:17+00:00"
+      "fetched_at": "2026-11-09T20:08:45+00:00"
     }
   }
 }

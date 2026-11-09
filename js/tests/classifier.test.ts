@@ -32,7 +32,7 @@ const FAMILY: Record<number, Array<abstract new (...args: never[]) => unknown>> 
   402: [errors.InsufficientBalanceError],
   403: [errors.PermissionDeniedError],
   404: [errors.NotFoundError],
-  409: [errors.InvalidRequestError],
+  409: [errors.InvalidRequestError, errors.ConcurrencyLimitError], // agent call/chat limits are capacity limits
   413: [errors.InvalidRequestError],
   415: [errors.InvalidRequestError],
   429: [errors.RateLimitError, errors.SpendingLimitError],

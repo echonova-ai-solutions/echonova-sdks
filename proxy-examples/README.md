@@ -80,7 +80,7 @@ Apps that can set headers (server-side, mobile, desktop) just send their `Author
 **Forwards only the EchoNova speech API (an allow-list, never an open proxy).**
 - The 16 REST routes of Text to Speech, Speech to Text and Sound Cleaning, each with its own method. A test checks the list against [`spec/openapi.json`](../spec/openapi.json).
 - The 2 streams: `/v1/text-to-speech/stream` and `/v1/speech-to-text/stream`. Only the documented Speech to Text query parameters (`sample_rate`, `language`, `encoding`) are passed on.
-- `POST /v1/widgets/{publicId}/tickets` is left out on purpose: minting a widget ticket is a call your backend makes directly.
+- Widget tickets (`POST /v1/widgets/{publicId}/tickets`) and agent sessions (`/v1/agents/{agentId}/sessions...`) are left out on purpose. Your backend calls them directly, after deciding which of your users may start a session: starting one spends workspace credits and returns a room token for that user.
 - Anything else is `404`. A known route with the wrong method is `405`, with an `Allow` header. Path parameters must be a single plain segment (`[A-Za-z0-9_-]`), so an encoded `../` can't reach another route.
 
 **Authenticates your user, then applies a quota.** Both are hooks you replace (see each proxy's README):

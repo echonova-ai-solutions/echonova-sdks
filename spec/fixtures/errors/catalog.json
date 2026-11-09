@@ -1,7 +1,871 @@
 {
   "source": "spec/openapi.json",
-  "count": 292,
+  "count": 340,
   "entries": [
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 400,
+      "example": "channel-must-be-one-of-the-following-values-voice-chat",
+      "error_message": "channel must be one of the following values: voice, chat",
+      "envelope": {
+        "data": null,
+        "statusCode": 400,
+        "success": false,
+        "errorMessage": "channel must be one of the following values: voice, chat",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "channel is sent and is neither voice nor chat.",
+      "fix": "Send voice or chat, or leave channel out for voice."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 400,
+      "example": "invalid-identifier",
+      "error_message": "Invalid identifier",
+      "envelope": {
+        "data": null,
+        "statusCode": 400,
+        "success": false,
+        "errorMessage": "Invalid identifier",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "agentId or sessionId is not a 24-character hexadecimal id.",
+      "fix": "Use the id exactly as GET /v1/agents returned it."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 400,
+      "example": "property-name-should-not-exist",
+      "error_message": "property <name> should not exist",
+      "envelope": {
+        "data": null,
+        "statusCode": 400,
+        "success": false,
+        "errorMessage": "property <name> should not exist",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The body or query carries a field the endpoint does not define.",
+      "fix": "Remove the field."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 401,
+      "example": "unauthorized",
+      "error_message": "Unauthorized",
+      "envelope": {
+        "data": null,
+        "statusCode": 401,
+        "success": false,
+        "errorMessage": "Unauthorized",
+        "docs": "https://echonova.ai/docs/developers/authentication"
+      },
+      "documents_retry_after": false,
+      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+      "fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 402,
+      "example": "out-of-credits-top-up-your-plan-to-start-a-chat-session",
+      "error_message": "Out of credits. Top up your plan to start a chat session.",
+      "envelope": {
+        "data": null,
+        "statusCode": 402,
+        "success": false,
+        "errorMessage": "Out of credits. Top up your plan to start a chat session.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace has no credits left to start a chat session; nothing was charged.",
+      "fix": "Add credits to the workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 402,
+      "example": "out-of-credits-top-up-your-plan-to-start-a-voice-session",
+      "error_message": "Out of credits. Top up your plan to start a voice session.",
+      "envelope": {
+        "data": null,
+        "statusCode": 402,
+        "success": false,
+        "errorMessage": "Out of credits. Top up your plan to start a voice session.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace has no credits left to start a voice session; nothing was charged.",
+      "fix": "Add credits to the workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 402,
+      "example": "your-trial-ai-allowance-is-used-up-upgrade-to-keep-using-ai",
+      "error_message": "Your trial AI allowance is used up. Upgrade to keep using AI.",
+      "envelope": {
+        "data": null,
+        "statusCode": 402,
+        "success": false,
+        "errorMessage": "Your trial AI allowance is used up. Upgrade to keep using AI.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace is on a trial and its AI allowance is used up; nothing ran and nothing was charged.",
+      "fix": "Upgrade the plan."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "subscription-expired-or-inactive",
+      "error_message": "Subscription expired or inactive",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription expired or inactive",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The subscription is in a state other than active or trial.",
+      "fix": "Renew the subscription."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "subscription-has-expired",
+      "error_message": "Subscription has expired",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription has expired",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The subscription has expired and no bought credits are left; nothing ran and nothing was charged.",
+      "fix": "Renew the subscription or buy credits."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "subscription-not-found",
+      "error_message": "Subscription not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace that owns the key has no subscription.",
+      "fix": "Check the workspace's plan in the portal."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "the-member-who-created-this-api-key-cannot-view-agents",
+      "error_message": "The member who created this API key cannot view agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "The member who created this API key cannot view agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+      "fix": "Give that member both permissions again, or create a key as a member who has them."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "this-api-key-cannot-talk-to-agents",
+      "error_message": "This API key cannot talk to agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "This API key cannot talk to agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The key does not have the agents:talk scope.",
+      "fix": "Edit the key and give it the agents:talk scope, or use another key."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 403,
+      "example": "workspace-is-not-active",
+      "error_message": "Workspace is not active",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Workspace is not active",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace is closed; nothing ran and nothing was charged.",
+      "fix": "Contact support to reopen the workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 404,
+      "example": "agent-not-found",
+      "error_message": "Agent not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 404,
+        "success": false,
+        "errorMessage": "Agent not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent id is unknown, or the agent belongs to another workspace.",
+      "fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 409,
+      "example": "cannot-start-a-session-on-an-archived-agent",
+      "error_message": "Cannot start a session on an archived agent",
+      "envelope": {
+        "data": null,
+        "statusCode": 409,
+        "success": false,
+        "errorMessage": "Cannot start a session on an archived agent",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent is archived.",
+      "fix": "Restore it with POST /v1/agents/{agentId}/restore, then start the session."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 409,
+      "example": "this-agent-has-reached-its-call-limit-try-again-later",
+      "error_message": "This agent has reached its call limit. Try again later.",
+      "envelope": {
+        "data": null,
+        "statusCode": 409,
+        "success": false,
+        "errorMessage": "This agent has reached its call limit. Try again later.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A voice start found the agent already has as many calls open as it allows, the workspace's plan already has as many calls open at once as it allows, or the agent has had as many calls today as it allows.",
+      "fix": "Try again later."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 409,
+      "example": "this-agent-has-reached-its-chat-limit-try-again-later",
+      "error_message": "This agent has reached its chat limit. Try again later.",
+      "envelope": {
+        "data": null,
+        "statusCode": 409,
+        "success": false,
+        "errorMessage": "This agent has reached its chat limit. Try again later.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent already has as many chats open as it allows, the workspace's plan already has as many chats open at once as it allows, or the agent has had as many chats today as it allows.",
+      "fix": "Try again later."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 413,
+      "example": "request-body-is-larger-than-100-kb",
+      "error_message": "Request body is larger than 100 KB",
+      "envelope": {
+        "data": null,
+        "statusCode": 413,
+        "success": false,
+        "errorMessage": "Request body is larger than 100 KB",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The JSON body is over 100 KB; the request is rejected before the API key is checked, so it has no Activity row.",
+      "fix": "Send a smaller body; long text belongs in several calls."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 415,
+      "example": "content-type-must-be-application-json",
+      "error_message": "Content-Type must be application/json",
+      "envelope": {
+        "data": null,
+        "statusCode": 415,
+        "success": false,
+        "errorMessage": "Content-Type must be application/json",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The request has a body whose Content-Type is not application/json.",
+      "fix": "Send Content-Type: application/json."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 429,
+      "example": "throttlerexception-too-many-requests",
+      "error_message": "ThrottlerException: Too Many Requests",
+      "envelope": {
+        "data": null,
+        "statusCode": 429,
+        "success": false,
+        "errorMessage": "ThrottlerException: Too Many Requests",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": true,
+      "when": "The key made more than 10 requests to this endpoint in 60 seconds; a Retry-After header carries the seconds to wait.",
+      "fix": "Wait Retry-After seconds, then retry."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 500,
+      "example": "something-went-wrong",
+      "error_message": "Something went wrong",
+      "envelope": {
+        "data": null,
+        "statusCode": 500,
+        "success": false,
+        "errorMessage": "Something went wrong",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "An error the API did not classify.",
+      "fix": "Check the request, then retry after a short wait; contact support if it persists."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 503,
+      "example": "database-unavailable",
+      "error_message": "Database unavailable",
+      "envelope": {
+        "data": null,
+        "statusCode": 503,
+        "success": false,
+        "errorMessage": "Database unavailable",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient outage inside the API.",
+      "fix": "Retry after a short wait."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 503,
+      "example": "live-sessions-are-not-available-right-now-try-again-later",
+      "error_message": "Live sessions are not available right now. Try again later.",
+      "envelope": {
+        "data": null,
+        "statusCode": 503,
+        "success": false,
+        "errorMessage": "Live sessions are not available right now. Try again later.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent runtime did not accept the session; no session is left open.",
+      "fix": "Try again later."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_startSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "status": 504,
+      "example": "database-timed-out",
+      "error_message": "Database timed out",
+      "envelope": {
+        "data": null,
+        "statusCode": 504,
+        "success": false,
+        "errorMessage": "Database timed out",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient timeout inside the API.",
+      "fix": "Retry after a short wait."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 400,
+      "example": "invalid-identifier",
+      "error_message": "Invalid identifier",
+      "envelope": {
+        "data": null,
+        "statusCode": 400,
+        "success": false,
+        "errorMessage": "Invalid identifier",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "agentId or sessionId is not a 24-character hexadecimal id.",
+      "fix": "Use the id exactly as GET /v1/agents returned it."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 401,
+      "example": "unauthorized",
+      "error_message": "Unauthorized",
+      "envelope": {
+        "data": null,
+        "statusCode": 401,
+        "success": false,
+        "errorMessage": "Unauthorized",
+        "docs": "https://echonova.ai/docs/developers/authentication"
+      },
+      "documents_retry_after": false,
+      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+      "fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 403,
+      "example": "subscription-expired-or-inactive",
+      "error_message": "Subscription expired or inactive",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription expired or inactive",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The subscription is in a state other than active or trial.",
+      "fix": "Renew the subscription."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 403,
+      "example": "subscription-not-found",
+      "error_message": "Subscription not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace that owns the key has no subscription.",
+      "fix": "Check the workspace's plan in the portal."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 403,
+      "example": "the-member-who-created-this-api-key-cannot-view-agents",
+      "error_message": "The member who created this API key cannot view agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "The member who created this API key cannot view agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+      "fix": "Give that member both permissions again, or create a key as a member who has them."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 403,
+      "example": "this-api-key-cannot-talk-to-agents",
+      "error_message": "This API key cannot talk to agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "This API key cannot talk to agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The key does not have the agents:talk scope.",
+      "fix": "Edit the key and give it the agents:talk scope, or use another key."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 404,
+      "example": "agent-not-found",
+      "error_message": "Agent not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 404,
+        "success": false,
+        "errorMessage": "Agent not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent id is unknown, or the agent belongs to another workspace.",
+      "fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 404,
+      "example": "session-not-found",
+      "error_message": "Session not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 404,
+        "success": false,
+        "errorMessage": "Session not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace.",
+      "fix": "Use the id the start call returned, with the same agent id."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 429,
+      "example": "throttlerexception-too-many-requests",
+      "error_message": "ThrottlerException: Too Many Requests",
+      "envelope": {
+        "data": null,
+        "statusCode": 429,
+        "success": false,
+        "errorMessage": "ThrottlerException: Too Many Requests",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": true,
+      "when": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait.",
+      "fix": "Wait Retry-After seconds, then retry."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 500,
+      "example": "something-went-wrong",
+      "error_message": "Something went wrong",
+      "envelope": {
+        "data": null,
+        "statusCode": 500,
+        "success": false,
+        "errorMessage": "Something went wrong",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "An error the API did not classify.",
+      "fix": "Check the request, then retry after a short wait; contact support if it persists."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 503,
+      "example": "database-unavailable",
+      "error_message": "Database unavailable",
+      "envelope": {
+        "data": null,
+        "statusCode": 503,
+        "success": false,
+        "errorMessage": "Database unavailable",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient outage inside the API.",
+      "fix": "Retry after a short wait."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_getSession",
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "status": 504,
+      "example": "database-timed-out",
+      "error_message": "Database timed out",
+      "envelope": {
+        "data": null,
+        "statusCode": 504,
+        "success": false,
+        "errorMessage": "Database timed out",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient timeout inside the API.",
+      "fix": "Retry after a short wait."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 400,
+      "example": "invalid-identifier",
+      "error_message": "Invalid identifier",
+      "envelope": {
+        "data": null,
+        "statusCode": 400,
+        "success": false,
+        "errorMessage": "Invalid identifier",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "agentId or sessionId is not a 24-character hexadecimal id.",
+      "fix": "Use the id exactly as GET /v1/agents returned it."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 401,
+      "example": "unauthorized",
+      "error_message": "Unauthorized",
+      "envelope": {
+        "data": null,
+        "statusCode": 401,
+        "success": false,
+        "errorMessage": "Unauthorized",
+        "docs": "https://echonova.ai/docs/developers/authentication"
+      },
+      "documents_retry_after": false,
+      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+      "fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 403,
+      "example": "subscription-expired-or-inactive",
+      "error_message": "Subscription expired or inactive",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription expired or inactive",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The subscription is in a state other than active or trial.",
+      "fix": "Renew the subscription."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 403,
+      "example": "subscription-not-found",
+      "error_message": "Subscription not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "Subscription not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The workspace that owns the key has no subscription.",
+      "fix": "Check the workspace's plan in the portal."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 403,
+      "example": "the-member-who-created-this-api-key-cannot-view-agents",
+      "error_message": "The member who created this API key cannot view agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "The member who created this API key cannot view agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+      "fix": "Give that member both permissions again, or create a key as a member who has them."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 403,
+      "example": "this-api-key-cannot-talk-to-agents",
+      "error_message": "This API key cannot talk to agents.",
+      "envelope": {
+        "data": null,
+        "statusCode": 403,
+        "success": false,
+        "errorMessage": "This API key cannot talk to agents.",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The key does not have the agents:talk scope.",
+      "fix": "Edit the key and give it the agents:talk scope, or use another key."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 404,
+      "example": "agent-not-found",
+      "error_message": "Agent not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 404,
+        "success": false,
+        "errorMessage": "Agent not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The agent id is unknown, or the agent belongs to another workspace.",
+      "fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 404,
+      "example": "session-not-found",
+      "error_message": "Session not found",
+      "envelope": {
+        "data": null,
+        "statusCode": 404,
+        "success": false,
+        "errorMessage": "Session not found",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace.",
+      "fix": "Use the id the start call returned, with the same agent id."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 429,
+      "example": "throttlerexception-too-many-requests",
+      "error_message": "ThrottlerException: Too Many Requests",
+      "envelope": {
+        "data": null,
+        "statusCode": 429,
+        "success": false,
+        "errorMessage": "ThrottlerException: Too Many Requests",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": true,
+      "when": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait.",
+      "fix": "Wait Retry-After seconds, then retry."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 500,
+      "example": "something-went-wrong",
+      "error_message": "Something went wrong",
+      "envelope": {
+        "data": null,
+        "statusCode": 500,
+        "success": false,
+        "errorMessage": "Something went wrong",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "An error the API did not classify.",
+      "fix": "Check the request, then retry after a short wait; contact support if it persists."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 503,
+      "example": "database-unavailable",
+      "error_message": "Database unavailable",
+      "envelope": {
+        "data": null,
+        "statusCode": 503,
+        "success": false,
+        "errorMessage": "Database unavailable",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient outage inside the API.",
+      "fix": "Retry after a short wait."
+    },
+    {
+      "operation_id": "V1AgentSessionsController_endSession",
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "status": 504,
+      "example": "database-timed-out",
+      "error_message": "Database timed out",
+      "envelope": {
+        "data": null,
+        "statusCode": 504,
+        "success": false,
+        "errorMessage": "Database timed out",
+        "docs": "https://echonova.ai/docs/developers/errors"
+      },
+      "documents_retry_after": false,
+      "when": "A transient timeout inside the API.",
+      "fix": "Retry after a short wait."
+    },
     {
       "operation_id": "V1CleanController_clean",
       "method": "POST",
@@ -161,8 +1025,8 @@
         "docs": "https://echonova.ai/docs/developers/errors"
       },
       "documents_retry_after": false,
-      "when": "The file extension or its Content-Type is not one of the four formats, or the two do not match.",
-      "fix": "Send MP3, WAV, FLAC or OGG/Opus with a matching extension and type."
+      "when": "The file's content is not MP3, WAV, FLAC or OGG/Opus. The content decides, not the file name or Content-Type: a renamed file is cleaned as the format it really is.",
+      "fix": "Send MP3, WAV, FLAC or OGG/Opus audio. Renaming a file does not change its format; convert it instead."
     },
     {
       "operation_id": "V1CleanController_clean",
@@ -287,8 +1151,8 @@
         "docs": "https://echonova.ai/docs/developers/errors"
       },
       "documents_retry_after": false,
-      "when": "The upload is over 150 MB; the request is cut off before the file is read.",
-      "fix": "Re-encode at a lower bitrate or as mono."
+      "when": "The upload is over 100 MB; the request is cut off before the file is read.",
+      "fix": "Send MP3, or WAV as mono 16-bit: 10 minutes of it stays under 100 MB."
     },
     {
       "operation_id": "V1CleanController_clean",

@@ -106,6 +106,9 @@
         "sessionEnded": {
           "$ref": "#/components/messages/sttSessionEnded"
         },
+        "sessionSaved": {
+          "$ref": "#/components/messages/sttSessionSaved"
+        },
         "error": {
           "$ref": "#/components/messages/error"
         },
@@ -144,7 +147,7 @@
       "address": "/v1/text-to-speech/stream",
       "title": "Stream text to speech",
       "summary": "Send text and receive PCM16 audio as it is generated.",
-      "description": "Keep one socket open and send a synthesize message for each sentence or reply. The server answers with start, then binary PCM16 frames, then done. Audio is generated a few seconds of speech at a time, so the first audio arrives well before the whole text is spoken. Only one synthesis runs at a time: send cancel, or a new synthesize, to stop the current one (barge-in). Each synthesize is charged per character when it starts; a cancelled synthesis is still charged.",
+      "description": "Keep one socket open and send a synthesize message for each sentence or reply. The server answers with start, then binary PCM16 frames, then done. Audio is generated a few seconds of speech at a time, so the first audio arrives well before the whole text is spoken. Only one synthesis runs at a time: send cancel, or a new synthesize, to stop the current one (barge-in). Each synthesize is charged per character when it starts. A synthesis that stops after its audio started (cancel, barge-in or a speech service failure) costs only the share of audio sent, at least 1 credit; the rest is refunded.",
       "x-echonova-group": "tts",
       "x-echonova-slug": "tts-stream",
       "x-echonova-service": "Text to Speech",
@@ -265,6 +268,9 @@
         },
         {
           "$ref": "#/channels/sttStream/messages/sessionEnded"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/sessionSaved"
         },
         {
           "$ref": "#/channels/sttStream/messages/error"
@@ -393,7 +399,7 @@
                     "keywords": {
                       "type": "array",
                       "maxItems": 500,
-                      "description": "A term string, or {term, variants, blocked, context_words, needs_context, output_script}. Terms and variants up to 100 characters; up to 10 variants and 20 blocked phrases or context words; output_script is latin, arabic, as_typed.",
+                      "description": "A term string, or {term, variants, blocked, context_words, needs_context}. Terms and variants up to 100 characters; up to 10 variants and 20 blocked phrases or context words. Terms are written exactly as typed.",
                       "items": {}
                     },
                     "options": {
@@ -458,7 +464,7 @@
         "name": "stop",
         "title": "Stop",
         "contentType": "application/json",
-        "summary": "Transcribe any remaining audio, send the last transcripts and session.ended, then close.",
+        "summary": "Transcribe any remaining audio, send the last transcripts and session.ended and session.saved, then close.",
         "payload": {
           "type": "object",
           "required": [
@@ -491,7 +497,8 @@
             "sessionId",
             "language",
             "sampleRate",
-            "maxSessionSeconds"
+            "maxSessionSeconds",
+            "jobId"
           ],
           "properties": {
             "type": {
@@ -517,6 +524,10 @@
             "maxSessionSeconds": {
               "type": "integer",
               "description": "Seconds until the server ends the session."
+            },
+            "jobId": {
+              "type": "string",
+              "description": "The id this session's job gets once it is saved."
             }
           }
         },
@@ -527,7 +538,8 @@
               "sessionId": "c8a1f2e4-5b6d-4e7f-9a0b-1c2d3e4f5a6b",
               "language": "ar",
               "sampleRate": 16000,
-              "maxSessionSeconds": 1500
+              "maxSessionSeconds": 1500,
+              "jobId": "66e3f2a1c9d4b8a1f0e12347"
             }
           }
         ]
@@ -704,7 +716,7 @@
         "name": "session.ended",
         "title": "Session ended",
         "contentType": "application/json",
-        "summary": "The last message. The server closes the socket right after it.",
+        "summary": "Sent when the session ends. Usually followed by session.saved, then the server closes the socket.",
         "payload": {
           "type": "object",
           "required": [
@@ -747,6 +759,48 @@
               "reason": "stopped",
               "totalSeconds": 42.6,
               "creditsConsumed": 142
+            }
+          }
+        ]
+      },
+      "sttSessionSaved": {
+        "name": "session.saved",
+        "title": "Session saved",
+        "contentType": "application/json",
+        "summary": "Sent once after session.ended, before the socket closes: whether the session was kept as a job.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "jobId",
+            "status"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "session.saved"
+            },
+            "jobId": {
+              "type": "string",
+              "description": "The id of this session's job."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "saved",
+                "empty",
+                "failed"
+              ],
+              "description": "saved: the job is in GET /v1/speech-to-text/jobs/{jobId}. empty: nothing was transcribed, so nothing is kept. failed: the session could not be kept."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "session.saved",
+              "jobId": "66e3f2a1c9d4b8a1f0e12347",
+              "status": "saved"
             }
           }
         ]
@@ -982,6 +1036,10 @@
             },
             "requestId": {
               "type": "string"
+            },
+            "creditsConsumed": {
+              "type": "number",
+              "description": "Credits this synthesis finally cost: the share of audio sent, at least 1. Absent when it was cancelled before it was charged."
             }
           }
         },
@@ -989,7 +1047,8 @@
           {
             "payload": {
               "type": "cancelled",
-              "requestId": "reply-1"
+              "requestId": "reply-1",
+              "creditsConsumed": 12
             }
           }
         ]
@@ -1081,6 +1140,10 @@
             "message": {
               "type": "string",
               "description": "Human-readable explanation."
+            },
+            "creditsConsumed": {
+              "type": "number",
+              "description": "Text to Speech only, on upstream_error after audio started: credits the synthesis finally cost, the share of audio sent, at least 1. Absent when nothing was charged."
             }
           }
         },

@@ -29,7 +29,13 @@ def test_rest_allow_list_is_exactly_the_speech_routes_of_the_spec() -> None:
     assert set(REST_ROUTES) == speech
     assert len(REST_ROUTES) == 16
     # Everything else in the spec (the widget ticket route) stays server-side only.
-    assert {path for _, path in operations - speech} == {"/v1/widgets/{publicId}/tickets"}
+    # Everything else in the spec (widget tickets, agent sessions) stays server-side only.
+    assert {path for _, path in operations - speech} == {
+        "/v1/widgets/{publicId}/tickets",
+        "/v1/agents/{agentId}/sessions",
+        "/v1/agents/{agentId}/sessions/{sessionId}",
+        "/v1/agents/{agentId}/sessions/{sessionId}/end",
+    }
 
 
 @needs_spec

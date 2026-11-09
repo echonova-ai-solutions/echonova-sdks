@@ -20,7 +20,9 @@ final family = <int, bool Function(Object)>{
   402: (e) => e is InsufficientBalanceException,
   403: (e) => e is PermissionDeniedException,
   404: (e) => e is NotFoundException,
-  409: (e) => e is InvalidRequestException,
+  409: (e) =>
+      e is InvalidRequestException ||
+      e is ConcurrencyLimitException, // agent limits
   413: (e) => e is InvalidRequestException,
   415: (e) => e is InvalidRequestException,
   429: (e) => e is RateLimitException || e is SpendingLimitException,

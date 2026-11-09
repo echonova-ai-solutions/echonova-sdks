@@ -1425,7 +1425,7 @@
     },
     "/v1/text-to-speech/jobs": {
       "get": {
-        "description": "Lists the API jobs in this key's workspace, paged with offset and limit. Needs Text to Speech access on the key.",
+        "description": "Lists the API jobs in this key's workspace, paged with offset and limit. Each synthesis on /v1/text-to-speech/stream is a job too, with a stream block. Needs Text to Speech access on the key.",
         "operationId": "V1TtsController_listJobs",
         "parameters": [
           {
@@ -1780,7 +1780,7 @@
     },
     "/v1/text-to-speech/jobs/{jobId}": {
       "get": {
-        "description": "Returns one API job of this key's workspace, with its audio URL once it has completed, whichever key created it. A job of another workspace answers 404. Needs Text to Speech access on the key.",
+        "description": "Returns one API job of this key's workspace, with its audio URL once it has completed, whichever key created it. A stream synthesis job holds the audio that was sent, unless it failed or was too long to keep. A job of another workspace answers 404. Needs Text to Speech access on the key.",
         "operationId": "V1TtsController_getJob",
         "parameters": [
           {
@@ -2422,7 +2422,7 @@
                   "terminology": {
                     "type": "string",
                     "format": "json",
-                    "description": "Your own terms, as a JSON string: names, products and acronyms the transcript should spell your way. The finished job then carries terminology, with the transcript corrected to them; transcription stays as heard. Shape: {\"keywords\": [...]}, each keyword a term string or {term, variants, blocked, context_words, needs_context, output_script}. Up to 500 keywords and 256 KB; each term and variant up to 100 characters, 10 variants and 20 blocked phrases or context words per keyword; output_script is one of latin, arabic, as_typed. Nothing is stored between requests: send the full list each time.",
+                    "description": "Your own terms, as a JSON string: names, products and acronyms the transcript should spell your way. The finished job then carries terminology, with the transcript corrected to them; transcription stays as heard. Shape: {\"keywords\": [...]}, each keyword a term string or {term, variants, blocked, context_words, needs_context}. Up to 500 keywords and 256 KB; each term and variant up to 100 characters, 10 variants and 20 blocked phrases or context words per keyword. Terms are written exactly as typed. Nothing is stored between requests: send the full list each time.",
                     "example": "{\"keywords\": [\"KYC\", {\"term\": \"Emirates NBD\", \"variants\": [\"امريتس ان بي دي\"]}, {\"term\": \"SWIFT\", \"context_words\": [\"transfer\", \"تحويل\"]}]}"
                   }
                 }
@@ -3005,7 +3005,7 @@
                   "terminology": {
                     "type": "string",
                     "format": "json",
-                    "description": "Your own terms, as a JSON string: names, products and acronyms the transcript should spell your way. The finished job then carries terminology, with the transcript corrected to them; transcription stays as heard. Shape: {\"keywords\": [...]}, each keyword a term string or {term, variants, blocked, context_words, needs_context, output_script}. Up to 500 keywords and 256 KB; each term and variant up to 100 characters, 10 variants and 20 blocked phrases or context words per keyword; output_script is one of latin, arabic, as_typed. Nothing is stored between requests: send the full list each time.",
+                    "description": "Your own terms, as a JSON string: names, products and acronyms the transcript should spell your way. The finished job then carries terminology, with the transcript corrected to them; transcription stays as heard. Shape: {\"keywords\": [...]}, each keyword a term string or {term, variants, blocked, context_words, needs_context}. Up to 500 keywords and 256 KB; each term and variant up to 100 characters, 10 variants and 20 blocked phrases or context words per keyword. Terms are written exactly as typed. Nothing is stored between requests: send the full list each time.",
                     "example": "{\"keywords\": [\"KYC\", {\"term\": \"Emirates NBD\", \"variants\": [\"امريتس ان بي دي\"]}, {\"term\": \"SWIFT\", \"context_words\": [\"transfer\", \"تحويل\"]}]}"
                   }
                 }
@@ -4907,7 +4907,7 @@
     },
     "/v1/sound-cleaning": {
       "post": {
-        "description": "Cleans an uploaded MP3, WAV, FLAC or OGG/Opus file of up to 10 minutes and 150MB in one call and returns the job with the cleaned file URL. Every tuning field is optional; an omitted one uses its default.",
+        "description": "Cleans an uploaded MP3, WAV, FLAC or OGG/Opus file of up to 10 minutes and 100MB in one call and returns the job with the cleaned file URL. Every tuning field is optional; an omitted one uses its default.",
         "operationId": "V1CleanController_clean",
         "parameters": [],
         "requestBody": {
@@ -4923,7 +4923,7 @@
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Audio file (mp3, wav, flac, ogg/opus). Up to 10 minutes, 150MB."
+                    "description": "Audio file (mp3, wav, flac, ogg/opus). Up to 10 minutes, 100MB."
                   },
                   "cutoffFreq": {
                     "type": "number",
@@ -5121,7 +5121,7 @@
                   },
                   "unsupported-audio-format-sound-cleaning-accepts-mp3-wav-flac-or-ogg-opus": {
                     "summary": "Unsupported audio format. Sound cleaning accepts MP3, WAV, FLAC or OGG/Opus.",
-                    "description": "The file extension or its Content-Type is not one of the four formats, or the two do not match. Send MP3, WAV, FLAC or OGG/Opus with a matching extension and type.",
+                    "description": "The file's content is not MP3, WAV, FLAC or OGG/Opus. The content decides, not the file name or Content-Type: a renamed file is cleaned as the format it really is. Send MP3, WAV, FLAC or OGG/Opus audio. Renaming a file does not change its format; convert it instead.",
                     "value": {
                       "data": null,
                       "statusCode": 400,
@@ -5129,8 +5129,8 @@
                       "errorMessage": "Unsupported audio format. Sound cleaning accepts MP3, WAV, FLAC or OGG/Opus.",
                       "docs": "https://echonova.ai/docs/developers/errors"
                     },
-                    "x-echonova-when": "The file extension or its Content-Type is not one of the four formats, or the two do not match.",
-                    "x-echonova-fix": "Send MP3, WAV, FLAC or OGG/Opus with a matching extension and type."
+                    "x-echonova-when": "The file's content is not MP3, WAV, FLAC or OGG/Opus. The content decides, not the file name or Content-Type: a renamed file is cleaned as the format it really is.",
+                    "x-echonova-fix": "Send MP3, WAV, FLAC or OGG/Opus audio. Renaming a file does not change its format; convert it instead."
                   },
                   "targetlufs-must-not-be-greater-than-6": {
                     "summary": "targetLufs must not be greater than -6",
@@ -5286,7 +5286,7 @@
                 "examples": {
                   "file-too-large": {
                     "summary": "File too large",
-                    "description": "The upload is over 150 MB; the request is cut off before the file is read. Re-encode at a lower bitrate or as mono.",
+                    "description": "The upload is over 100 MB; the request is cut off before the file is read. Send MP3, or WAV as mono 16-bit: 10 minutes of it stays under 100 MB.",
                     "value": {
                       "data": null,
                       "statusCode": 413,
@@ -5294,8 +5294,8 @@
                       "errorMessage": "File too large",
                       "docs": "https://echonova.ai/docs/developers/errors"
                     },
-                    "x-echonova-when": "The upload is over 150 MB; the request is cut off before the file is read.",
-                    "x-echonova-fix": "Re-encode at a lower bitrate or as mono."
+                    "x-echonova-when": "The upload is over 100 MB; the request is cut off before the file is read.",
+                    "x-echonova-fix": "Send MP3, or WAV as mono 16-bit: 10 minutes of it stays under 100 MB."
                   }
                 }
               }
@@ -5455,7 +5455,7 @@
             "bearer": []
           }
         ],
-        "summary": "Clean audio synchronously (returns the cleaned file URL in one call, up to 10 minutes, 150MB)",
+        "summary": "Clean audio synchronously (returns the cleaned file URL in one call, up to 10 minutes, 100MB)",
         "tags": [
           "Developer API - V1 Sound Cleaning"
         ]
@@ -6883,6 +6883,1183 @@
           "Developer API - V1 Website Widget"
         ]
       }
+    },
+    "/v1/agents/{agentId}/sessions": {
+      "post": {
+        "description": "Starts a voice or chat session, as the portal's Test button does, and returns a room token and address. The token is sent only in this response: join the room with it from your client, and end the session with POST /v1/agents/{agentId}/sessions/{sessionId}/end. Uses workspace credits, which do not count against this key's credit limit, and the agent's own chat and call limits apply. A retried start opens a second session. Needs the agents:talk scope on the key.",
+        "operationId": "V1AgentSessionsController_startSession",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "description": "The agent id, as GET /v1/agents returned it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1StartSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/GlobalResponseSwaggerDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/V1StartedSessionResponseDto"
+                            }
+                          ],
+                          "description": "The result of the call."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "invalid-identifier": {
+                    "summary": "Invalid identifier",
+                    "description": "agentId or sessionId is not a 24-character hexadecimal id. Use the id exactly as GET /v1/agents returned it.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 400,
+                      "success": false,
+                      "errorMessage": "Invalid identifier",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "agentId or sessionId is not a 24-character hexadecimal id.",
+                    "x-echonova-fix": "Use the id exactly as GET /v1/agents returned it."
+                  },
+                  "channel-must-be-one-of-the-following-values-voice-chat": {
+                    "summary": "channel must be one of the following values: voice, chat",
+                    "description": "channel is sent and is neither voice nor chat. Send voice or chat, or leave channel out for voice.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 400,
+                      "success": false,
+                      "errorMessage": "channel must be one of the following values: voice, chat",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "channel is sent and is neither voice nor chat.",
+                    "x-echonova-fix": "Send voice or chat, or leave channel out for voice."
+                  },
+                  "property-name-should-not-exist": {
+                    "summary": "property <name> should not exist",
+                    "description": "The body or query carries a field the endpoint does not define. Remove the field.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 400,
+                      "success": false,
+                      "errorMessage": "property <name> should not exist",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The body or query carries a field the endpoint does not define.",
+                    "x-echonova-fix": "Remove the field."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "summary": "Unauthorized",
+                    "description": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed. Send Authorization: Bearer ek_... with an enabled key from this environment.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 401,
+                      "success": false,
+                      "errorMessage": "Unauthorized",
+                      "docs": "https://echonova.ai/docs/developers/authentication"
+                    },
+                    "x-echonova-when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+                    "x-echonova-fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "out-of-credits-top-up-your-plan-to-start-a-voice-session": {
+                    "summary": "Out of credits. Top up your plan to start a voice session.",
+                    "description": "The workspace has no credits left to start a voice session; nothing was charged. Add credits to the workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 402,
+                      "success": false,
+                      "errorMessage": "Out of credits. Top up your plan to start a voice session.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace has no credits left to start a voice session; nothing was charged.",
+                    "x-echonova-fix": "Add credits to the workspace."
+                  },
+                  "out-of-credits-top-up-your-plan-to-start-a-chat-session": {
+                    "summary": "Out of credits. Top up your plan to start a chat session.",
+                    "description": "The workspace has no credits left to start a chat session; nothing was charged. Add credits to the workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 402,
+                      "success": false,
+                      "errorMessage": "Out of credits. Top up your plan to start a chat session.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace has no credits left to start a chat session; nothing was charged.",
+                    "x-echonova-fix": "Add credits to the workspace."
+                  },
+                  "your-trial-ai-allowance-is-used-up-upgrade-to-keep-using-ai": {
+                    "summary": "Your trial AI allowance is used up. Upgrade to keep using AI.",
+                    "description": "The workspace is on a trial and its AI allowance is used up; nothing ran and nothing was charged. Upgrade the plan.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 402,
+                      "success": false,
+                      "errorMessage": "Your trial AI allowance is used up. Upgrade to keep using AI.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace is on a trial and its AI allowance is used up; nothing ran and nothing was charged.",
+                    "x-echonova-fix": "Upgrade the plan."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "subscription-not-found": {
+                    "summary": "Subscription not found",
+                    "description": "The workspace that owns the key has no subscription. Check the workspace's plan in the portal.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace that owns the key has no subscription.",
+                    "x-echonova-fix": "Check the workspace's plan in the portal."
+                  },
+                  "subscription-expired-or-inactive": {
+                    "summary": "Subscription expired or inactive",
+                    "description": "The subscription is in a state other than active or trial. Renew the subscription.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription expired or inactive",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The subscription is in a state other than active or trial.",
+                    "x-echonova-fix": "Renew the subscription."
+                  },
+                  "this-api-key-cannot-talk-to-agents": {
+                    "summary": "This API key cannot talk to agents.",
+                    "description": "The key does not have the agents:talk scope. Edit the key and give it the agents:talk scope, or use another key.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "This API key cannot talk to agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key does not have the agents:talk scope.",
+                    "x-echonova-fix": "Edit the key and give it the agents:talk scope, or use another key."
+                  },
+                  "the-member-who-created-this-api-key-cannot-view-agents": {
+                    "summary": "The member who created this API key cannot view agents.",
+                    "description": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call. Give that member both permissions again, or create a key as a member who has them.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "The member who created this API key cannot view agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+                    "x-echonova-fix": "Give that member both permissions again, or create a key as a member who has them."
+                  },
+                  "workspace-is-not-active": {
+                    "summary": "Workspace is not active",
+                    "description": "The workspace is closed; nothing ran and nothing was charged. Contact support to reopen the workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Workspace is not active",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace is closed; nothing ran and nothing was charged.",
+                    "x-echonova-fix": "Contact support to reopen the workspace."
+                  },
+                  "subscription-has-expired": {
+                    "summary": "Subscription has expired",
+                    "description": "The subscription has expired and no bought credits are left; nothing ran and nothing was charged. Renew the subscription or buy credits.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription has expired",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The subscription has expired and no bought credits are left; nothing ran and nothing was charged.",
+                    "x-echonova-fix": "Renew the subscription or buy credits."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "agent-not-found": {
+                    "summary": "Agent not found",
+                    "description": "The agent id is unknown, or the agent belongs to another workspace. Use an id from GET /v1/agents with a key of the agent's workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 404,
+                      "success": false,
+                      "errorMessage": "Agent not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent id is unknown, or the agent belongs to another workspace.",
+                    "x-echonova-fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "cannot-start-a-session-on-an-archived-agent": {
+                    "summary": "Cannot start a session on an archived agent",
+                    "description": "The agent is archived. Restore it with POST /v1/agents/{agentId}/restore, then start the session.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 409,
+                      "success": false,
+                      "errorMessage": "Cannot start a session on an archived agent",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent is archived.",
+                    "x-echonova-fix": "Restore it with POST /v1/agents/{agentId}/restore, then start the session."
+                  },
+                  "this-agent-has-reached-its-call-limit-try-again-later": {
+                    "summary": "This agent has reached its call limit. Try again later.",
+                    "description": "A voice start found the agent already has as many calls open as it allows, the workspace's plan already has as many calls open at once as it allows, or the agent has had as many calls today as it allows. Try again later.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 409,
+                      "success": false,
+                      "errorMessage": "This agent has reached its call limit. Try again later.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A voice start found the agent already has as many calls open as it allows, the workspace's plan already has as many calls open at once as it allows, or the agent has had as many calls today as it allows.",
+                    "x-echonova-fix": "Try again later."
+                  },
+                  "this-agent-has-reached-its-chat-limit-try-again-later": {
+                    "summary": "This agent has reached its chat limit. Try again later.",
+                    "description": "The agent already has as many chats open as it allows, the workspace's plan already has as many chats open at once as it allows, or the agent has had as many chats today as it allows. Try again later.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 409,
+                      "success": false,
+                      "errorMessage": "This agent has reached its chat limit. Try again later.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent already has as many chats open as it allows, the workspace's plan already has as many chats open at once as it allows, or the agent has had as many chats today as it allows.",
+                    "x-echonova-fix": "Try again later."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "request-body-is-larger-than-100-kb": {
+                    "summary": "Request body is larger than 100 KB",
+                    "description": "The JSON body is over 100 KB; the request is rejected before the API key is checked, so it has no Activity row. Send a smaller body; long text belongs in several calls.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 413,
+                      "success": false,
+                      "errorMessage": "Request body is larger than 100 KB",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The JSON body is over 100 KB; the request is rejected before the API key is checked, so it has no Activity row.",
+                    "x-echonova-fix": "Send a smaller body; long text belongs in several calls."
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "content-type-must-be-application-json": {
+                    "summary": "Content-Type must be application/json",
+                    "description": "The request has a body whose Content-Type is not application/json. Send Content-Type: application/json.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 415,
+                      "success": false,
+                      "errorMessage": "Content-Type must be application/json",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The request has a body whose Content-Type is not application/json.",
+                    "x-echonova-fix": "Send Content-Type: application/json."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Sent with a rate-limit 429, not with Monthly spending limit exhausted.",
+                "schema": {
+                  "type": "integer",
+                  "example": 30
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "throttlerexception-too-many-requests": {
+                    "summary": "ThrottlerException: Too Many Requests",
+                    "description": "The key made more than 10 requests to this endpoint in 60 seconds; a Retry-After header carries the seconds to wait. Wait Retry-After seconds, then retry.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 429,
+                      "success": false,
+                      "errorMessage": "ThrottlerException: Too Many Requests",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key made more than 10 requests to this endpoint in 60 seconds; a Retry-After header carries the seconds to wait.",
+                    "x-echonova-fix": "Wait Retry-After seconds, then retry."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "something-went-wrong": {
+                    "summary": "Something went wrong",
+                    "description": "An error the API did not classify. Check the request, then retry after a short wait; contact support if it persists.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 500,
+                      "success": false,
+                      "errorMessage": "Something went wrong",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "An error the API did not classify.",
+                    "x-echonova-fix": "Check the request, then retry after a short wait; contact support if it persists."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "live-sessions-are-not-available-right-now-try-again-later": {
+                    "summary": "Live sessions are not available right now. Try again later.",
+                    "description": "The agent runtime did not accept the session; no session is left open. Try again later.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 503,
+                      "success": false,
+                      "errorMessage": "Live sessions are not available right now. Try again later.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent runtime did not accept the session; no session is left open.",
+                    "x-echonova-fix": "Try again later."
+                  },
+                  "database-unavailable": {
+                    "summary": "Database unavailable",
+                    "description": "A transient outage inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 503,
+                      "success": false,
+                      "errorMessage": "Database unavailable",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient outage inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "database-timed-out": {
+                    "summary": "Database timed out",
+                    "description": "A transient timeout inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 504,
+                      "success": false,
+                      "errorMessage": "Database timed out",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient timeout inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start a live session with an agent",
+        "tags": [
+          "Developer API - V1 Agent Sessions"
+        ]
+      }
+    },
+    "/v1/agents/{agentId}/sessions/{sessionId}": {
+      "get": {
+        "description": "Returns the status of a session this API started or any web voice or chat session of the agent. The token is never returned again. Needs the agents:talk scope on the key.",
+        "operationId": "V1AgentSessionsController_getSession",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "description": "The agent id, as GET /v1/agents returned it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "description": "The session id, as the start call returned it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/GlobalResponseSwaggerDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/V1AgentSessionResponseDto"
+                            }
+                          ],
+                          "description": "The result of the call."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "invalid-identifier": {
+                    "summary": "Invalid identifier",
+                    "description": "agentId or sessionId is not a 24-character hexadecimal id. Use the id exactly as GET /v1/agents returned it.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 400,
+                      "success": false,
+                      "errorMessage": "Invalid identifier",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "agentId or sessionId is not a 24-character hexadecimal id.",
+                    "x-echonova-fix": "Use the id exactly as GET /v1/agents returned it."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "summary": "Unauthorized",
+                    "description": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed. Send Authorization: Bearer ek_... with an enabled key from this environment.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 401,
+                      "success": false,
+                      "errorMessage": "Unauthorized",
+                      "docs": "https://echonova.ai/docs/developers/authentication"
+                    },
+                    "x-echonova-when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+                    "x-echonova-fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "subscription-not-found": {
+                    "summary": "Subscription not found",
+                    "description": "The workspace that owns the key has no subscription. Check the workspace's plan in the portal.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace that owns the key has no subscription.",
+                    "x-echonova-fix": "Check the workspace's plan in the portal."
+                  },
+                  "subscription-expired-or-inactive": {
+                    "summary": "Subscription expired or inactive",
+                    "description": "The subscription is in a state other than active or trial. Renew the subscription.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription expired or inactive",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The subscription is in a state other than active or trial.",
+                    "x-echonova-fix": "Renew the subscription."
+                  },
+                  "this-api-key-cannot-talk-to-agents": {
+                    "summary": "This API key cannot talk to agents.",
+                    "description": "The key does not have the agents:talk scope. Edit the key and give it the agents:talk scope, or use another key.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "This API key cannot talk to agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key does not have the agents:talk scope.",
+                    "x-echonova-fix": "Edit the key and give it the agents:talk scope, or use another key."
+                  },
+                  "the-member-who-created-this-api-key-cannot-view-agents": {
+                    "summary": "The member who created this API key cannot view agents.",
+                    "description": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call. Give that member both permissions again, or create a key as a member who has them.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "The member who created this API key cannot view agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+                    "x-echonova-fix": "Give that member both permissions again, or create a key as a member who has them."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "agent-not-found": {
+                    "summary": "Agent not found",
+                    "description": "The agent id is unknown, or the agent belongs to another workspace. Use an id from GET /v1/agents with a key of the agent's workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 404,
+                      "success": false,
+                      "errorMessage": "Agent not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent id is unknown, or the agent belongs to another workspace.",
+                    "x-echonova-fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+                  },
+                  "session-not-found": {
+                    "summary": "Session not found",
+                    "description": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace. Use the id the start call returned, with the same agent id.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 404,
+                      "success": false,
+                      "errorMessage": "Session not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace.",
+                    "x-echonova-fix": "Use the id the start call returned, with the same agent id."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Sent with a rate-limit 429, not with Monthly spending limit exhausted.",
+                "schema": {
+                  "type": "integer",
+                  "example": 30
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "throttlerexception-too-many-requests": {
+                    "summary": "ThrottlerException: Too Many Requests",
+                    "description": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait. Wait Retry-After seconds, then retry.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 429,
+                      "success": false,
+                      "errorMessage": "ThrottlerException: Too Many Requests",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait.",
+                    "x-echonova-fix": "Wait Retry-After seconds, then retry."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "something-went-wrong": {
+                    "summary": "Something went wrong",
+                    "description": "An error the API did not classify. Check the request, then retry after a short wait; contact support if it persists.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 500,
+                      "success": false,
+                      "errorMessage": "Something went wrong",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "An error the API did not classify.",
+                    "x-echonova-fix": "Check the request, then retry after a short wait; contact support if it persists."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "database-unavailable": {
+                    "summary": "Database unavailable",
+                    "description": "A transient outage inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 503,
+                      "success": false,
+                      "errorMessage": "Database unavailable",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient outage inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "database-timed-out": {
+                    "summary": "Database timed out",
+                    "description": "A transient timeout inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 504,
+                      "success": false,
+                      "errorMessage": "Database timed out",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient timeout inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a live session",
+        "tags": [
+          "Developer API - V1 Agent Sessions"
+        ]
+      }
+    },
+    "/v1/agents/{agentId}/sessions/{sessionId}/end": {
+      "post": {
+        "description": "Ends the session and closes its room. Ending a session that already ended answers 200 with its final status. Needs the agents:talk scope on the key.",
+        "operationId": "V1AgentSessionsController_endSession",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "description": "The agent id, as GET /v1/agents returned it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "description": "The session id, as the start call returned it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/GlobalResponseSwaggerDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/V1AgentSessionResponseDto"
+                            }
+                          ],
+                          "description": "The result of the call."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "invalid-identifier": {
+                    "summary": "Invalid identifier",
+                    "description": "agentId or sessionId is not a 24-character hexadecimal id. Use the id exactly as GET /v1/agents returned it.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 400,
+                      "success": false,
+                      "errorMessage": "Invalid identifier",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "agentId or sessionId is not a 24-character hexadecimal id.",
+                    "x-echonova-fix": "Use the id exactly as GET /v1/agents returned it."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "unauthorized": {
+                    "summary": "Unauthorized",
+                    "description": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed. Send Authorization: Bearer ek_... with an enabled key from this environment.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 401,
+                      "success": false,
+                      "errorMessage": "Unauthorized",
+                      "docs": "https://echonova.ai/docs/developers/authentication"
+                    },
+                    "x-echonova-when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+                    "x-echonova-fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "subscription-not-found": {
+                    "summary": "Subscription not found",
+                    "description": "The workspace that owns the key has no subscription. Check the workspace's plan in the portal.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The workspace that owns the key has no subscription.",
+                    "x-echonova-fix": "Check the workspace's plan in the portal."
+                  },
+                  "subscription-expired-or-inactive": {
+                    "summary": "Subscription expired or inactive",
+                    "description": "The subscription is in a state other than active or trial. Renew the subscription.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "Subscription expired or inactive",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The subscription is in a state other than active or trial.",
+                    "x-echonova-fix": "Renew the subscription."
+                  },
+                  "this-api-key-cannot-talk-to-agents": {
+                    "summary": "This API key cannot talk to agents.",
+                    "description": "The key does not have the agents:talk scope. Edit the key and give it the agents:talk scope, or use another key.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "This API key cannot talk to agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key does not have the agents:talk scope.",
+                    "x-echonova-fix": "Edit the key and give it the agents:talk scope, or use another key."
+                  },
+                  "the-member-who-created-this-api-key-cannot-view-agents": {
+                    "summary": "The member who created this API key cannot view agents.",
+                    "description": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call. Give that member both permissions again, or create a key as a member who has them.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 403,
+                      "success": false,
+                      "errorMessage": "The member who created this API key cannot view agents.",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The member who created the key has left the workspace, or no longer has both the View agents and Manage developer API permissions. It is checked on every call.",
+                    "x-echonova-fix": "Give that member both permissions again, or create a key as a member who has them."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "agent-not-found": {
+                    "summary": "Agent not found",
+                    "description": "The agent id is unknown, or the agent belongs to another workspace. Use an id from GET /v1/agents with a key of the agent's workspace.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 404,
+                      "success": false,
+                      "errorMessage": "Agent not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The agent id is unknown, or the agent belongs to another workspace.",
+                    "x-echonova-fix": "Use an id from GET /v1/agents with a key of the agent's workspace."
+                  },
+                  "session-not-found": {
+                    "summary": "Session not found",
+                    "description": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace. Use the id the start call returned, with the same agent id.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 404,
+                      "success": false,
+                      "errorMessage": "Session not found",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The session id is unknown, is not a live session of this agent (a phone call, for example), or the agent belongs to another workspace.",
+                    "x-echonova-fix": "Use the id the start call returned, with the same agent id."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying. Sent with a rate-limit 429, not with Monthly spending limit exhausted.",
+                "schema": {
+                  "type": "integer",
+                  "example": 30
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "throttlerexception-too-many-requests": {
+                    "summary": "ThrottlerException: Too Many Requests",
+                    "description": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait. Wait Retry-After seconds, then retry.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 429,
+                      "success": false,
+                      "errorMessage": "ThrottlerException: Too Many Requests",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "The key made more than 100 requests to one endpoint in 60 seconds, or one IP address made more than 100 requests to one endpoint in 60 seconds (the IP limit is counted before the key is checked, so it can answer with no key at all); a Retry-After header carries the seconds to wait.",
+                    "x-echonova-fix": "Wait Retry-After seconds, then retry."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "something-went-wrong": {
+                    "summary": "Something went wrong",
+                    "description": "An error the API did not classify. Check the request, then retry after a short wait; contact support if it persists.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 500,
+                      "success": false,
+                      "errorMessage": "Something went wrong",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "An error the API did not classify.",
+                    "x-echonova-fix": "Check the request, then retry after a short wait; contact support if it persists."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "database-unavailable": {
+                    "summary": "Database unavailable",
+                    "description": "A transient outage inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 503,
+                      "success": false,
+                      "errorMessage": "Database unavailable",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient outage inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorResponseDto"
+                },
+                "examples": {
+                  "database-timed-out": {
+                    "summary": "Database timed out",
+                    "description": "A transient timeout inside the API. Retry after a short wait.",
+                    "value": {
+                      "data": null,
+                      "statusCode": 504,
+                      "success": false,
+                      "errorMessage": "Database timed out",
+                      "docs": "https://echonova.ai/docs/developers/errors"
+                    },
+                    "x-echonova-when": "A transient timeout inside the API.",
+                    "x-echonova-fix": "Retry after a short wait."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "End a live session",
+        "tags": [
+          "Developer API - V1 Agent Sessions"
+        ]
+      }
     }
   },
   "info": {
@@ -6903,6 +8080,10 @@
     {
       "name": "Developer API - V1 Sound Cleaning",
       "description": "Remove noise and level the loudness of audio files in one call."
+    },
+    {
+      "name": "Developer API - V1 Agent Sessions",
+      "description": "Start a live voice or chat session with an agent, get its room token, read its status and end it. Needs a key with the agents:talk scope."
     },
     {
       "name": "Developer API - V1 Website Widget",
@@ -7221,6 +8402,35 @@
           "language"
         ]
       },
+      "V1TtsJobStreamDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The stream session the job came from. Every synthesis on one socket shares it, and it is the requestId of that session in the request logs.",
+            "example": "3f1c2b9e-8a47-4d1e-9b6a-2c5d7e8f9a01"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "The requestId of the synthesis: the one you sent, or the one the server made.",
+            "example": "reply-1"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "description": "true when the synthesis stopped early: cancel, a new synthesize, or the socket closing. The audio holds only what was sent.",
+            "example": true
+          },
+          "audioDropped": {
+            "type": "boolean",
+            "description": "true when the audio could not be saved. The text is kept; audioUrl stays null.",
+            "example": true
+          }
+        },
+        "required": [
+          "sessionId",
+          "requestId"
+        ]
+      },
       "V1TtsJobResponseDto": {
         "type": "object",
         "properties": {
@@ -7272,6 +8482,14 @@
             "nullable": true,
             "description": "The reason the job failed. Null unless status is failed.",
             "example": null
+          },
+          "stream": {
+            "description": "Only on a job made by /v1/text-to-speech/stream: the session and synthesis it came from.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1TtsJobStreamDto"
+              }
+            ]
           },
           "createdAt": {
             "format": "date-time",
@@ -7597,6 +8815,19 @@
           "creditsConsumed"
         ]
       },
+      "V1SttJobStreamDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The id of the stream session the job came from.",
+            "example": "b1f0c2d4-5e6a-4f70-8a91-2c3d4e5f6a7b"
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      },
       "V1SttJobResponseDto": {
         "type": "object",
         "properties": {
@@ -7669,6 +8900,19 @@
                 "$ref": "#/components/schemas/SttTerminologyResultDto"
               }
             ]
+          },
+          "stream": {
+            "description": "Only on jobs from the speech-to-text stream: the session they came from.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1SttJobStreamDto"
+              }
+            ]
+          },
+          "audioUrl": {
+            "type": "string",
+            "description": "Only on jobs from the speech-to-text stream: a signed link to the recording. It expires; get the job again for a fresh one.",
+            "example": "https://storage.example.com/recording.wav?sig=..."
           },
           "creditsConsumed": {
             "type": "integer",
@@ -7912,6 +9156,150 @@
             "example": 300
           }
         }
+      },
+      "V1StartedSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The session id; also the conversation id once it ends.",
+            "example": "6651a1b2c3d4e5f6a7b8c9d0"
+          },
+          "agentId": {
+            "type": "string",
+            "description": "The agent id.",
+            "example": "6650a1b2c3d4e5f6a7b8c9d0"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "voice",
+              "chat"
+            ],
+            "description": "voice for a room you speak in, chat for a text session.",
+            "example": "voice"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "ended",
+              "failed",
+              "out_of_credits"
+            ],
+            "description": "active while it is open; ended after you end it or it finishes; failed or out_of_credits when it stopped early.",
+            "example": "active"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When it started, as an ISO 8601 date-time.",
+            "example": "2026-11-07T10:00:00.000Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "When it ended; null while it is open.",
+            "example": null
+          },
+          "token": {
+            "type": "string",
+            "description": "The room token. It is sent once, here, and never again: keep it secret and hand it only to the client that joins.",
+            "example": "eyJhbGciOi..."
+          },
+          "wsUrl": {
+            "type": "string",
+            "description": "The room address the client connects to with the token.",
+            "example": "wss://rooms.echonova.ai"
+          },
+          "greeting": {
+            "type": "string",
+            "nullable": true,
+            "description": "A chat session's first agent message, to show before the agent speaks; null for voice.",
+            "example": "Hello! How can I help?"
+          }
+        },
+        "required": [
+          "id",
+          "agentId",
+          "channel",
+          "status",
+          "startedAt",
+          "endedAt",
+          "token",
+          "wsUrl",
+          "greeting"
+        ]
+      },
+      "V1StartSessionDto": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "voice",
+              "chat"
+            ],
+            "default": "voice",
+            "description": "voice opens a room you join with the returned token; chat opens a text session. Defaults to voice.",
+            "example": "voice"
+          }
+        }
+      },
+      "V1AgentSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The session id; also the conversation id once it ends.",
+            "example": "6651a1b2c3d4e5f6a7b8c9d0"
+          },
+          "agentId": {
+            "type": "string",
+            "description": "The agent id.",
+            "example": "6650a1b2c3d4e5f6a7b8c9d0"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "voice",
+              "chat"
+            ],
+            "description": "voice for a room you speak in, chat for a text session.",
+            "example": "voice"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "ended",
+              "failed",
+              "out_of_credits"
+            ],
+            "description": "active while it is open; ended after you end it or it finishes; failed or out_of_credits when it stopped early.",
+            "example": "active"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When it started, as an ISO 8601 date-time.",
+            "example": "2026-11-07T10:00:00.000Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "When it ended; null while it is open.",
+            "example": null
+          }
+        },
+        "required": [
+          "id",
+          "agentId",
+          "channel",
+          "status",
+          "startedAt",
+          "endedAt"
+        ]
       }
     }
   }

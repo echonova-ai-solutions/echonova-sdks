@@ -618,6 +618,87 @@
           "dart": "ttlSeconds"
         }
       ]
+    },
+    "V1AgentSessionsController_startSession": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions",
+      "sdk": {
+        "python": "agents.sessions.start",
+        "ts": "agents.sessions.start",
+        "dart": "agents.sessions.start"
+      },
+      "params": [
+        {
+          "api": "agentId",
+          "in": "path",
+          "required": true,
+          "python": "agent_id",
+          "ts": "agentId",
+          "dart": "agentId"
+        },
+        {
+          "api": "channel",
+          "in": "json",
+          "required": false,
+          "python": "channel",
+          "ts": "channel",
+          "dart": "channel"
+        }
+      ]
+    },
+    "V1AgentSessionsController_getSession": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}",
+      "sdk": {
+        "python": "agents.sessions.get",
+        "ts": "agents.sessions.get",
+        "dart": "agents.sessions.get"
+      },
+      "params": [
+        {
+          "api": "agentId",
+          "in": "path",
+          "required": true,
+          "python": "agent_id",
+          "ts": "agentId",
+          "dart": "agentId"
+        },
+        {
+          "api": "sessionId",
+          "in": "path",
+          "required": true,
+          "python": "session_id",
+          "ts": "sessionId",
+          "dart": "sessionId"
+        }
+      ]
+    },
+    "V1AgentSessionsController_endSession": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/sessions/{sessionId}/end",
+      "sdk": {
+        "python": "agents.sessions.end",
+        "ts": "agents.sessions.end",
+        "dart": "agents.sessions.end"
+      },
+      "params": [
+        {
+          "api": "agentId",
+          "in": "path",
+          "required": true,
+          "python": "agent_id",
+          "ts": "agentId",
+          "dart": "agentId"
+        },
+        {
+          "api": "sessionId",
+          "in": "path",
+          "required": true,
+          "python": "session_id",
+          "ts": "sessionId",
+          "dart": "sessionId"
+        }
+      ]
     }
   },
   "stream_query": [
@@ -686,6 +767,11 @@
       "python": "SessionEnded event / SttSession.stop() result",
       "ts": "SessionEndedEvent / SttSession.stop()",
       "dart": "SessionEndedEvent / SttSession.stop()"
+    },
+    "sttSessionSaved": {
+      "python": "SessionSaved event / SessionSummary.job_id",
+      "ts": "SessionSavedEvent / SessionSummary.jobId",
+      "dart": "SessionSavedEvent / SessionSummary.jobId"
     },
     "ttsSynthesize": {
       "python": "TtsSession.synthesize",

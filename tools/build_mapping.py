@@ -40,6 +40,9 @@ SDK_METHODS: dict[str, tuple[str, str]] = {
     "V1CleanController_getJob": ("sound_cleaning.jobs.get", "soundCleaning.jobs.get"),
     "V1CleanController_deleteJob": ("sound_cleaning.jobs.delete", "soundCleaning.jobs.delete"),
     "V1WidgetsController_mint": ("widgets.create_ticket", "widgets.createTicket"),
+    "V1AgentSessionsController_startSession": ("agents.sessions.start", "agents.sessions.start"),
+    "V1AgentSessionsController_getSession": ("agents.sessions.get", "agents.sessions.get"),
+    "V1AgentSessionsController_endSession": ("agents.sessions.end", "agents.sessions.end"),
 }
 
 # Operations deliberately not exposed, with the reason (shown by the coverage gate).
@@ -64,6 +67,7 @@ STREAM_MESSAGES: dict[str, tuple[str, str]] = {
     "sttTranscript": ("Transcript event", "TranscriptEvent"),
     "sttTerminologySet": ("TerminologySet event", "TerminologySetEvent"),
     "sttSessionEnded": ("SessionEnded event / SttSession.stop() result", "SessionEndedEvent / SttSession.stop()"),
+    "sttSessionSaved": ("SessionSaved event / SessionSummary.job_id", "SessionSavedEvent / SessionSummary.jobId"),
 }
 
 # API name -> explicit SDK names where the derived ones are wrong or ambiguous.
