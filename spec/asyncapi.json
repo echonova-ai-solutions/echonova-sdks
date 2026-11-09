@@ -1,0 +1,1221 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "EchoNova Developer API - Streaming",
+    "version": "1.0.0",
+    "description": "Raw WebSocket endpoints for live Speech to Text and streaming Text to Speech. Authenticate the upgrade request with Authorization: Bearer ek_... from your server; browsers cannot send this header, so do not call these endpoints from a web page."
+  },
+  "servers": {
+    "production": {
+      "host": "api.echonova.ai",
+      "protocol": "wss",
+      "security": [
+        {
+          "$ref": "#/components/securitySchemes/apiKey"
+        }
+      ]
+    }
+  },
+  "channels": {
+    "sttStream": {
+      "address": "/v1/speech-to-text/stream",
+      "title": "Stream speech to text",
+      "summary": "Send live PCM16 audio and receive a final transcript for each segment.",
+      "description": "Open one socket per live audio source. Send mono PCM16 little-endian audio as binary frames. Send end_segment when the speaker pauses to get that segment's transcript right away; without it the server cuts a segment every 15 seconds. Each transcript is final: there are no interim or partial results. Each segment is charged at the Live Speech to Text rate when its transcript is sent.",
+      "x-echonova-group": "stt",
+      "x-echonova-slug": "stt-stream",
+      "x-echonova-service": "Speech to Text",
+      "parameters": {},
+      "bindings": {
+        "ws": {
+          "method": "GET",
+          "headers": {
+            "type": "object",
+            "required": [
+              "Authorization"
+            ],
+            "properties": {
+              "Authorization": {
+                "type": "string",
+                "description": "Bearer followed by your API key.",
+                "example": "Bearer ek_..."
+              }
+            }
+          },
+          "query": {
+            "type": "object",
+            "required": [
+              "sample_rate",
+              "language"
+            ],
+            "properties": {
+              "sample_rate": {
+                "type": "integer",
+                "minimum": 8000,
+                "maximum": 48000,
+                "description": "Sample rate of the audio you send, in Hz.",
+                "example": 16000
+              },
+              "language": {
+                "type": "string",
+                "enum": [
+                  "ar",
+                  "en"
+                ],
+                "description": "Spoken language. Required. ar for Arabic and mixed Arabic/English; en only for wholly English speech.",
+                "example": "ar"
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "pcm_s16le"
+                ],
+                "default": "pcm_s16le",
+                "description": "Audio encoding. Only 16-bit signed little-endian mono PCM is accepted.",
+                "example": "pcm_s16le"
+              }
+            }
+          }
+        }
+      },
+      "messages": {
+        "audio": {
+          "$ref": "#/components/messages/sttAudio"
+        },
+        "endSegment": {
+          "$ref": "#/components/messages/sttEndSegment"
+        },
+        "terminology": {
+          "$ref": "#/components/messages/sttTerminology"
+        },
+        "stop": {
+          "$ref": "#/components/messages/sttStop"
+        },
+        "ping": {
+          "$ref": "#/components/messages/ping"
+        },
+        "sessionStarted": {
+          "$ref": "#/components/messages/sttSessionStarted"
+        },
+        "transcript": {
+          "$ref": "#/components/messages/sttTranscript"
+        },
+        "terminologySet": {
+          "$ref": "#/components/messages/sttTerminologySet"
+        },
+        "sessionEnded": {
+          "$ref": "#/components/messages/sttSessionEnded"
+        },
+        "error": {
+          "$ref": "#/components/messages/error"
+        },
+        "pong": {
+          "$ref": "#/components/messages/pong"
+        }
+      },
+      "x-echonova-limits": [
+        {
+          "name": "Frame size",
+          "value": "64 KiB per binary frame; about 100 ms of audio per frame is recommended."
+        },
+        {
+          "name": "Segment length",
+          "value": "15 seconds; longer speech is cut and transcribed in parts."
+        },
+        {
+          "name": "Session length",
+          "value": "25 minutes; the server then ends the session with reason max_duration."
+        },
+        {
+          "name": "Idle timeout",
+          "value": "120 seconds without any frame."
+        },
+        {
+          "name": "Concurrent streams",
+          "value": "10 open streams per workspace, STT and TTS together."
+        },
+        {
+          "name": "Connection rate",
+          "value": "100 connection attempts per minute per key."
+        }
+      ]
+    },
+    "ttsStream": {
+      "address": "/v1/text-to-speech/stream",
+      "title": "Stream text to speech",
+      "summary": "Send text and receive PCM16 audio as it is generated.",
+      "description": "Keep one socket open and send a synthesize message for each sentence or reply. The server answers with start, then binary PCM16 frames, then done. Audio is generated a few seconds of speech at a time, so the first audio arrives well before the whole text is spoken. Only one synthesis runs at a time: send cancel, or a new synthesize, to stop the current one (barge-in). Each synthesize is charged per character when it starts; a cancelled synthesis is still charged.",
+      "x-echonova-group": "tts",
+      "x-echonova-slug": "tts-stream",
+      "x-echonova-service": "Text to Speech",
+      "parameters": {},
+      "bindings": {
+        "ws": {
+          "method": "GET",
+          "headers": {
+            "type": "object",
+            "required": [
+              "Authorization"
+            ],
+            "properties": {
+              "Authorization": {
+                "type": "string",
+                "description": "Bearer followed by your API key.",
+                "example": "Bearer ek_..."
+              }
+            }
+          }
+        }
+      },
+      "messages": {
+        "synthesize": {
+          "$ref": "#/components/messages/ttsSynthesize"
+        },
+        "cancel": {
+          "$ref": "#/components/messages/ttsCancel"
+        },
+        "ping": {
+          "$ref": "#/components/messages/ping"
+        },
+        "start": {
+          "$ref": "#/components/messages/ttsStart"
+        },
+        "audio": {
+          "$ref": "#/components/messages/ttsAudio"
+        },
+        "done": {
+          "$ref": "#/components/messages/ttsDone"
+        },
+        "cancelled": {
+          "$ref": "#/components/messages/ttsCancelled"
+        },
+        "error": {
+          "$ref": "#/components/messages/error"
+        },
+        "pong": {
+          "$ref": "#/components/messages/pong"
+        }
+      },
+      "x-echonova-limits": [
+        {
+          "name": "Text length",
+          "value": "500 characters per synthesize message."
+        },
+        {
+          "name": "Syntheses at a time",
+          "value": "1 per socket; a new synthesize cancels the current one."
+        },
+        {
+          "name": "Session length",
+          "value": "30 minutes."
+        },
+        {
+          "name": "Idle timeout",
+          "value": "120 seconds without any frame."
+        },
+        {
+          "name": "Concurrent streams",
+          "value": "10 open streams per workspace, STT and TTS together."
+        },
+        {
+          "name": "Connection rate",
+          "value": "100 connection attempts per minute per key."
+        }
+      ]
+    }
+  },
+  "operations": {
+    "sttSendAudio": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/sttStream"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/sttStream/messages/audio"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/endSegment"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/terminology"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/stop"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/ping"
+        }
+      ]
+    },
+    "sttReceive": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/sttStream"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/sttStream/messages/sessionStarted"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/transcript"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/terminologySet"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/sessionEnded"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/error"
+        },
+        {
+          "$ref": "#/channels/sttStream/messages/pong"
+        }
+      ]
+    },
+    "ttsSend": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/ttsStream"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/ttsStream/messages/synthesize"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/cancel"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/ping"
+        }
+      ]
+    },
+    "ttsReceive": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/ttsStream"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/ttsStream/messages/start"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/audio"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/done"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/cancelled"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/error"
+        },
+        {
+          "$ref": "#/channels/ttsStream/messages/pong"
+        }
+      ]
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "httpApiKey",
+        "name": "Authorization",
+        "in": "header",
+        "description": "Authorization: Bearer ek_... on the WebSocket upgrade request."
+      }
+    },
+    "messages": {
+      "sttAudio": {
+        "name": "audio",
+        "title": "Audio frame",
+        "contentType": "application/octet-stream",
+        "summary": "Binary frame of mono PCM16 little-endian audio at the sample_rate you connected with. At most 64 KiB.",
+        "payload": {
+          "type": "string",
+          "format": "binary"
+        }
+      },
+      "sttEndSegment": {
+        "name": "end_segment",
+        "title": "End segment",
+        "contentType": "application/json",
+        "summary": "Transcribe the audio sent since the last segment now. Send it when the speaker pauses.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "end_segment"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "end_segment"
+            }
+          }
+        ]
+      },
+      "sttTerminology": {
+        "name": "terminology",
+        "title": "Set terminology",
+        "contentType": "application/json",
+        "summary": "Your own terms for every later segment; each transcript then carries terminology with the segment corrected to them. Send it at any time; it replaces the terms set before, and null clears them. The frame must fit in 64 KiB. A list that is not valid gets an error with code validation_failed and is ignored; the session continues.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "terminology"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "terminology"
+            },
+            "terminology": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "keywords"
+                  ],
+                  "properties": {
+                    "keywords": {
+                      "type": "array",
+                      "maxItems": 500,
+                      "description": "A term string, or {term, variants, blocked, context_words, needs_context, output_script}. Terms and variants up to 100 characters; up to 10 variants and 20 blocked phrases or context words; output_script is latin, arabic, as_typed.",
+                      "items": {}
+                    },
+                    "options": {
+                      "type": "object"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "terminology",
+              "terminology": {
+                "keywords": [
+                  "KYC",
+                  {
+                    "term": "Emirates NBD",
+                    "variants": [
+                      "امريتس ان بي دي"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "sttTerminologySet": {
+        "name": "terminology.set",
+        "title": "Terminology set",
+        "contentType": "application/json",
+        "summary": "Answers a terminology frame. active is false when the terms were cleared.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "active"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "terminology.set"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "terminology.set",
+              "active": true
+            }
+          }
+        ]
+      },
+      "sttStop": {
+        "name": "stop",
+        "title": "Stop",
+        "contentType": "application/json",
+        "summary": "Transcribe any remaining audio, send the last transcripts and session.ended, then close.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "stop"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "stop"
+            }
+          }
+        ]
+      },
+      "sttSessionStarted": {
+        "name": "session.started",
+        "title": "Session started",
+        "contentType": "application/json",
+        "summary": "Sent once after the socket opens. Start sending audio after it arrives.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "sessionId",
+            "language",
+            "sampleRate",
+            "maxSessionSeconds"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "session.started"
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Identifies this session in support requests."
+            },
+            "language": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ],
+              "description": "The language you connected with."
+            },
+            "sampleRate": {
+              "type": "integer",
+              "description": "The sample rate the server expects, in Hz."
+            },
+            "maxSessionSeconds": {
+              "type": "integer",
+              "description": "Seconds until the server ends the session."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "session.started",
+              "sessionId": "c8a1f2e4-5b6d-4e7f-9a0b-1c2d3e4f5a6b",
+              "language": "ar",
+              "sampleRate": 16000,
+              "maxSessionSeconds": 1500
+            }
+          }
+        ]
+      },
+      "sttTranscript": {
+        "name": "transcript",
+        "title": "Transcript",
+        "contentType": "application/json",
+        "summary": "The final transcript of one segment. Segments can arrive slightly after you send end_segment; match them by segmentId.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "segmentId",
+            "text",
+            "durationSeconds",
+            "creditsConsumed",
+            "isFinal"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "transcript"
+            },
+            "segmentId": {
+              "type": "string",
+              "description": "Identifies the segment."
+            },
+            "text": {
+              "type": "string",
+              "description": "The transcript. Empty when the segment held no speech."
+            },
+            "language": {
+              "type": "string",
+              "description": "The detected language, ar or en."
+            },
+            "durationSeconds": {
+              "type": "number",
+              "description": "Length of the segment's audio, in seconds."
+            },
+            "creditsConsumed": {
+              "type": "number",
+              "description": "Credits charged for this segment."
+            },
+            "isFinal": {
+              "type": "boolean",
+              "const": true,
+              "description": "Always true: there are no interim results."
+            },
+            "terminology": {
+              "type": "object",
+              "description": "This segment corrected to the terms you set. Present only while terms are set.",
+              "required": [
+                "raw",
+                "corrected",
+                "edits",
+                "nearMisses",
+                "warnings",
+                "mapperStatus",
+                "mapperVersion"
+              ],
+              "properties": {
+                "raw": {
+                  "type": "string",
+                  "description": "The segment as heard: text."
+                },
+                "corrected": {
+                  "type": "string",
+                  "description": "The segment with your terms applied."
+                },
+                "edits": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "description": "Where the replaced words start, as a character offset in raw."
+                      },
+                      "end": {
+                        "type": "integer",
+                        "description": "Where the replaced words end, end-exclusive, as a character offset in raw."
+                      },
+                      "original": {
+                        "type": "string"
+                      },
+                      "replacement": {
+                        "type": "string"
+                      },
+                      "stage": {
+                        "type": "string",
+                        "enum": [
+                          "exact",
+                          "phonetic",
+                          "fuzzy"
+                        ]
+                      },
+                      "score": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                },
+                "nearMisses": {
+                  "type": "array",
+                  "description": "Close matches that were not applied; send confirmed ones back as variants.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "description": "Where the words start, as a character offset in raw."
+                      },
+                      "end": {
+                        "type": "integer",
+                        "description": "Where the words end, end-exclusive, as a character offset in raw."
+                      },
+                      "original": {
+                        "type": "string"
+                      },
+                      "candidate": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "mapperStatus": {
+                  "type": "string",
+                  "enum": [
+                    "applied",
+                    "no_keywords",
+                    "skipped"
+                  ]
+                },
+                "mapperVersion": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "transcript",
+              "segmentId": "6720f3a1c4b5d6e7f8a9b0c1",
+              "text": "مرحبا، كيف يمكنني مساعدتك اليوم؟",
+              "language": "ar",
+              "durationSeconds": 2.4,
+              "creditsConsumed": 8,
+              "isFinal": true
+            }
+          }
+        ]
+      },
+      "sttSessionEnded": {
+        "name": "session.ended",
+        "title": "Session ended",
+        "contentType": "application/json",
+        "summary": "The last message. The server closes the socket right after it.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "reason",
+            "totalSeconds",
+            "creditsConsumed"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "session.ended"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "stopped",
+                "max_duration",
+                "idle_timeout",
+                "insufficient_balance",
+                "spending_limit",
+                "upstream_error"
+              ],
+              "description": "Why the session ended."
+            },
+            "totalSeconds": {
+              "type": "number",
+              "description": "Seconds of audio transcribed in this session."
+            },
+            "creditsConsumed": {
+              "type": "number",
+              "description": "Credits charged in this session."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "session.ended",
+              "reason": "stopped",
+              "totalSeconds": 42.6,
+              "creditsConsumed": 142
+            }
+          }
+        ]
+      },
+      "ttsSynthesize": {
+        "name": "synthesize",
+        "title": "Synthesize",
+        "contentType": "application/json",
+        "summary": "Speak this text. Cancels any synthesis still running on this socket.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "text",
+            "voiceId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "synthesize"
+            },
+            "requestId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Your id for this synthesis, echoed in start, done, cancelled and error. Generated when you leave it out."
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "The text to speak, 1 to 500 characters."
+            },
+            "voiceId": {
+              "type": "string",
+              "description": "The id of a voice from List available voices. The voice fixes the dialect."
+            },
+            "speed": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 2,
+              "default": 1,
+              "description": "How fast the voice speaks."
+            },
+            "cfg": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5,
+              "default": 2,
+              "description": "How closely the voice follows the text. Leave it at the default unless you are tuning."
+            },
+            "numSteps": {
+              "type": "integer",
+              "enum": [
+                16,
+                32,
+                48,
+                64,
+                128
+              ],
+              "default": 48,
+              "description": "Diffusion steps. More steps are slower and cleaner."
+            },
+            "tashkeel": {
+              "type": "boolean",
+              "default": false,
+              "description": "Adds the vowel marks to Arabic text before it is read. Applies to Fusha voices only."
+            },
+            "normalize": {
+              "type": "boolean",
+              "default": true,
+              "description": "Reads numbers, dates, times, money, units, URLs and e-mails the way a speaker of the voice's dialect says them."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "synthesize",
+              "requestId": "reply-1",
+              "text": "أهلاً بك، كيف يمكنني مساعدتك اليوم؟",
+              "voiceId": "66e5ef3a9c1d2b4f8a7e6c01"
+            }
+          }
+        ]
+      },
+      "ttsCancel": {
+        "name": "cancel",
+        "title": "Cancel",
+        "contentType": "application/json",
+        "summary": "Stop the running synthesis. The server answers with cancelled and sends no more audio for it.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "cancel"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "cancel"
+            }
+          }
+        ]
+      },
+      "ttsStart": {
+        "name": "start",
+        "title": "Start",
+        "contentType": "application/json",
+        "summary": "Sent before the first audio frame of a synthesis. Use its sampleRate to play the audio.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "requestId",
+            "sampleRate",
+            "encoding",
+            "channels"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "start"
+            },
+            "requestId": {
+              "type": "string"
+            },
+            "sampleRate": {
+              "type": "integer",
+              "description": "Sample rate of the audio frames, in Hz."
+            },
+            "encoding": {
+              "type": "string",
+              "const": "pcm_s16le"
+            },
+            "channels": {
+              "type": "integer",
+              "const": 1
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "start",
+              "requestId": "reply-1",
+              "sampleRate": 24000,
+              "encoding": "pcm_s16le",
+              "channels": 1
+            }
+          }
+        ]
+      },
+      "ttsAudio": {
+        "name": "audio",
+        "title": "Audio frame",
+        "contentType": "application/octet-stream",
+        "summary": "Binary frame of mono PCM16 little-endian audio at the sampleRate from start. Play frames in the order they arrive.",
+        "payload": {
+          "type": "string",
+          "format": "binary"
+        }
+      },
+      "ttsDone": {
+        "name": "done",
+        "title": "Done",
+        "contentType": "application/json",
+        "summary": "All audio for the synthesis has been sent.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "requestId",
+            "durationSeconds",
+            "characters",
+            "creditsConsumed"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "done"
+            },
+            "requestId": {
+              "type": "string"
+            },
+            "durationSeconds": {
+              "type": "number",
+              "description": "Length of the audio sent, in seconds."
+            },
+            "characters": {
+              "type": "integer",
+              "description": "Characters charged."
+            },
+            "creditsConsumed": {
+              "type": "number",
+              "description": "Credits charged for this synthesis."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "done",
+              "requestId": "reply-1",
+              "durationSeconds": 2.9,
+              "characters": 36,
+              "creditsConsumed": 36
+            }
+          }
+        ]
+      },
+      "ttsCancelled": {
+        "name": "cancelled",
+        "title": "Cancelled",
+        "contentType": "application/json",
+        "summary": "The synthesis stopped. No more audio follows for this requestId.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "cancelled"
+            },
+            "requestId": {
+              "type": "string"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "cancelled",
+              "requestId": "reply-1"
+            }
+          }
+        ]
+      },
+      "ping": {
+        "name": "ping",
+        "title": "Ping",
+        "contentType": "application/json",
+        "summary": "Optional keep-alive. The server answers with pong.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ping"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "ping"
+            }
+          }
+        ]
+      },
+      "pong": {
+        "name": "pong",
+        "title": "Pong",
+        "contentType": "application/json",
+        "summary": "The answer to ping.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pong"
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "pong"
+            }
+          }
+        ]
+      },
+      "error": {
+        "name": "error",
+        "title": "Error",
+        "contentType": "application/json",
+        "summary": "Something went wrong. Fatal errors are followed by a close frame; others leave the socket open.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "type",
+            "code",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "error"
+            },
+            "requestId": {
+              "type": "string",
+              "description": "Text to Speech only: the synthesis that failed."
+            },
+            "code": {
+              "type": "string",
+              "enum": [
+                "invalid_message",
+                "frame_too_large",
+                "validation_failed",
+                "voice_not_found",
+                "insufficient_balance",
+                "spending_limit",
+                "upstream_error"
+              ],
+              "description": "Machine-readable reason."
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation."
+            }
+          }
+        },
+        "examples": [
+          {
+            "payload": {
+              "type": "error",
+              "code": "validation_failed",
+              "message": "text must be shorter than or equal to 500 characters"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "x-echonova-handshake-errors": [
+    {
+      "status": 401,
+      "message": "Unauthorized",
+      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+      "fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
+    },
+    {
+      "status": 403,
+      "message": "This API key does not have access to Speech-to-Text services",
+      "when": "Speech to Text stream: the key is restricted and Speech to Text is not among its services.",
+      "fix": "Edit the key and grant Speech to Text, or use another key."
+    },
+    {
+      "status": 403,
+      "message": "This API key does not have access to Text-to-Speech services",
+      "when": "Text to Speech stream: the key is restricted and Text to Speech is not among its services.",
+      "fix": "Edit the key and grant Text to Speech, or use another key."
+    },
+    {
+      "status": 403,
+      "message": "Subscription expired or inactive",
+      "when": "The subscription is in a state other than active or trial.",
+      "fix": "Renew the subscription."
+    },
+    {
+      "status": 403,
+      "message": "Subscription not found",
+      "when": "The workspace that owns the key has no subscription.",
+      "fix": "Check the workspace's plan in the portal."
+    },
+    {
+      "status": 400,
+      "message": "sample_rate must be an integer from 8000 to 48000",
+      "when": "Speech to Text stream: sample_rate is missing, not a whole number, or out of range.",
+      "fix": "Connect with ?sample_rate= set to your audio's rate."
+    },
+    {
+      "status": 400,
+      "message": "language must be one of ar, en",
+      "when": "Speech to Text stream: language is missing or not ar or en.",
+      "fix": "Connect with ?language= set to ar or en."
+    },
+    {
+      "status": 400,
+      "message": "encoding must be pcm_s16le",
+      "when": "Speech to Text stream: encoding is not an allowed value.",
+      "fix": "Leave encoding out, or send pcm_s16le."
+    },
+    {
+      "status": 402,
+      "message": "Insufficient subscription balance",
+      "when": "The workspace balance is empty.",
+      "fix": "Add credits to the workspace."
+    },
+    {
+      "status": 429,
+      "message": "ThrottlerException: Too Many Requests",
+      "when": "The key opened more than 100 connections in 60 seconds.",
+      "fix": "Wait Retry-After seconds, then reconnect."
+    },
+    {
+      "status": 429,
+      "message": "Too many concurrent streams",
+      "when": "The workspace already has 10 streams open.",
+      "fix": "Close a stream, or reuse one socket for many syntheses."
+    },
+    {
+      "status": 429,
+      "message": "Monthly spending limit exhausted",
+      "when": "The key has reached its Credit Limit for this billing cycle.",
+      "fix": "Raise or clear the limit on the key, or wait for the next cycle."
+    },
+    {
+      "status": 503,
+      "message": "Streaming is not enabled",
+      "when": "Streaming is turned off on this environment.",
+      "fix": "Contact support."
+    }
+  ],
+  "x-echonova-close-codes": [
+    {
+      "code": 1000,
+      "name": "Normal",
+      "when": "You sent stop, or you closed the socket."
+    },
+    {
+      "code": 1001,
+      "name": "Going away",
+      "when": "The server is restarting; reconnect."
+    },
+    {
+      "code": 1008,
+      "name": "Policy violation",
+      "when": "A frame was not valid JSON, was an unknown type, or was larger than 64 KiB."
+    },
+    {
+      "code": 1009,
+      "name": "Message too big",
+      "when": "A frame was larger than 1 MiB; the socket closes without an error message."
+    },
+    {
+      "code": 1011,
+      "name": "Server error",
+      "when": "Speech to Text: the speech service failed; reconnect and retry. On Text to Speech a failed synthesis sends error and the socket stays open."
+    },
+    {
+      "code": 4002,
+      "name": "Insufficient balance",
+      "when": "The workspace ran out of credits mid-session."
+    },
+    {
+      "code": 4008,
+      "name": "Timeout",
+      "when": "No frame for 120 seconds, or the session reached its maximum length."
+    },
+    {
+      "code": 4029,
+      "name": "Spending limit",
+      "when": "The key reached its Credit Limit mid-session."
+    }
+  ]
+}

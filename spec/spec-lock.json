@@ -1,0 +1,17 @@
+{
+  "source": "https://api.echonova.ai",
+  "documents": {
+    "openapi.json": {
+      "url": "https://api.echonova.ai/openapi.json",
+      "sha256": "43d4759e3faac49578fbdbff013d468a59a46ec58b5ddd015934e30f71726346",
+      "info_version": "1.0.0",
+      "fetched_at": "2026-11-05T11:42:16+00:00"
+    },
+    "asyncapi.json": {
+      "url": "https://api.echonova.ai/asyncapi.json",
+      "sha256": "d0091fd3f5a35b47d4ab5d9cf22c7f6c01b4804279a40b668a23f42b2778fa76",
+      "info_version": "1.0.0",
+      "fetched_at": "2026-11-05T11:42:17+00:00"
+    }
+  }
+}
