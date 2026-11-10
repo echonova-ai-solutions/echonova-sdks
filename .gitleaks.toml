@@ -1,0 +1,29 @@
+# Secret scanning with gitleaks (run in CI on the full git history).
+# The default rules plus EchoNova's own key formats. The allowlist covers only
+# made-up values used in tests and docs; a real key must never be committed.
+
+title = "echonova-sdks"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "echonova-api-key"
+description = "EchoNova API key"
+regex = '''\bek_[A-Za-z0-9_-]{40,}'''
+keywords = ["ek_"]
+
+[[rules]]
+id = "echonova-webhook-secret"
+description = "EchoNova webhook signing secret"
+regex = '''\bwhsec_[A-Za-z0-9_+/=-]{16,}'''
+keywords = ["whsec_"]
+
+[[allowlists]]
+description = "Made-up keys and placeholders: test keys start with ek_REDACTED, test secrets with whsec_TEST or whsec_REDACTED"
+regexTarget = "secret"
+regexes = [
+  '''^ek_REDACTED[A-Za-z0-9_-]*$''',
+  '''^whsec_(TEST|REDACTED)[A-Za-z0-9_+/=-]*$''',
+  '''^change-me$''',
+]
