@@ -125,7 +125,7 @@ python3 tools/build_webhook_vectors.py   # regenerate webhook vectors
 
 ### Changes to `spec/` must pass every SDK's tests
 
-A pull request that changes anything in `spec/` must pass the tests of **every** SDK, not only the one you're working on. CI runs them all. A maintainer of each SDK reviews the change. If you can't run a toolchain locally, say so in the pull request and rely on CI.
+A pull request that changes anything in `spec/` must pass the tests of **every** SDK, not only the one you're working on. CI runs them all: it runs only the jobs a change needs (`tools/ci_changes.py` maps files to jobs), and a change to `spec/` or `tools/` needs every SDK's. A maintainer of each SDK reviews the change. If you can't run a toolchain locally, say so in the pull request and rely on CI.
 
 ### Recording fixtures (maintainers)
 

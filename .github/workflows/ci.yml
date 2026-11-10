@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch: # runs every job
 
 permissions:
   contents: read
@@ -13,6 +14,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Each job below runs only when the change touches what it tests (tools/ci_changes.py says
+  # which files feed which job). Changes to the shared spec, the tools or this workflow run
+  # everything, as do manual runs. The spec and secret checks always run.
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.areas.outputs.python }}
+      js: ${{ steps.areas.outputs.js }}
+      dart: ${{ steps.areas.outputs.dart }}
+      docs: ${{ steps.areas.outputs.docs }}
+      flutter: ${{ steps.areas.outputs.flutter }}
+      fastapi: ${{ steps.areas.outputs.fastapi }}
+      express: ${{ steps.areas.outputs.express }}
+      workflows: ${{ steps.areas.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: areas
+        name: Decide which jobs this change needs
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci_changes.py >> "$GITHUB_OUTPUT"
+
+  workflows:
+    name: Workflow lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ACTIONLINT_VERSION: "1.7.12"
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install actionlint (checksum verified)
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLo "$RUNNER_TEMP/$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$archive"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+      - name: Lint every workflow (shellcheck checks the run scripts)
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
   spec:
     name: Shared spec
     runs-on: ubuntu-latest
@@ -52,6 +99,8 @@ jobs:
 
   python:
     name: Python ${{ matrix.python }} (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -74,11 +123,13 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest
-      - name: Recorder scrubber
-        run: uv run pytest ../tools/record/test_scrub.py
+      - name: Repository tools (recorder scrubber, CI change detection)
+        run: uv run pytest ../tools/record/test_scrub.py ../tools/test_ci_changes.py
 
   python-lowest:
     name: Python lowest dependency versions
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,6 +143,8 @@ jobs:
 
   js:
     name: JavaScript (Node ${{ matrix.node }})
+    needs: changes
+    if: needs.changes.outputs.js == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -115,6 +168,8 @@ jobs:
 
   js-runtimes:
     name: JavaScript runtimes (Node, Bun, Deno, workerd)
+    needs: changes
+    if: needs.changes.outputs.js == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -147,6 +202,8 @@ jobs:
 
   dart:
     name: Dart (${{ matrix.sdk }})
+    needs: changes
+    if: needs.changes.outputs.dart == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -180,6 +237,8 @@ jobs:
 
   docs:
     name: Code samples and API reference
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -225,6 +284,8 @@ jobs:
 
   flutter-sample:
     name: Flutter sample app
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -243,8 +304,50 @@ jobs:
       - run: flutter test
       - run: flutter build web --release
 
+  flutter-android:
+    name: Flutter sample app (Android build)
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/flutter
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+      - run: flutter --disable-analytics
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build apk --debug
+
+  flutter-ios:
+    name: Flutter sample app (iOS build)
+    needs: changes
+    # macOS minutes cost ten times as much on a private repository, so until the repository
+    # is public this build runs only when started by hand (Actions → CI → Run workflow).
+    if: needs.changes.outputs.flutter == 'true' && (github.event_name == 'workflow_dispatch' || !github.event.repository.private)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: samples/flutter
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+      - run: flutter --disable-analytics
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build ios --debug --no-codesign
+
   proxy-fastapi:
     name: Proxy example (FastAPI)
+    needs: changes
+    if: needs.changes.outputs.fastapi == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -262,6 +365,8 @@ jobs:
 
   proxy-express:
     name: Proxy example (Express)
+    needs: changes
+    if: needs.changes.outputs.express == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
