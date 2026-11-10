@@ -31,7 +31,7 @@ updates:
       prefix: build
 
   - package-ecosystem: npm
-    directories: [/js, /proxy-examples/express]
+    directory: /js
     schedule:
       interval: weekly
     versioning-strategy: increase-if-necessary
@@ -42,6 +42,26 @@ updates:
     ignore:
       # The Node.js types follow the oldest supported Node.js (22), so code
       # can't use an API that version doesn't have.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+      # typedoc and tsup's type bundling use the TypeScript compiler's
+      # JavaScript API, which TypeScript 7 doesn't ship. Remove this once
+      # typedoc supports TypeScript 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: npm
+    directory: /proxy-examples/express
+    schedule:
+      interval: weekly
+    versioning-strategy: increase-if-necessary
+    groups:
+      npm-express:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
     commit-message:
