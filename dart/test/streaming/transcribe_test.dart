@@ -94,10 +94,13 @@ void main() {
 
   test('rolls over before the session limit', () async {
     server.stt.maxSessionSeconds = 2;
-    // Hand over 0.4 s into each session.
+    // Hand over 0.4 s into each session. A slow machine sends for longer and
+    // rolls over more often, so the connection attempt limit (a separate
+    // test) is lifted here.
     final options = optionsFor(
       server,
       rolloverMargin: const Duration(milliseconds: 1600),
+      maxConnectAttempts: 1000,
     );
     final audio = pcm(2);
     final (events, error) = await run(transcribeStream(

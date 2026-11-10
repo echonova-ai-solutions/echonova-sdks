@@ -91,7 +91,9 @@ def test_whole_buffer_source(server: MockServer, mode: str) -> None:
 
 def test_rollover_before_the_session_limit(server: MockServer, mode: str) -> None:
     server.stt.max_session_seconds = 2
-    options = options_for(server, rollover_margin=1.6)  # hand over 0.4 s into each session
+    # Hand over 0.4 s into each session. A slow machine sends for longer and rolls over more
+    # often, so the connection attempt limit (a separate test) is lifted here.
+    options = options_for(server, rollover_margin=1.6, max_connect_attempts=1_000)
     audio = pcm(2.0)
     events, error = run_transcribe(
         mode,

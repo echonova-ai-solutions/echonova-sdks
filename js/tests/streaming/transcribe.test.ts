@@ -83,7 +83,9 @@ describe('transcribeStream', () => {
     const { events, error } = await run(
       source(audio, 3_200, 40), // 0.8 s of sending: at least one rollover
       { terminology: { keywords: ['KYC'] }, segmentSeconds: 5, reconnect: FAST },
-      optionsFor(server, { rolloverMargin: 1_600 }), // hand over 0.4 s into each session
+      // Hand over 0.4 s into each session. A slow machine sends for longer and rolls over more
+      // often, so the connection attempt limit (a separate test) is lifted here.
+      optionsFor(server, { rolloverMargin: 1_600, maxConnectAttempts: 1_000 }),
     );
     expect(error).toBeNull();
     const rollovers = reconnects(events);
