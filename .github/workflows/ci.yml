@@ -167,7 +167,7 @@ jobs:
       - run: npm run lint:package
 
   js-runtimes:
-    name: JavaScript runtimes (Node, Bun, Deno, workerd)
+    name: JavaScript runtimes (Node, Bun, Deno, workerd, Vercel Edge)
     needs: changes
     if: needs.changes.outputs.js == 'true'
     runs-on: ubuntu-latest
@@ -199,6 +199,10 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/workerd" --no-audit --no-fund miniflare@4.20260730.0
           ECHONOVA_SMOKE_MINIFLARE="$RUNNER_TEMP/workerd" npm run smoke:workerd
+      - name: Vercel Edge (edge-runtime emulator)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/edge" --no-audit --no-fund edge-runtime@4.0.1
+          ECHONOVA_SMOKE_EDGE_RUNTIME="$RUNNER_TEMP/edge" npm run smoke:edge
 
   dart:
     name: Dart (${{ matrix.sdk }})

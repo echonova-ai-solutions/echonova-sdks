@@ -1,8 +1,9 @@
 // The checks of the runtime smoke test, run against the mock in smoke-runtime-server.mjs.
 //
-// No Node.js imports here: the same checks run on Node.js, Bun, Deno and in a Cloudflare
-// Worker (workerd). The caller passes the built package's two entry points, the mock's URL,
-// and `files` (temporary-file helpers) when the runtime has a file system, or null.
+// No Node.js imports here: the same checks run on Node.js, Bun, Deno, in a Cloudflare
+// Worker (workerd) and in Vercel's edge-runtime emulator. The caller passes the built
+// package's two entry points, the mock's URL, and `files` (temporary-file helpers) when the
+// runtime has a file system, or null.
 
 export const OK_KEY = 'ek_REDACTED_smoke_ok';
 export const BROKE_KEY = 'ek_REDACTED_smoke_broke';
@@ -63,6 +64,8 @@ async function sha256(bytes) {
  *   on as U+FFFD instead of failing with 1007 (workerd)
  * @param {boolean} [options.reportsRefusal] false where `fetch` doesn't say whether a failed request
  *   was sent (workerd: "Network connection lost." either way), so a POST counts as maybe run
+ * @param {boolean} [options.streams] false where the SDK doesn't stream (Vercel Edge): the checks
+ *   that open a stream are skipped, and one check expects connecting to fail at once instead
  */
 export async function runChecks({
   sdk,
@@ -73,6 +76,7 @@ export async function runChecks({
   expectRuntime,
   validatesUtf8 = true,
   reportsRefusal = true,
+  streams = true,
   downloadBytes = DOWNLOAD_BYTES,
 }) {
   const { EchoNova } = sdk;
@@ -95,6 +99,8 @@ export async function runChecks({
       results.push({ name, ok: false, detail: describe(error) });
     }
   }
+  /** A check that opens a stream: not run where the SDK doesn't stream. */
+  const streamCheck = streams ? check : async () => {};
 
   await check('entry points load', () => {
     expect(typeof EchoNova === 'function' && sdk.default === EchoNova, "'echonova' exports the client");
@@ -121,7 +127,23 @@ export async function runChecks({
     return `${error.statusCode} ${error.requestId}`;
   });
 
-  await check('TTS stream: synthesize, PCM, done', async () => {
+  if (!streams) {
+    await check('no streaming: connect and transcribeStream fail at once with UnsupportedEnvironmentError', async () => {
+      const started = Date.now();
+      const errors = [
+        await rejection(ok.textToSpeech.connect({ voiceId: '66e5ef3a9c1d2b4f8a7e6c01' })),
+        await rejection(ok.speechToText.connect({ sampleRate: 16_000, language: 'ar' })),
+        await rejection(ok.speechToText.transcribeStream(tone(0.1, 16_000), { sampleRate: 16_000, language: 'ar' }).next()),
+      ];
+      const elapsed = Date.now() - started;
+      for (const error of errors) expect(error instanceof sdk.UnsupportedEnvironmentError, `got ${describe(error)}`);
+      // Well under the 5 s open timeout: refused before any connection attempt.
+      expect(elapsed < 1_000, `after ${elapsed} ms`);
+      return errors[0].message;
+    });
+  }
+
+  await streamCheck('TTS stream: synthesize, PCM, done', async () => {
     const tts = await ok.textToSpeech.connect({ voiceId: '66e5ef3a9c1d2b4f8a7e6c01' });
     try {
       const synth = tts.synthesize('مرحبا بكم');
@@ -146,7 +168,7 @@ export async function runChecks({
     }
   });
 
-  await check('STT stream: session.started, audio, transcript, session.ended', async () => {
+  await streamCheck('STT stream: session.started, audio, transcript, session.ended', async () => {
     const stt = await ok.speechToText.connect({ sampleRate: 16_000, language: 'ar' });
     let closed = false;
     try {
@@ -174,7 +196,7 @@ export async function runChecks({
     }
   });
 
-  await check('stream handshake: 402 is InsufficientBalanceError with status and body', async () => {
+  await streamCheck('stream handshake: 402 is InsufficientBalanceError with status and body', async () => {
     const error = await rejection(client(BROKE_KEY).textToSpeech.connect({ voiceId: '66e5ef3a9c1d2b4f8a7e6c01' }));
     expect(error instanceof sdk.InsufficientBalanceError, `got ${describe(error)}`);
     expect(error.statusCode === 402, `status ${error.statusCode}`);
@@ -185,7 +207,7 @@ export async function runChecks({
     return `${error.statusCode} ${error.errorMessage} (${error.requestId})`;
   });
 
-  await check('stream handshake: 401 is AuthenticationError', async () => {
+  await streamCheck('stream handshake: 401 is AuthenticationError', async () => {
     const error = await rejection(client(BAD_KEY).speechToText.connect({ sampleRate: 16_000, language: 'en' }));
     expect(error instanceof sdk.AuthenticationError && error.statusCode === 401, `got ${describe(error)}`);
     expect(typeof error.requestId === 'string', `request id ${error.requestId}`);
@@ -215,6 +237,8 @@ export async function runChecks({
     await check('no file system: a file path fails with UnsupportedEnvironmentError', async () => {
       const error = await rejection(ok.speechToText.transcribe({ file: 'smoke.wav', language: 'ar' }));
       expect(error instanceof sdk.UnsupportedEnvironmentError, `got ${describe(error)}`);
+      const download = await rejection(ok.download(`${baseURL}/files/smoke.bin`, { to: 'smoke.bin' }));
+      expect(download instanceof sdk.UnsupportedEnvironmentError, `download: got ${describe(download)}`);
       return error.message;
     });
   }
@@ -235,7 +259,7 @@ export async function runChecks({
   // Edge cases: the same SDK-level outcome is expected on every runtime.
   const voiceId = '66e5ef3a9c1d2b4f8a7e6c01';
 
-  await check('stream: a dropped connection is StreamConnectionLostError, charge state yes', async () => {
+  await streamCheck('stream: a dropped connection is StreamConnectionLostError, charge state yes', async () => {
     const tts = await client(OK_KEY, { scenario: 'drop' }).textToSpeech.connect({ voiceId });
     try {
       const synth = tts.synthesize('hello');
@@ -253,7 +277,7 @@ export async function runChecks({
     }
   });
 
-  await check('stream: a 4008 close, then a lazy reconnect', async () => {
+  await streamCheck('stream: a 4008 close, then a lazy reconnect', async () => {
     const tts = await client(OK_KEY, { scenario: 'close4008' }).textToSpeech.connect({ voiceId });
     try {
       const first = await tts.synthesize('one').collect();
@@ -267,7 +291,7 @@ export async function runChecks({
     }
   });
 
-  await check('stream: close 4002 after a transcript is InsufficientBalanceError, events kept', async () => {
+  await streamCheck('stream: close 4002 after a transcript is InsufficientBalanceError, events kept', async () => {
     const stt = await client(OK_KEY, { scenario: 'balance' }).speechToText.connect({ sampleRate: 16_000, language: 'ar' });
     try {
       await stt.sendAudio(tone(0.5, 16_000));
@@ -286,7 +310,7 @@ export async function runChecks({
     }
   });
 
-  await check('stream: a service failure at connect is UpstreamError with the server message, close 1011', async () => {
+  await streamCheck('stream: a service failure at connect is UpstreamError with the server message, close 1011', async () => {
     const stt = client(OK_KEY, { scenario: 'unreachable' }).speechToText.connect({ sampleRate: 16_000, language: 'ar' });
     const error = await rejection(stt);
     expect(error instanceof sdk.UpstreamError, `got ${describe(error)}`);
@@ -295,7 +319,7 @@ export async function runChecks({
   });
 
   if (!validatesUtf8) {
-    await check('stream: invalid UTF-8 arrives as U+FFFD text, an unknown event (no 1007 here)', async () => {
+    await streamCheck('stream: invalid UTF-8 arrives as U+FFFD text, an unknown event (no 1007 here)', async () => {
       const tts = await client(OK_KEY, { scenario: 'badutf8' }).textToSpeech.connect({ voiceId });
       try {
         tts.synthesize('hello');
@@ -309,7 +333,7 @@ export async function runChecks({
     });
   }
   for (const [scenario, code] of validatesUtf8 ? [['badutf8', 1007], ['oversize', 1009]] : [['oversize', 1009]]) {
-    await check(`stream: a protocol violation (${scenario}) is ProtocolError ${code}`, async () => {
+    await streamCheck(`stream: a protocol violation (${scenario}) is ProtocolError ${code}`, async () => {
       const tts = await client(OK_KEY, { scenario }).textToSpeech.connect({ voiceId });
       try {
         const error = await rejection(tts.synthesize('hello').collect());
@@ -321,7 +345,7 @@ export async function runChecks({
     });
   }
 
-  await check('stream: an unanswered upgrade times out (APITimeoutError)', async () => {
+  await streamCheck('stream: an unanswered upgrade times out (APITimeoutError)', async () => {
     const started = Date.now();
     const timedOut = client(OK_KEY, { scenario: 'hang', stream: { openTimeout: 1_000, query: () => ({ scenario: 'hang' }) } });
     const error = await rejection(timedOut.textToSpeech.connect({ voiceId }));
@@ -331,7 +355,7 @@ export async function runChecks({
     return `after ${elapsed} ms`;
   });
 
-  await check('stream: an aborted connect rejects with the abort reason', async () => {
+  await streamCheck('stream: an aborted connect rejects with the abort reason', async () => {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 100);
     const error = await rejection(client(OK_KEY, { scenario: 'hang' }).textToSpeech.connect({ voiceId, signal: controller.signal }));
@@ -339,7 +363,7 @@ export async function runChecks({
     return describe(error);
   });
 
-  await check('stream: a 503 handshake is retried', async () => {
+  await streamCheck('stream: a 503 handshake is retried', async () => {
     const scenario = `busy:${crypto.randomUUID()}`;
     const tts = await client(OK_KEY, { scenario, maxRetries: 2 }).textToSpeech.connect({ voiceId });
     await tts.close();
@@ -348,7 +372,7 @@ export async function runChecks({
 
   if (closedURL) {
     const refused = new EchoNova({ apiKey: OK_KEY, baseURL: closedURL, maxRetries: 0 });
-    await check('connection refused: stream APIConnectionError', async () => {
+    await streamCheck('connection refused: stream APIConnectionError', async () => {
       const error = await rejection(refused.textToSpeech.connect({ voiceId }));
       expect(error instanceof sdk.APIConnectionError && !(error instanceof sdk.APITimeoutError), `got ${describe(error)}`);
       return error.message;

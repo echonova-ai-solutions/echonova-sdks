@@ -72,6 +72,7 @@
     "size": "node scripts/size.mjs",
     "smoke:runtime": "node scripts/smoke-runtime.mjs",
     "smoke:workerd": "node scripts/smoke-runtime-workerd.mjs",
+    "smoke:edge": "node scripts/smoke-runtime-edge.mjs",
     "docs": "typedoc",
     "lint:package": "attw --pack . && publint --strict && npm run test:dist && npm run size",
     "prepack": "npm run build"
