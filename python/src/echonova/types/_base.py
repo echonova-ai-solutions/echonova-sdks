@@ -6,8 +6,6 @@ numeric strings, and ISO 8601 timestamps become timezone-aware ``datetime``.
 Only the fields the SDK itself relies on (IDs and status) are required.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields
