@@ -139,6 +139,8 @@ The signature covers the body **exactly as it arrived**. If your framework parse
 
 `verify` takes bytes or a string. In Dart, if a framework only gives you a string, pass `utf8.encode(body)`.
 
+Pass the headers as your framework gives them; header names are matched case-insensitively. In Python, `verify` accepts a `dict` or any headers object with `get()` and `items()` (`webhooks.HeadersLike`), which covers FastAPI and Starlette, Flask, Django and aiohttp.
+
 ## Several secrets during a switch-over
 
 A webhook's secret can't be changed. To move to a new secret, the [API docs](https://echonova.ai/docs/developers/webhooks-verify-signature) describe this switch-over:
@@ -296,7 +298,7 @@ def process(event: webhooks.WebhookEvent) -> None:
 def echonova_webhook() -> tuple[str, int]:
     raw_body = request.get_data()  # before anything reads request.json
     try:
-        event = webhooks.verify(raw_body, dict(request.headers), SECRETS)
+        event = webhooks.verify(raw_body, request.headers, SECRETS)
     except WebhookVerificationError:
         return "", 401
     key = event.dedupe_key

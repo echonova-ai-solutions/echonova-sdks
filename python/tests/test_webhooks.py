@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import http.client
+from collections.abc import Iterable, Iterator
 from typing import Any
 
+import httpx
 import pytest
 
 from _support import load_spec
@@ -52,6 +55,61 @@ def test_headers_are_case_insensitive_and_str_bodies_work() -> None:
     event = webhooks.verify(v["body"], lowered, v["secrets"], now=v["now"])
     assert isinstance(event, webhooks.JobFailed)
     assert event.error == "Transcription failed. Try again."
+
+
+class _WerkzeugStyleHeaders:
+    """Like Flask's ``request.headers``: not a ``Mapping``; iterating yields pairs; ``get`` ignores case."""
+
+    def __init__(self, pairs: list[tuple[str, str]]) -> None:
+        self._pairs = pairs
+
+    def get(self, key: str, default: str | None = None, type: Any = None) -> str | None:
+        return next((v for k, v in self._pairs if k.lower() == key.lower()), default)
+
+    def items(self, lower: bool = False) -> list[tuple[str, str]]:
+        return [(k.lower() if lower else k, v) for k, v in self._pairs]
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._pairs)
+
+
+class _ItemsOnlyHeaders:
+    """A headers object whose ``get`` is case-sensitive: the lookup falls back to ``items()``."""
+
+    def __init__(self, headers: dict[str, str]) -> None:
+        self._headers = headers
+
+    def get(self, key: str) -> str | None:
+        return self._headers.get(key)
+
+    def items(self) -> Iterable[tuple[str, str]]:
+        return self._headers.items()
+
+
+def test_framework_header_objects_that_are_not_mappings() -> None:
+    v = _vector("job.failed")
+    pairs = [(k.upper(), val) for k, val in v["headers"].items()]
+    message = http.client.HTTPMessage()
+    for k, val in v["headers"].items():
+        message[k.lower()] = val
+    candidates: list[webhooks.HeadersLike] = [
+        _WerkzeugStyleHeaders(pairs),
+        _ItemsOnlyHeaders(dict(pairs)),
+        httpx.Headers(v["headers"]),
+        message,  # http.server and urllib
+    ]
+    for headers in candidates:
+        assert not isinstance(headers, dict)
+        event = webhooks.verify(v["body"], headers, v["secrets"], now=v["now"])
+        assert isinstance(event, webhooks.JobFailed), type(headers).__name__
+
+
+def test_missing_headers_on_a_header_object() -> None:
+    v = _vector("job.failed")
+    pairs = [(k, val) for k, val in v["headers"].items() if k.lower() != "x-webhook-signature"]
+    with pytest.raises(WebhookVerificationError) as caught:
+        webhooks.verify(v["body"], _WerkzeugStyleHeaders(pairs), v["secrets"], now=v["now"])
+    assert caught.value.reason == "headers"
 
 
 def test_non_ascii_digits_in_timestamp_are_rejected() -> None:

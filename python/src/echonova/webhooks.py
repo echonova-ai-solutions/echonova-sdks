@@ -6,6 +6,8 @@
 
 Pass the raw request body exactly as received. Parsing the JSON and
 serialising it again changes the bytes, and the signature check then fails.
+``request.headers`` can be passed as it is from FastAPI, Starlette, Flask,
+Django, aiohttp or a plain dict: see ``HeadersLike``.
 """
 
 from __future__ import annotations
@@ -15,15 +17,15 @@ import hmac
 import json
 import math
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
-from ._core._envelope import header
 from .errors import WebhookVerificationError
 
 __all__ = [
     "DEFAULT_TOLERANCE_SECONDS",
+    "HeadersLike",
     "JobCompleted",
     "JobFailed",
     "SpendingExhausted",
@@ -37,6 +39,18 @@ DEFAULT_TOLERANCE_SECONDS = 300
 EVENT_HEADER = "X-Webhook-Event"
 TIMESTAMP_HEADER = "X-Webhook-Timestamp"
 SIGNATURE_HEADER = "X-Webhook-Signature"
+
+
+class HeadersLike(Protocol):
+    """The request headers ``verify()`` reads: anything with ``get(name)`` and ``items()``.
+
+    A ``dict``, or the headers object of FastAPI and Starlette, Flask (Werkzeug),
+    Django, aiohttp or httpx, as it is. Names are matched case-insensitively.
+    """
+
+    def get(self, key: str, /) -> str | None: ...
+
+    def items(self) -> Iterable[tuple[str, str]]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +142,7 @@ WebhookEvent = JobCompleted | JobFailed | SpendingWarning | SpendingExhausted | 
 
 def verify(
     payload: bytes | bytearray | str,
-    headers: Mapping[str, str],
+    headers: HeadersLike,
     secret: str | Sequence[str],
     *,
     tolerance: float = DEFAULT_TOLERANCE_SECONDS,
@@ -136,7 +150,9 @@ def verify(
 ) -> WebhookEvent:
     """Check a webhook's signature and timestamp, then parse it.
 
-    ``secret`` may be a list, so two secrets can be valid at once (for example during a switch-over).
+    ``headers`` is your framework's request headers object, or a ``dict``; names
+    are matched case-insensitively. ``secret`` may be a list, so two secrets can be
+    valid at once (for example during a switch-over).
     Raises ``WebhookVerificationError`` with ``reason`` "headers", "timestamp",
     "signature" or "payload".
     """
@@ -145,9 +161,9 @@ def verify(
     if not secrets or not all(isinstance(s, str) and s for s in secrets):
         raise ValueError("secret must be a non-empty string or a list of them")
 
-    event_name = header(headers, EVENT_HEADER)
-    timestamp_text = header(headers, TIMESTAMP_HEADER)
-    signature = header(headers, SIGNATURE_HEADER)
+    event_name = _header(headers, EVENT_HEADER)
+    timestamp_text = _header(headers, TIMESTAMP_HEADER)
+    signature = _header(headers, SIGNATURE_HEADER)
     if not event_name or not timestamp_text or not signature:
         raise WebhookVerificationError(
             f"missing {EVENT_HEADER}, {TIMESTAMP_HEADER} or {SIGNATURE_HEADER} header", reason="headers"
@@ -180,6 +196,18 @@ def verify(
     except ValueError:
         raise WebhookVerificationError("webhook body is not JSON", reason="payload") from None
     return _parse_event(event_name.strip(), data, timestamp)
+
+
+def _header(headers: HeadersLike, name: str) -> str | None:
+    """Case-insensitive lookup: the exact name first, then any spelling of it."""
+    value = headers.get(name)
+    if value is not None:
+        return value
+    lowered = name.lower()
+    for key, candidate in headers.items():
+        if key.lower() == lowered:
+            return candidate
+    return None
 
 
 def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
