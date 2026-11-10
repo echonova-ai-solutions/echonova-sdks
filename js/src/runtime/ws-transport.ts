@@ -4,6 +4,8 @@
  * - Node, Bun and Deno: the `ws` package, loaded only when a stream is opened.
  *   It exposes a refused handshake's status, headers and body, so the SDK can
  *   raise the same errors as REST (401, 402, 403, 429, 503...).
+ * - Cloudflare Workers: a `fetch()` upgrade, loaded only there. It sends headers
+ *   and exposes a refused handshake's status, headers and body too.
  * - Browsers: the native `WebSocket`, in proxy mode only (no API key). It can't
  *   send headers, so the app authenticates with cookies or `query`, and a refused
  *   handshake can't be told apart from a network failure.

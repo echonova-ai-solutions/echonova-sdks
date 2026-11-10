@@ -8,6 +8,16 @@ import { browserTransport } from './ws-browser.js';
 import { nodeTransport } from './ws-node.js';
 import type { WsTransport } from './ws-transport.js';
 
+/**
+ * Cloudflare Workers: a `fetch()` upgrade, which sends headers and shows a refused
+ * handshake's status and body (`ws-workers.ts`). Loaded only on Workers.
+ */
+export const workersTransport: WsTransport = {
+  name: 'workers',
+  sendsHeaders: true,
+  open: async (request) => (await import('./ws-workers.js')).openFetchUpgrade(request),
+};
+
 export interface TransportChoice {
   transport?: WsTransport | null | undefined;
   usesApiKey?: boolean | undefined;
@@ -36,8 +46,9 @@ export function selectTransport(choice: TransportChoice = {}, env: Environment =
     return browserTransport;
   }
   if (env.runtime === 'node' || env.runtime === 'bun' || env.runtime === 'deno') return nodeTransport;
+  if (env.runtime === 'workerd') return workersTransport;
   throw new UnsupportedEnvironmentError(
-    `Streaming is not supported in this runtime (${env.runtime}): it needs Node.js, Bun, Deno or a browser ` +
-      '(proxy mode). Use the REST endpoints here, or pass a custom `transport`.',
+    `Streaming is not supported in this runtime (${env.runtime}): it needs Node.js, Bun, Deno, Cloudflare ` +
+      'Workers or a browser (proxy mode). Use the REST endpoints here, or pass a custom `transport`.',
   );
 }

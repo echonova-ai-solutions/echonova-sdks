@@ -19,7 +19,7 @@ Streaming adds a technical constraint: the SDK must be able to read a rejected W
 | SDK | Minimum | Also supported |
 | --- | --- | --- |
 | Python | CPython 3.11 | every later CPython release |
-| JavaScript/TypeScript | Node.js 22 | Bun, Deno 2; REST on Cloudflare Workers and Vercel Edge |
+| JavaScript/TypeScript | Node.js 22 | Bun, Deno 2, Cloudflare Workers; REST on Vercel Edge |
 | Dart | Dart 3.5 | Flutter on Android, iOS, desktop and web |
 
 **We support every language version that is still maintained upstream:** all non-end-of-life CPython releases and all Node.js LTS releases. When a version reaches end of life, we drop it in a **minor** release and announce it one release ahead in the changelog. Dropping a version on any other schedule is a breaking change (ADR 0010).
@@ -40,6 +40,7 @@ Dart has no fixed end-of-life schedule. A change to the Dart minimum follows the
 - Streaming uses `ws`, loaded only when a stream is opened, because it exposes the handshake response.
 - Bun and Deno run the same code through their npm compatibility, and CI tests both.
 - Cloudflare Workers and Vercel Edge support REST, without file-path uploads. Streaming there depends on a fetch-based WebSocket upgrade, and is listed as supported only once it passes the conformance suite.
+- *Amended 2026-11-10:* a runtime is listed as supported once the built package passes the runtime smoke suite (`js/scripts/smoke-runtime*.mjs`) in CI: REST, both streams, refused handshakes, closes and retries against a local mock of the API. Recorded live fixtures don't exist yet for any runtime, so this is the same bar Node.js, Bun and Deno meet. Cloudflare Workers passes it with a `fetch()` upgrade transport (loaded only on Workers), with and without `nodejs_compat`, so Workers streaming is supported; file paths there need `nodejs_compat`. Vercel Edge stays REST-only.
 - Browsers: proxy mode only, unless the developer explicitly opts in (ADR 0008).
 - The package ships ESM and CommonJS builds with type definitions.
 

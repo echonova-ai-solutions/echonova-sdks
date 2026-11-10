@@ -10,7 +10,14 @@ Official JavaScript and TypeScript SDK for the [EchoNova API](https://echonova.a
 
 ## Requirements
 
-Node.js 22 or later, Bun, or Deno 2. REST also runs on Cloudflare Workers and Vercel Edge (without file-path uploads). In a browser, use [proxy mode](#proxy-mode-and-browsers).
+| Runtime | REST | Streaming | File paths |
+|---|---|---|---|
+| Node.js 22 or later, Bun, Deno 2 | yes | yes | yes |
+| Cloudflare Workers | yes | yes, through a `fetch()` upgrade | only with the `nodejs_compat` flag, for files in the Worker's own `/tmp` |
+| Vercel Edge | yes | no | no |
+| Browsers | [proxy mode](#proxy-mode-and-browsers) | proxy mode | no |
+
+Without file paths, pass a `Blob`, bytes or a stream, and download to memory. A stream refused at the handshake (401, 402, 429...) raises the same error as REST everywhere except in browsers, which don't say why.
 
 ## Install
 

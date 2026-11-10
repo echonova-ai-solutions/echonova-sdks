@@ -9,151 +9,11 @@
  */
 
 import { APIConnectionError, UnsupportedEnvironmentError } from '../errors.js';
-import type { Clock } from '../streaming/options.js';
 import { redactURL } from '../streaming/options.js';
-import { abortReason, WsOpenFailure, type WsHandlers, type WsOpenRequest, type WsSocket, type WsTransport } from './ws-transport.js';
+import { NativeSocket, type NativeWebSocket } from './ws-native.js';
+import { abortReason, WsOpenFailure, type WsOpenRequest, type WsSocket, type WsTransport } from './ws-transport.js';
 
-interface MessageEventLike {
-  data: unknown;
-}
-
-interface CloseEventLike {
-  code: number;
-  reason: string;
-}
-
-interface BrowserWebSocket {
-  readonly readyState: number;
-  readonly bufferedAmount: number;
-  binaryType: string;
-  onopen: ((event: unknown) => void) | null;
-  onmessage: ((event: MessageEventLike) => void) | null;
-  onerror: ((event: unknown) => void) | null;
-  onclose: ((event: CloseEventLike) => void) | null;
-  send(data: string | ArrayBufferView | ArrayBuffer): void;
-  close(code?: number, reason?: string): void;
-}
-
-type BrowserWebSocketConstructor = new (url: string) => BrowserWebSocket;
-
-const OPEN = 1;
-/** Above this many buffered bytes, `send` waits for the browser to drain its buffer. */
-const HIGH_WATER = 256 * 1024;
-const DRAIN_POLL_MS = 10;
-
-const decoder = new TextDecoder();
-
-async function toBytes(data: unknown): Promise<Uint8Array | null> {
-  if (data instanceof ArrayBuffer) return new Uint8Array(data);
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
-  if (typeof Blob !== 'undefined' && data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
-  return null;
-}
-
-class BrowserSocket implements WsSocket {
-  readonly responseHeaders = null;
-  readonly #ws: BrowserWebSocket;
-  readonly #clock: Clock;
-  #handlers: WsHandlers | null = null;
-  #queued: Array<(handlers: WsHandlers) => void> = [];
-  #closed = false;
-  // Messages are delivered in order even if one needs an async conversion (a Blob).
-  #order: Promise<void> = Promise.resolve();
-
-  /** Called once, when the socket closes (before `start()` too). */
-  onClosed: (() => void) | null = null;
-
-  constructor(ws: BrowserWebSocket, clock: Clock) {
-    this.#ws = ws;
-    this.#clock = clock;
-    ws.onmessage = (event) => {
-      const data = event.data;
-      if (typeof data === 'string') {
-        this.#enqueue(() => (h) => h.text(data));
-        return;
-      }
-      const converted = toBytes(data);
-      this.#enqueue(async () => {
-        const bytes = await converted;
-        return bytes ? (h) => h.binary(bytes) : null;
-      });
-    };
-    ws.onclose = (event) => this.#closedWith(event.code, event.reason);
-  }
-
-  #enqueue(make: () => ((handlers: WsHandlers) => void) | null | Promise<((handlers: WsHandlers) => void) | null>): void {
-    this.#order = this.#order
-      .then(async () => {
-        const event = await make();
-        if (event) this.#deliver(event);
-      })
-      .catch(() => {}); // a failing handler must not stop later events
-  }
-
-  #closedWith(code: number, reason: string): void {
-    if (this.#closed) return;
-    this.#closed = true;
-    this.#enqueue(() => (h) => h.close(code, reason));
-    this.onClosed?.();
-  }
-
-  #deliver(event: (handlers: WsHandlers) => void): void {
-    if (this.#handlers) event(this.#handlers);
-    else this.#queued.push(event);
-  }
-
-  get closed(): boolean {
-    return this.#closed;
-  }
-
-  start(handlers: WsHandlers): void {
-    if (this.#handlers) throw new Error('socket already started');
-    this.#handlers = handlers;
-    const queued = this.#queued;
-    this.#queued = [];
-    for (const event of queued) event(handlers);
-  }
-
-  trySend(data: string | Uint8Array): Promise<void> | null {
-    if (this.#closed || this.#ws.readyState !== OPEN) return null;
-    try {
-      this.#ws.send(data);
-    } catch {
-      return Promise.resolve();
-    }
-    return this.#drained();
-  }
-
-  #drained(): Promise<void> {
-    if (this.#ws.bufferedAmount <= HIGH_WATER || this.#closed) return Promise.resolve();
-    return new Promise((resolve) => {
-      const check = (): void => {
-        if (this.#ws.bufferedAmount <= HIGH_WATER || this.#closed || this.#ws.readyState !== OPEN) resolve();
-        else this.#clock.setTimeout(check, DRAIN_POLL_MS);
-      };
-      this.#clock.setTimeout(check, DRAIN_POLL_MS);
-    });
-  }
-
-  close(code: number, reason: string): void {
-    try {
-      this.#ws.close(code, reason);
-    } catch {
-      this.terminate();
-    }
-  }
-
-  terminate(): void {
-    // A browser can't drop a socket without the close handshake: start it, and report the
-    // connection as gone now rather than waiting for a server that may not answer.
-    try {
-      this.#ws.close(1000);
-    } catch {
-      // already closing
-    }
-    this.#closedWith(1006, '');
-  }
-}
+type BrowserWebSocketConstructor = new (url: string) => NativeWebSocket;
 
 function failedHandshake(url: string): APIConnectionError {
   return new APIConnectionError(
@@ -176,7 +36,7 @@ export const browserTransport: WsTransport = {
     const { clock, signal } = request;
     if (signal?.aborted) return Promise.reject(abortReason(signal));
     return new Promise<WsSocket>((resolve, reject) => {
-      let ws: BrowserWebSocket;
+      let ws: NativeWebSocket;
       try {
         ws = new WebSocketCtor(request.url);
       } catch (error) {
@@ -184,7 +44,7 @@ export const browserTransport: WsTransport = {
         return;
       }
       ws.binaryType = 'arraybuffer';
-      const socket = new BrowserSocket(ws, clock);
+      const socket = new NativeSocket(ws, clock, request.maxPayload);
       let settled = false;
 
       const timer = clock.setTimeout(
@@ -207,15 +67,15 @@ export const browserTransport: WsTransport = {
         reject(error);
       }
 
-      ws.onerror = () => {}; // a close event always follows
+      ws.addEventListener('error', () => {}); // a close event always follows
       // Before `open`, a close means the handshake failed. After it, the close reaches the session.
       socket.onClosed = () => fail(failedHandshake(request.url));
-      ws.onopen = () => {
+      ws.addEventListener('open', () => {
         if (settled) return;
         finish();
         socket.onClosed = null;
         resolve(socket);
-      };
+      });
     });
   },
 };
