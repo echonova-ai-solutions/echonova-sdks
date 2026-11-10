@@ -20,6 +20,9 @@ jobs:
   changes:
     name: Changed areas
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # to find the last commit CI passed on
     outputs:
       python: ${{ steps.areas.outputs.python }}
       js: ${{ steps.areas.outputs.js }}
@@ -36,10 +39,16 @@ jobs:
       - id: areas
         name: Decide which jobs this change needs
         env:
-          BEFORE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 tools/ci_changes.py >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            # A push is compared with the last commit CI passed on (see tools/ci_changes.py).
+            LAST_GREEN_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
+            export LAST_GREEN_SHA
+          fi
+          python3 tools/ci_changes.py >> "$GITHUB_OUTPUT"
 
   workflows:
     name: Workflow lint

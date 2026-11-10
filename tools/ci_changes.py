@@ -5,6 +5,11 @@ Prints one ``area=true|false`` line per area, for ``$GITHUB_OUTPUT``. Every area
 runs when the comparison base is unknown (a new branch, a manual or scheduled
 run, a force push) or when a file every area depends on changed.
 
+A pull request is compared with where it branched from. A push is compared with
+the last commit CI passed on (``LAST_GREEN_SHA``), not with the previous push:
+a push cancels the run still going for the one before, and that one's changes
+must still be checked.
+
     python3 tools/ci_changes.py                  # reads the GitHub event from the environment
     python3 tools/ci_changes.py --files a b ...  # decide for an explicit list of paths
 """
@@ -54,12 +59,14 @@ def changed_files() -> list[str] | None:
         base, head = os.environ.get("BASE_SHA", ""), os.environ.get("HEAD_SHA", "HEAD")
         diff_range = f"{base}...{head}"  # what the pull request adds, from where it branched
     elif event == "push":
-        base = os.environ.get("BEFORE_SHA", "")
+        base = os.environ.get("LAST_GREEN_SHA", "")
         diff_range = f"{base}..HEAD"
     else:  # workflow_dispatch, schedule: run everything
         return None
     if not base or base == NO_COMMIT or _git("cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
         return None
+    if event == "push" and _git("merge-base", "--is-ancestor", base, "HEAD").returncode != 0:
+        return None  # history was rewritten since: check everything
     result = _git("diff", "--name-only", diff_range)
     if result.returncode != 0:
         return None
