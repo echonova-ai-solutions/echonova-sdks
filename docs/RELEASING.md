@@ -12,16 +12,16 @@ Versions follow [SemVer](https://semver.org) ([ADR 0010](adr/0010-releases-and-v
 
 ## One-time setup
 
-Done once by a maintainer with admin rights on the GitHub organization and each registry account.
+Done once by a maintainer with admin rights on the GitHub organization and each registry account. Use company-owned accounts with two-factor authentication, keep their recovery codes in the company password manager, and give each registry a second owner so access never depends on one person.
 
-1. **GitHub:** create an environment named `release` (Settings → Environments) with required reviewers, and allow only tags matching `python-v*`, `js-v*` and `dart-v*` to deploy to it.
-2. **PyPI:** on the `echonova` project, add a trusted publisher (Publishing → Add a GitHub publisher): this repository, workflow `release.yml`, environment `release`. Do the same on TestPyPI first if you want a dry run.
-3. **npm:** on the `echonova` package settings, add a trusted publisher: GitHub Actions, this repository, workflow `release.yml`, environment `release`. Enable two-factor authentication for every maintainer of the package and the `@echonova` organization.
-4. **pub.dev:** on the `echonova` package admin page, enable automated publishing from GitHub Actions: this repository, tag pattern `dart-v{{version}}`, environment `release`. The package must belong to the `echonova.ai` verified publisher.
-5. **Before the first public release:** remove `publish_to: none` from `dart/pubspec.yaml`.
-6. **When the repository is made public:**
+1. **GitHub:** the `release` environment (Settings → Environments) allows only tags matching `python-v*`, `js-v*` and `dart-v*` to deploy. Add required reviewers (the code owners) once the repository is public: the free plan doesn't offer them on private repositories.
+2. **PyPI:** in your account, Publishing → Add a new pending publisher → GitHub: project name `echonova`, owner `echonova-ai-solutions`, repository `echonova-sdks`, workflow `release.yml`, environment `release`. The first tagged release creates the project. A pending publisher doesn't reserve the name: until that release, anyone can register it. Do the same on TestPyPI first if you want a dry run.
+3. **npm:** create the `echonova` organization (free plan, public packages), which reserves the `@echonova` scope. Trusted publishing can only be set up on a package that exists, so publish the first version by hand: `cd js && npm ci && npm run build && npm publish --access public --tag beta` (pre-release versions need a `--tag`). Then, in the package's settings, add a trusted publisher (GitHub Actions: `echonova-ai-solutions`, `echonova-sdks`, workflow `release.yml`, environment `release`), and under Publishing access require two-factor authentication and disallow tokens. Provenance needs a public repository, so the workflow publishes only once the repository is public.
+4. **pub.dev:** sign in with a company Google account, verify `echonova.ai` in Google Search Console (a DNS TXT record), and create the `echonova.ai` verified publisher. Automated publishing can only be set up on a package that exists, so publish the first version by hand: remove `publish_to: none` from `dart/pubspec.yaml`, then `cd dart && dart pub publish`. A pub.dev version can't be deleted, only retracted within 7 days. Then, on the package's admin page, transfer it to the `echonova.ai` publisher and enable automated publishing from GitHub Actions: repository `echonova-ai-solutions/echonova-sdks`, tag pattern `dart-v{{version}}`, required environment `release`.
+5. **When the repository is made public:**
    - Turn on private vulnerability reporting in the repository settings, or with `gh api -X PUT repos/echonova-ai-solutions/echonova-sdks/private-vulnerability-reporting`. [SECURITY.md](../SECURITY.md) sends every report there, and GitHub offers it only on public repositories.
    - Protect `main` with a ruleset: require a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)), require the CI checks to pass, and block force pushes and deletion. The free plan offers rulesets only on public repositories too.
+   - Add the required reviewers to the `release` environment (step 1).
 
 ## Releasing a version
 
