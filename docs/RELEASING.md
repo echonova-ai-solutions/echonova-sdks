@@ -3,7 +3,7 @@
 Each SDK is released on its own, by pushing a tag. The [release workflow](../.github/workflows/release.yml) tests the package, builds it and publishes it with the registry's OIDC trusted publishing, so no registry token is stored in the repository or in GitHub secrets.
 
 | SDK | Tag | Registry | Version lives in |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Python | `python-v<version>` | PyPI `echonova` | `python/src/echonova/_version.py` |
 | JavaScript / TypeScript | `js-v<version>` | npm `echonova` | `js/package.json` |
 | Dart / Flutter | `dart-v<version>` | pub.dev `echonova` | `dart/pubspec.yaml` (and `lib/src/version.dart`) |
@@ -18,7 +18,10 @@ Done once by a maintainer with admin rights on the GitHub organization and each 
 2. **PyPI:** on the `echonova` project, add a trusted publisher (Publishing → Add a GitHub publisher): this repository, workflow `release.yml`, environment `release`. Do the same on TestPyPI first if you want a dry run.
 3. **npm:** on the `echonova` package settings, add a trusted publisher: GitHub Actions, this repository, workflow `release.yml`, environment `release`. Enable two-factor authentication for every maintainer of the package and the `@echonova` organization.
 4. **pub.dev:** on the `echonova` package admin page, enable automated publishing from GitHub Actions: this repository, tag pattern `dart-v{{version}}`, environment `release`. The package must belong to the `echonova.ai` verified publisher.
-5. **Before the first public release:** fill in the security contact in [SECURITY.md](../SECURITY.md) and remove `publish_to: none` from `dart/pubspec.yaml`.
+5. **Before the first public release:** remove `publish_to: none` from `dart/pubspec.yaml`.
+6. **When the repository is made public:**
+   - Turn on private vulnerability reporting in the repository settings, or with `gh api -X PUT repos/echonova-ai-solutions/echonova-sdks/private-vulnerability-reporting`. [SECURITY.md](../SECURITY.md) sends every report there, and GitHub offers it only on public repositories.
+   - Protect `main` with a ruleset: require a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)), require the CI checks to pass, and block force pushes and deletion. The free plan offers rulesets only on public repositories too.
 
 ## Releasing a version
 

@@ -4,10 +4,7 @@
 
 **Please don't report security problems in public issues, pull requests or discussions.**
 
-Report them privately, in either of these ways:
-
-- **GitHub private vulnerability reporting:** open the repository's **Security** tab and choose **Report a vulnerability**.
-- **Email:** **`[SECURITY CONTACT: maintainers must replace this placeholder with the real address before the repository is made public]`**
+Report them privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**, or go straight to the [private reporting form](https://github.com/echonova-ai-solutions/echonova-sdks/security/advisories/new). Only you and the maintainers can see the report.
 
 Please include:
 
