@@ -21,6 +21,7 @@ interface Globals {
   WorkerGlobalScope?: unknown;
   importScripts?: unknown;
   EdgeRuntime?: unknown;
+  WebSocketPair?: unknown;
 }
 
 const g = (): Globals => globalThis as unknown as Globals;
@@ -48,9 +49,18 @@ export function isBrowserLike(): boolean {
 }
 
 export interface RuntimeInfo {
-  name: 'node' | 'bun' | 'deno' | 'edge' | 'browser' | 'unknown';
+  name: 'node' | 'bun' | 'deno' | 'workerd' | 'edge' | 'browser' | 'unknown';
   version: string | null;
   platform: string | null;
+}
+
+/**
+ * True in Cloudflare Workers (workerd). Checked before Node.js: with the
+ * `nodejs_compat` flag a Worker has `process.versions.node` too.
+ */
+export function isWorkerd(): boolean {
+  const globals = g();
+  return globals.navigator?.userAgent === 'Cloudflare-Workers' || typeof globals.WebSocketPair === 'function';
 }
 
 export function runtimeInfo(): RuntimeInfo {
@@ -59,6 +69,7 @@ export function runtimeInfo(): RuntimeInfo {
   if (globals.Deno?.version?.deno) {
     return { name: 'deno', version: globals.Deno.version.deno, platform: globals.Deno.build?.os ?? null };
   }
+  if (isWorkerd()) return { name: 'workerd', version: null, platform: null };
   if (versions?.['bun']) return { name: 'bun', version: versions['bun'], platform: globals.process?.platform ?? null };
   if (versions?.['node']) return { name: 'node', version: versions['node'], platform: globals.process?.platform ?? null };
   if (typeof globals.EdgeRuntime !== 'undefined') return { name: 'edge', version: null, platform: null };

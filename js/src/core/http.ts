@@ -24,6 +24,7 @@ import type { RateLimitInfo, RateLimitTracker } from './ratelimit.js';
 import { RetryPolicy, type RetryDecision } from './retry.js';
 import type { Phase } from './rules.js';
 import { defaultSleep } from './runtime.js';
+import { isWorkerd } from '../runtime/detect.js';
 
 export { defaultSleep } from './runtime.js';
 
@@ -67,7 +68,10 @@ export interface RequestSpec<T = any> {
   body?: RequestBody | undefined;
   /** Override replayability, e.g. `false` for a body that is consumed when read. */
   bodyReplayable?: boolean | undefined;
-  /** An audio upload. Sent with `redirect: 'error'`, so `fetch` never buffers it for a redirect. */
+  /**
+   * An audio upload. Sent with `redirect: 'error'`, so `fetch` never buffers it for a redirect;
+   * Cloudflare Workers reject that mode, so there it is `'manual'` and a 3xx fails on its status.
+   */
   upload?: UploadBody | undefined;
   headers?: HeaderValues | undefined;
   /** Per-call timeout in milliseconds (one attempt). */
@@ -185,13 +189,16 @@ const CONNECT_ERROR_CODES = new Set([
   'FailedToOpenSocket', // Bun
 ]);
 const TLS_ERROR_CODE = /^(?:ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/;
+/** Deno's fetch errors have no `code`; DNS, TCP and TLS failures say "client error (Connect)". */
+const DENO_CONNECT_ERROR = /\bclient error \(Connect\)/;
 
 /** Classify a `fetch` rejection: `connect` only when it is certain nothing was sent. */
 export function failurePhase(error: unknown): Phase {
   let current: unknown = error;
   for (let depth = 0; depth < 6 && typeof current === 'object' && current !== null; depth += 1) {
-    const code = (current as { code?: unknown }).code;
+    const { code, message } = current as { code?: unknown; message?: unknown };
     if (typeof code === 'string' && (CONNECT_ERROR_CODES.has(code) || TLS_ERROR_CODE.test(code))) return 'connect';
+    if (typeof message === 'string' && DENO_CONNECT_ERROR.test(message)) return 'connect';
     current = (current as { cause?: unknown }).cause;
   }
   return 'no_response';
@@ -407,7 +414,7 @@ export class HttpTransport {
       }
       const attempt = retriesDone + 1;
       const headers = await this.#headers(spec, url);
-      const init: RequestInit & { duplex?: 'half' } = { method, headers, redirect: upload ? 'error' : 'manual' };
+      const init: RequestInit & { duplex?: 'half' } = { method, headers, redirect: upload && !isWorkerd() ? 'error' : 'manual' };
       let body: RequestBody | undefined = spec.body;
       if (spec.json !== undefined) body = JSON.stringify(spec.json);
       else if (upload) {
