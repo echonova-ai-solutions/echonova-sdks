@@ -50,8 +50,9 @@ packages = ["src/echonova"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
-markers = ["live: calls the real EchoNova API (needs ECHONOVA_API_KEY; costs credits)"]
+# Live tests are deselected by default; `pytest -m live` (the last -m wins) selects them.
+addopts = "-ra --strict-markers -m 'not live'"
+markers = ["live: calls the real EchoNova API; run with ECHONOVA_LIVE=1 pytest -m live (costs credits)"]
 
 [tool.ruff]
 line-length = 120
