@@ -106,7 +106,7 @@ Options you don't pass are not sent, so the API's defaults apply.
 
 ### Streaming
 
-Keep one socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synth.sampleRate`, well before the whole text is spoken.
+Keep one socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synth.sampleRate`, well before the whole text is spoken. `speakStream()` yields only chunks; their rate is `tts.sampleRate`, the rate of the latest synthesis to start.
 
 ```ts
 import EchoNova from 'echonova';
@@ -127,7 +127,7 @@ for await (const pcm of synth) {
 }
 const { outcome, creditsConsumed, charged } = await synth.result;
 
-// A voice agent: LLM text in, gap-free audio out, sentence by sentence
+// A voice agent: LLM text in, gap-free audio out, sentence by sentence, at tts.sampleRate
 for await (const pcm of tts.speakStream(llmTextDeltas())) speaker.write(pcm);
 
 const audio = await client.textToSpeech.speak('مرحبا', { voiceId }); // one-shot: Audio with toWav()

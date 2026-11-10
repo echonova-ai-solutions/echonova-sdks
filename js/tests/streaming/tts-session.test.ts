@@ -184,6 +184,20 @@ describe('TtsSession', () => {
     expect(audio).toHaveLength(9);
   });
 
+  it('speakStream audio is at the session sampleRate, known before each first chunk', async () => {
+    await withTts(async (tts) => {
+      expect(tts.sampleRate).toBeNull(); // no synthesis has started yet
+      const rates: Array<number | null> = [];
+      for await (const _chunk of tts.speakStream('First one. Second one.')) rates.push(tts.sampleRate);
+      expect(rates).toEqual(Array(6).fill(22_050));
+      server.tts.sampleRate = 16_000;
+      const later = tts.synthesize('Later');
+      await later.result;
+      expect(later.sampleRate).toBe(16_000);
+      expect(tts.sampleRate).toBe(16_000); // the most recent start
+    });
+  });
+
   it('speakStream speaks LLM deltas', async () => {
     async function* deltas(): AsyncGenerator<string> {
       for (const piece of ['Hel', 'lo world. How ', 'are you', '? Bye']) {

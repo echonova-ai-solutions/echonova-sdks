@@ -94,6 +94,26 @@ describe('TtsProtocol', () => {
     expect(core.metrics()).toMatchObject({ timeToStart: 200, ttfb: 250, frames: 3, audioBytes: 60 });
   });
 
+  it('keeps the sample rate of the latest start for the session', () => {
+    const h = new Harness();
+    expect(h.p.sampleRate).toBeNull(); // nothing started yet
+    h.p.enqueue('one', {}, h.now);
+    h.p.enqueue('two', {}, h.now);
+    h.flush();
+    h.start('r1', 22_050);
+    expect(h.p.sampleRate).toBe(22_050); // known before the first audio frame
+    h.audio();
+    h.done('r1');
+    h.flush();
+    h.start('r2', 16_000);
+    expect(h.p.sampleRate).toBe(16_000);
+    h.start('zzz', 8_000); // a start for a request this session doesn't track: its audio is dropped
+    h.event('start', { requestId: 'r2', sampleRate: 0 }); // not a usable rate
+    expect(h.p.sampleRate).toBe(16_000);
+    h.p.connectionClosed(new CloseInfo(1006), h.now);
+    expect(h.p.sampleRate).toBe(16_000); // kept across reconnects
+  });
+
   it('sends only the options that are set, and merges the session defaults', () => {
     const p = new TtsProtocol({ voiceId: 'v1', defaults: { speed: 0.9, normalize: undefined }, newRequestId: () => 'a' });
     p.connectionOpened(T0);

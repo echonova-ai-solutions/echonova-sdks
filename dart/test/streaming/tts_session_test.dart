@@ -200,6 +200,23 @@ void main() {
       expect(audio, hasLength(9));
     });
 
+    test('the session sample rate is known for every chunk', () async {
+      final tts = await open(server);
+      expect(tts.sampleRate, isNull); // no synthesis has started yet
+      final rates = <int?>[];
+      await for (final _ in tts.speakStream('First one. Second one.')) {
+        rates.add(tts.sampleRate);
+      }
+      expect(rates, List.filled(6, 22050)); // set before each first chunk
+      server.tts.sampleRate = 16000;
+      final later = tts.synthesize('Later');
+      await later.result;
+      expect(later.sampleRate, 16000);
+      expect(tts.sampleRate, 16000); // the most recent start
+      await tts.close();
+      expect(tts.sampleRate, 16000); // still readable after close
+    });
+
     test('treats iterable items as whole texts', () async {
       final tts = await open(server);
       await tts.speakStream(['one', 'two. three']).drain<void>();

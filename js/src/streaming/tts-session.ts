@@ -251,6 +251,14 @@ export class TtsSession {
     return this.#link !== null && !this.#link.closed;
   }
 
+  /**
+   * Sample rate of the most recent synthesis that started, from its `start` event (`null` before the first).
+   * `speakStream()` yields only audio: read its rate here. It is set before the first chunk of each synthesis.
+   */
+  get sampleRate(): number | null {
+    return this.#protocol.sampleRate;
+  }
+
   /** Audio frames that matched no running synthesis and were discarded. */
   get droppedFrames(): number {
     return this.#protocol.orphanFrames;
@@ -294,8 +302,9 @@ export class TtsSession {
    *
    * `texts` is a string, an iterable of texts, or an async iterable of text
    * deltas (for example from an LLM). Text is split into sentences of at most
-   * 500 characters, queued in order, and the audio is yielded in order.
-   * `interrupt()` ends the stream; leaving the loop early cancels what is left.
+   * 500 characters, queued in order, and the audio is yielded in order, at
+   * `sampleRate`. `interrupt()` ends the stream; leaving the loop early cancels
+   * what is left.
    */
   async *speakStream(texts: TextSource, options: SpeakStreamOptions = {}): AsyncGenerator<Uint8Array, void, undefined> {
     const { deltas, ...synthesis } = options;

@@ -80,6 +80,15 @@ class _SynthesisBase:
         return self._core.charge_state
 
     @property
+    def credits_consumed(self) -> float | None:
+        """The final cost the server reported (in ``done``, ``cancelled``, or an ``error`` after audio started).
+
+        None until the server reports it, and when it never does (for example a
+        synthesis cancelled before it was charged, or one lost with the connection).
+        """
+        return self._core.credits_consumed
+
+    @property
     def error(self) -> EchoNovaError | None:
         return self._core.error
 
@@ -233,6 +242,15 @@ class AsyncTtsSession:
         return self._link is not None and not self._link.closed
 
     @property
+    def sample_rate(self) -> int | None:
+        """Sample rate of the most recent synthesis that started, from its ``start`` event (None before the first).
+
+        ``speak_stream()`` yields only audio; read the rate here. It is set before
+        the first chunk of each synthesis is delivered.
+        """
+        return self._protocol.sample_rate
+
+    @property
     def dropped_frames(self) -> int:
         """Audio frames that matched no running synthesis and were discarded."""
         return self._protocol.orphan_frames
@@ -322,9 +340,9 @@ class AsyncTtsSession:
 
         ``texts`` is a string, an iterable of texts, or an async iterable of text
         deltas (for example from an LLM). Text is split into sentences of at most
-        500 characters, queued in order, and the audio is yielded in order.
-        ``deltas`` says whether items are fragments of one text; it defaults to
-        True for async iterables. ``interrupt()`` ends the stream.
+        500 characters, queued in order, and the audio is yielded in order, at
+        ``sample_rate``. ``deltas`` says whether items are fragments of one text;
+        it defaults to True for async iterables. ``interrupt()`` ends the stream.
         """
         options: dict[str, Any] = {
             "voice_id": voice_id,
@@ -661,6 +679,15 @@ class TtsSession:
         return self._link is not None and not self._link.closed
 
     @property
+    def sample_rate(self) -> int | None:
+        """Sample rate of the most recent synthesis that started, from its ``start`` event (None before the first).
+
+        ``speak_stream()`` yields only audio; read the rate here. It is set before
+        the first chunk of each synthesis is delivered.
+        """
+        return self._protocol.sample_rate
+
+    @property
     def dropped_frames(self) -> int:
         """Audio frames that matched no running synthesis and were discarded."""
         return self._protocol.orphan_frames
@@ -758,7 +785,7 @@ class TtsSession:
         ``texts`` is a string or an iterable of texts; pass ``deltas=True`` when
         the items are fragments of one text (for example LLM deltas). Text is
         split into sentences of at most 500 characters, queued in order, and the
-        audio is yielded in order. ``interrupt()`` ends the stream.
+        audio is yielded in order, at ``sample_rate``. ``interrupt()`` ends the stream.
         """
         options: dict[str, Any] = {
             "voice_id": voice_id,

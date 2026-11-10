@@ -36,9 +36,9 @@ async def main() -> None:
         print(f"greeting: {result.outcome}, {result.credits_consumed} credits")
 
         async for chunk in tts.speak_stream(reply_deltas()):  # one sentence at a time, in order
-            pcm += chunk
+            pcm += chunk  # at tts.sample_rate, the rate of the synthesis that is playing
 
-    sample_rate = greeting.sample_rate  # from the server's start message; the same for the whole session
+    sample_rate = tts.sample_rate  # from the server's latest start message, never assumed
     if sample_rate:
         Audio(bytes(pcm), sample_rate).to_wav(output)
         print(f"saved {output}")

@@ -29,11 +29,10 @@ Future<void> main(List<String> args) async {
         pcm.add(chunk);
       }
       final result = await reply.result;
-      final sampleRate = result.sampleRate!;
       stdout.writeln('first audio after ${reply.ttfb?.inMilliseconds} ms, '
           '${result.durationSeconds} s, ${result.creditsConsumed} credits');
       await File('reply.wav')
-          .writeAsBytes(pcmToWav(pcm.takeBytes(), sampleRate));
+          .writeAsBytes(pcmToWav(pcm.takeBytes(), result.sampleRate!));
 
       // Text that arrives in pieces, such as a language model's output:
       // speakStream cuts it into sentences and speaks them in order, as one
@@ -41,11 +40,12 @@ Future<void> main(List<String> args) async {
       final deltas = Stream.fromIterable(
         ['أهلاً ', 'بك. ', 'هذه ', 'جملة ', 'ثانية.'],
       );
-      final answer = File('answer.wav').openWrite();
-      // speakStream's chunks don't say their sample rate; this assumes the
-      // reply's, as it is the same voice.
-      await answer.addStream(wavStream(tts.speakStream(deltas), sampleRate));
-      await answer.close();
+      final answer = BytesBuilder(copy: false);
+      await for (final chunk in tts.speakStream(deltas)) {
+        answer.add(chunk); // at tts.sampleRate, set before the first chunk
+      }
+      await File('answer.wav')
+          .writeAsBytes(pcmToWav(answer.takeBytes(), tts.sampleRate!));
       stdout.writeln('saved reply.wav and answer.wav');
     } finally {
       await tts.close();

@@ -388,6 +388,10 @@ final class TtsProtocol {
   /// How many times `interrupt()` was called.
   int interrupts = 0;
 
+  /// The sample rate of the latest `start` for a request this session
+  /// tracks, or `null` before the first.
+  int? sampleRate;
+
   /// The latest events of unknown types.
   final Queue<UnknownEvent> unknownEvents = Queue();
 
@@ -783,7 +787,7 @@ final class TtsProtocol {
       ..startedAt = now
       ..startEvent = Map.of(event);
     final rate = event['sampleRate'];
-    if (rate is int && rate > 0) core.sampleRate = rate;
+    if (rate is int && rate > 0) core.sampleRate = sampleRate = rate;
     if (core.state == SynthesisState.sent) {
       core.state = SynthesisState.streaming;
     }

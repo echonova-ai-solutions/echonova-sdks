@@ -52,7 +52,7 @@ try {
   // A voice agent: text deltas in, gap-free audio out, one sentence at a time.
   let bytes = 0;
   for await (const pcm of tts.speakStream(llmReply())) bytes += pcm.length;
-  console.log(`spoke the reply: ${bytes} bytes of audio`);
+  console.log(`spoke the reply: ${bytes} bytes of audio at ${tts.sampleRate} Hz`); // the rate of the latest start
 } finally {
   await tts.close();
 }

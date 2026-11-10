@@ -195,6 +195,43 @@ def test_speak_stream_from_async_llm_deltas(server: MockServer, opts: StreamOpti
     assert len(audio) == 9
 
 
+def test_session_sample_rate_is_known_while_speak_stream_yields(
+    server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
+) -> None:
+    tts = open_tts(mode, opts, bridge, voice_id="v1")
+    try:
+        assert tts.sample_rate is None  # no synthesis has started yet
+        seen: list[int | None] = []
+        audio = tts.speak_stream("First one. Second one.", on_chunk=lambda _: seen.append(tts.sample_rate))
+        assert len(audio) == 6
+        assert seen == [22_050] * 6  # set before the first chunk of each sentence
+        server.tts.sample_rate = 16_000
+        later = tts.synthesize("Later")
+        later.result()
+        assert tts.sample_rate == later.sample_rate == 16_000  # the most recent start
+    finally:
+        tts.close()
+    assert tts.sample_rate == 16_000  # still readable after close
+
+
+def test_synthesis_credits_consumed(server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None) -> None:
+    server.tts.start_delay = 0.3
+    tts = open_tts(mode, opts, bridge, voice_id="v1")
+    try:
+        done = tts.synthesize("Hello there")
+        assert done.credits_consumed is None  # nothing reported yet
+        result = done.result()
+        assert done.credits_consumed == result.credits_consumed == len("Hello there")
+        server.tts.start_delay = 0.5
+        early = tts.synthesize("cancelled before it started")
+        wait_for(lambda: early.state == "sent")
+        early.cancel()
+        assert early.result().charged is False
+        assert early.credits_consumed is None  # cancelled before it was charged
+    finally:
+        tts.close()
+
+
 def test_interrupt_ends_speak_stream_and_drops_the_queue(
     server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
 ) -> None:

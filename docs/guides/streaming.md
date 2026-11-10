@@ -82,7 +82,7 @@ Only one text is spoken at a time on a socket, and on the server a new synthesis
 
 Each text keeps the per-request character limit (see the [reference](https://echonova.ai/docs/reference/tts-stream)); `speak_stream()` keeps its sentences within it. Every synthesis gets a `request_id` (`requestId`) from the SDK, which the job saved for it carries too (see [Jobs](jobs.md#jobs-from-streams)).
 
-`speak_stream()` yields only audio chunks, not their sample rate. When your player needs it from the server, as the API docs advise, queue the sentences yourself with `enqueue()`: each synthesis has `sample_rate` (`sampleRate`).
+`speak_stream()` yields only audio chunks. Their sample rate is the session's `tts.sample_rate` (`sampleRate`): the rate of the latest synthesis to start, set before the first chunk of each sentence is delivered. Read it when the first chunk arrives, as you would `synth.sample_rate`.
 
 ### Cancel and barge-in
 
@@ -192,7 +192,7 @@ Future<void> main() async {
 
 ### Audio format
 
-- Audio is 16-bit signed little-endian mono PCM, with no header, at the sample rate the server announces in its `start` event. `synth.sample_rate` (`sampleRate`) holds it from then on (it is set before the first chunk is delivered). The API docs give 24 kHz today but ask you to read it rather than hard-code it: a player at another rate plays too fast, too slow or as noise.
+- Audio is 16-bit signed little-endian mono PCM, with no header, at the sample rate the server announces in its `start` event. `synth.sample_rate` (`sampleRate`) holds it from then on (it is set before the first chunk is delivered); for `speak_stream()`, the session's `tts.sample_rate` does. The API docs give 24 kHz today but ask you to read it rather than hard-code it: a player at another rate plays too fast, too slow or as noise.
 - Audio is generated a few seconds of speech at a time, so it arrives in bursts. Give your player a small buffer, a few hundred milliseconds, so it doesn't run dry between bursts.
 - To keep the audio, `synth.collect()` returns it all as `Audio`, which writes a WAV file (`to_wav()`, `toWav()`). To write a WAV file while it streams, use `echonova.audio.WavWriter` in Python, `wavHeader()` from `echonova/streaming` in TypeScript, or `wavStream()` in Dart.
 - The stream can't send MP3 or Opus: encode the PCM yourself, or use `generate()` for a WAV file.

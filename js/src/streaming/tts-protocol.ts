@@ -194,6 +194,8 @@ export class TtsProtocol {
   afterAbnormal = false;
   orphanFrames = 0;
   interrupts = 0;
+  /** The sample rate of the latest `start` for a request this session tracks; `null` before the first. */
+  sampleRate: number | null = null;
   readonly unknownEvents: UnknownStreamEvent[] = [];
   #heldError: { event: RawEvent; at: number } | null = null;
 
@@ -478,7 +480,7 @@ export class TtsProtocol {
     core.startedAt = now;
     core.startEvent = event;
     const rate = event['sampleRate'];
-    if (typeof rate === 'number' && Number.isInteger(rate) && rate > 0) core.sampleRate = rate;
+    if (typeof rate === 'number' && Number.isInteger(rate) && rate > 0) core.sampleRate = this.sampleRate = rate;
     if (core.state === 'sent') core.state = 'streaming';
     this.active = core;
   }

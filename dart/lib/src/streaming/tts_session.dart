@@ -206,6 +206,13 @@ final class TtsSession {
   /// Whether a socket is open now.
   bool get isConnected => _link != null && !_link!.closed;
 
+  /// The sample rate of the most recent synthesis that started, from its
+  /// `start` event (`null` before the first).
+  ///
+  /// [speakStream] yields only audio; read its rate here. It is set before
+  /// the first chunk of each synthesis is delivered.
+  int? get sampleRate => _protocol.sampleRate;
+
   /// Audio frames that matched no running synthesis and were discarded.
   int get droppedFrames => _protocol.orphanFrames;
 
@@ -300,10 +307,10 @@ final class TtsSession {
   /// [texts] is a [String], an [Iterable] of strings, or a [Stream] of
   /// strings (for example the text deltas of an LLM). Text is split into
   /// sentences of at most 500 characters, which are queued in order; the
-  /// audio arrives in order. [deltas] says whether items are fragments of
-  /// one text; it defaults to `true` for a stream and `false` for an
-  /// iterable. [interrupt] ends the stream, and cancelling the subscription
-  /// cancels what is left.
+  /// audio arrives in order, at [sampleRate]. [deltas] says whether items
+  /// are fragments of one text; it defaults to `true` for a stream and
+  /// `false` for an iterable. [interrupt] ends the stream, and cancelling the
+  /// subscription cancels what is left.
   Stream<Uint8List> speakStream(
     Object texts, {
     String? voiceId,

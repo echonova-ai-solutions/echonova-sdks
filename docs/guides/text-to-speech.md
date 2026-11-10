@@ -206,7 +206,7 @@ Polling intervals, timeouts, webhooks, listing and deleting are in [Jobs](jobs.m
 
 Each request takes a limited number of characters (500 at the time of writing; the [reference](https://echonova.ai/docs/reference/tts-generate-sync) has the current limit), and the SDK doesn't cut text for you on REST. Split long text at sentence ends, never in the middle of a word, so each piece keeps its natural rhythm.
 
-You can send each piece to `generate()` or `jobs.create()` and keep one file per piece. For one continuous recording, queue the pieces on a stream with `enqueue()`: they are spoken one after another, and each comes back as PCM audio with its sample rate.
+You can send each piece to `generate()` or `jobs.create()` and keep one file per piece. For one continuous recording, queue the pieces on a stream with `enqueue()`: they are spoken one after another, and each comes back as PCM audio with its sample rate. `speak_stream(long_text)` (`speakStream`) would split the text for you, with the rate in the session's `sample_rate` (`sampleRate`), but it sends one request per sentence, and there can be a short pause between requests; pieces packed close to the limit mean fewer pauses.
 
 **Python**
 

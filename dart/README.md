@@ -293,7 +293,7 @@ Every result has `requestId` and `raw` (the API's JSON, including fields this ve
 
 ## Streaming
 
-Keep one Text to Speech socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synthesis.sampleRate`, well before the whole text is spoken.
+Keep one Text to Speech socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synthesis.sampleRate`, well before the whole text is spoken. `speakStream()` yields only chunks; their rate is `tts.sampleRate`, the rate of the latest synthesis to start.
 
 ```dart
 import 'dart:typed_data';
@@ -316,7 +316,7 @@ await for (final pcm in synthesis.audio) {
 }
 final result = await synthesis.result; // outcome, creditsConsumed, charged
 await for (final pcm in tts.speakStream(llmTextDeltas)) {
-  play(pcm); // a voice agent: LLM text in, audio out, sentence by sentence
+  play(pcm); // a voice agent: LLM text in, audio out, sentence by sentence, at tts.sampleRate
 }
 await tts.close();
 

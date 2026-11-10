@@ -203,6 +203,7 @@ class TtsProtocol:
         self.after_abnormal = False
         self.orphan_frames = 0
         self.interrupts = 0
+        self.sample_rate: int | None = None  # from the latest start of a request this session tracks
         self.unknown_events: deque[UnknownEvent] = deque(maxlen=32)
         self._held_error: tuple[Mapping[str, Any], float] | None = None
 
@@ -456,6 +457,7 @@ class TtsProtocol:
         rate = event.get("sampleRate")
         if isinstance(rate, int) and not isinstance(rate, bool) and rate > 0:
             core.sample_rate = rate
+            self.sample_rate = rate
         if core.state == "sent":
             core.state = "streaming"
         self.active = core

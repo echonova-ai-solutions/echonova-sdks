@@ -134,7 +134,13 @@ class TtsAdapter:
     def close(self) -> None:
         self._call(self.session.close)
 
-    def speak_stream(self, texts: Any, stop_after: int | None = None, **kwargs: Any) -> list[bytes]:
+    def speak_stream(
+        self,
+        texts: Any,
+        stop_after: int | None = None,
+        on_chunk: Callable[[bytes], None] | None = None,
+        **kwargs: Any,
+    ) -> list[bytes]:
         session = self.session
         if isinstance(session, AsyncTtsSession):
             assert self.bridge is not None
@@ -143,6 +149,8 @@ class TtsAdapter:
                 out = []
                 async for chunk in session.speak_stream(texts, **kwargs):
                     out.append(chunk)
+                    if on_chunk is not None:
+                        on_chunk(chunk)
                     if stop_after is not None and len(out) >= stop_after:
                         await session.interrupt()
                 return out
@@ -151,6 +159,8 @@ class TtsAdapter:
         out = []
         for chunk in session.speak_stream(texts, **kwargs):
             out.append(chunk)
+            if on_chunk is not None:
+                on_chunk(chunk)
             if stop_after is not None and len(out) >= stop_after:
                 session.interrupt()
         return out

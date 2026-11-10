@@ -119,6 +119,27 @@ void main() {
     expect(metrics.frames, 3);
   });
 
+  test('the session sample rate follows the latest start', () {
+    final h = Harness();
+    expect(h.p.sampleRate, isNull); // nothing started yet
+    h.enqueue('one');
+    h.enqueue('two');
+    h.flush();
+    h.start('r1', rate: 22050);
+    expect(h.p.sampleRate, 22050); // known before the first audio frame
+    h.audio();
+    h.done('r1');
+    h.flush();
+    h.start('r2', rate: 16000);
+    expect(h.p.sampleRate, 16000);
+    // A start for a request this session doesn't track: its audio is dropped.
+    h.start('zzz', rate: 8000);
+    h.event('start', {'requestId': 'r2', 'sampleRate': 0}); // not usable
+    expect(h.p.sampleRate, 16000);
+    h.p.connectionClosed(const CloseInfo(1006), h.now);
+    expect(h.p.sampleRate, 16000); // kept across reconnects
+  });
+
   test('only set options are sent and defaults merge', () {
     final h = Harness(defaults: const SynthesisOptions(speed: 0.9));
     h.synth(

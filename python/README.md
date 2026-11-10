@@ -109,7 +109,7 @@ with client.text_to_speech.connect(voice_id=voice_id) as tts:
     print(result.outcome, result.credits_consumed)
 ```
 
-A new `synthesize()` replaces the one that is running; `enqueue()` plays texts in order; `interrupt()` stops everything (barge-in).
+A new `synthesize()` replaces the one that is running; `enqueue()` plays texts in order; `interrupt()` stops everything (barge-in). `speak_stream(texts)` speaks text as it is written (for example an LLM's reply), sentence by sentence, as one stream of audio chunks at `tts.sample_rate`, the rate of the latest synthesis to start. Streams send a keepalive ping after 30 s without sending anything; the client's `stream_keepalive` option changes that (`None` turns it off).
 
 Billing: each synthesis is charged per character when it starts. One that stops after its audio started (a cancel, barge-in, or a speech service failure) costs only the share of audio sent, at least 1 credit; the rest is refunded. `result().credits_consumed` is the final cost the server reported, and `result().charged` is `False` for a synthesis cancelled before it was charged. A failed synthesis raises; its error carries `charge_state` (`"yes"`, `"no"` or `"unknown"`) and, when the server reported it, `credits_consumed`. The SDK never resends a synthesis that may have been charged.
 

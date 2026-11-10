@@ -91,6 +91,27 @@ def test_happy_path() -> None:
     assert metrics.frames == 3
 
 
+def test_session_sample_rate_follows_the_latest_start() -> None:
+    h = Harness()
+    assert h.p.sample_rate is None  # nothing started yet
+    h.p.enqueue("one", {}, h.now)
+    h.p.enqueue("two", {}, h.now)
+    h.flush()
+    h.start("r1", rate=22_050)
+    assert h.p.sample_rate == 22_050  # known before the first audio frame
+    h.audio(1)
+    h.done("r1")
+    h.flush()
+    h.start("r2", rate=16_000)
+    assert h.p.sample_rate == 16_000
+    h.start("zzz", rate=8_000)  # a start for something this session doesn't track: its audio is dropped
+    h.event("start", requestId="r2", sampleRate=0)  # not a usable rate
+    h.event("start", requestId="r2", sampleRate=True)
+    assert h.p.sample_rate == 16_000
+    h.p.connection_closed(CloseInfo(1006), h.now)
+    assert h.p.sample_rate == 16_000  # kept across reconnects
+
+
 def test_only_set_options_are_sent_and_defaults_merge() -> None:
     ids = iter(["a", "b"])
     p = TtsProtocol(voice_id="v1", defaults={"speed": 0.9, "normalize": None}, new_request_id=lambda: next(ids))
