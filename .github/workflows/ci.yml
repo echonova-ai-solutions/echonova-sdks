@@ -161,7 +161,12 @@ jobs:
         with:
           sdk: ${{ matrix.sdk }}
       - run: dart pub get
-      - run: dart analyze --fatal-infos
+      # Lints change between SDK releases (older analyzers report infos that
+      # newer ones don't), so infos only fail the build on the current SDK.
+      - if: matrix.sdk == 'stable'
+        run: dart analyze --fatal-infos
+      - if: matrix.sdk != 'stable'
+        run: dart analyze
       - run: dart test
       - if: matrix.sdk == 'stable'
         run: dart format --output=none --set-exit-if-changed .
@@ -206,7 +211,7 @@ jobs:
         working-directory: dart
         run: |
           set -o pipefail
-          dart doc | tee "$RUNNER_TEMP/dartdoc.log"
+          dart doc 2>&1 | tee "$RUNNER_TEMP/dartdoc.log" # the summary goes to stderr
           grep -q "Found 0 warnings and 0 errors" "$RUNNER_TEMP/dartdoc.log"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
