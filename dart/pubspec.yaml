@@ -7,6 +7,12 @@ repository: https://github.com/echonova-ai-solutions/echonova-sdks/tree/main/dar
 issue_tracker: https://github.com/echonova-ai-solutions/echonova-sdks/issues
 homepage: https://echonova.ai/docs/developers
 publish_to: none
+topics:
+  - speech
+  - text-to-speech
+  - speech-to-text
+  - audio
+  - arabic
 
 environment:
   sdk: ^3.5.0
