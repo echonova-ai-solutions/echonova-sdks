@@ -57,6 +57,12 @@ Create one client and reuse it: it keeps the rate-limit state that all calls sha
 Every API method takes per-call options as its last argument: `signal`, `timeout`, `maxRetries`, `deadline` and `headers`.
 
 ```ts
+import EchoNova from 'echonova';
+
+const client = new EchoNova();
+const jobId = '...'; // a job ID from jobs.create()
+const controller = new AbortController();
+
 await client.textToSpeech.jobs.get(jobId, { timeout: 5_000, maxRetries: 0, signal: controller.signal });
 const fast = client.withOptions({ timeout: 10_000 }); // a copy that shares the rate-limit state
 ```
@@ -75,6 +81,12 @@ const fast = client.withOptions({ timeout: 10_000 }); // a copy that shares the 
 ## Text to Speech
 
 ```ts
+import EchoNova from 'echonova';
+
+const client = new EchoNova();
+const text = 'أهلاً بك في إيكونوفا';
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 const speech = await client.textToSpeech.generate({ text, voiceId, speed: 1.1, numSteps: 64 });
 
 const job = await client.textToSpeech.jobs.create({ text, voiceId });
@@ -90,6 +102,16 @@ Options you don't pass are not sent, so the API's defaults apply.
 Keep one socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synth.sampleRate`, well before the whole text is spoken.
 
 ```ts
+import EchoNova from 'echonova';
+
+// Your app's audio output, voice activity detection and LLM text:
+declare const speaker: { write(pcm: Uint8Array): void };
+declare function userStartedTalking(): boolean;
+declare function llmTextDeltas(): AsyncIterable<string>;
+
+const client = new EchoNova();
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 await using tts = await client.textToSpeech.connect({ voiceId });
 const synth = tts.synthesize('أهلاً بك، كيف يمكنني مساعدتك؟');
 for await (const pcm of synth) {
@@ -111,7 +133,11 @@ A synthesis is charged per character when it starts. One stopped after its audio
 `file` is a file path (Node.js, Bun, Deno), a `Blob` or `File`, bytes (`Uint8Array`, `Buffer`, `ArrayBuffer`), a stream of bytes (`ReadableStream`, a Node.js stream), or `toFile(content, name, { type })`.
 
 ```ts
-import { toFile } from 'echonova';
+import { readFile } from 'node:fs/promises';
+import EchoNova, { toFile } from 'echonova';
+
+const client = new EchoNova();
+const bytes = await readFile('meeting.wav');
 
 const result = await client.speechToText.transcribe({
   file: 'call.mp3',
@@ -138,6 +164,14 @@ Uploads are never read into memory: a path is streamed from disk (`fs.openAsBlob
 Send live PCM16LE mono audio and receive transcripts as each segment is cut (every 15 s of audio, or when you call `endSegment()`).
 
 ```ts
+import { createReadStream } from 'node:fs';
+import EchoNova from 'echonova';
+
+declare function microphone(): AsyncIterable<Uint8Array>; // your audio: PCM16LE mono at 16 kHz
+const chunks = createReadStream('meeting.pcm'); // the same format, from a file
+
+const client = new EchoNova();
+
 await using stt = await client.speechToText.connect({ sampleRate: 16_000, language: 'ar' });
 const feeding = stt.feedFrom(microphone()); // sends the audio, then stop()
 for await (const event of stt) {
@@ -158,6 +192,10 @@ In browsers, streams only work in proxy mode: set `stream: { query: async () => 
 ## Sound Cleaning
 
 ```ts
+import EchoNova from 'echonova';
+
+const client = new EchoNova();
+
 const job = await client.soundCleaning.clean({ file: 'noisy.wav', targetLufs: -16, sampleRate: 48000, bitDepth: 24 });
 console.log(job.metrics?.integratedLufs, job.creditsConsumed);
 await client.download(job.outputUrl, { to: 'clean.wav' });
@@ -169,6 +207,13 @@ await client.soundCleaning.jobs.delete(job);
 Start a live voice or chat session with an agent from your server. The key needs the `agents:talk` scope.
 
 ```ts
+import EchoNova from 'echonova';
+
+declare function sendToYourClient(wsUrl: string, token: string): void; // your app's own channel
+
+const client = new EchoNova();
+const agentId = '...'; // your agent's ID
+
 const session = await client.agents.sessions.start(agentId, { channel: 'voice' }); // or 'chat'
 sendToYourClient(session.wsUrl, session.token); // only the client that joins the room
 
@@ -194,6 +239,13 @@ Widget tickets for one visitor: `await client.widgets.createTicket(publicId, { u
 ```ts
 import EchoNova from 'echonova';
 
+declare function alertOps(): void;
+declare function retryLater(seconds: number | null): void;
+
+const client = new EchoNova();
+const text = 'أهلاً بك في إيكونوفا';
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 try {
   await client.textToSpeech.generate({ text, voiceId });
 } catch (err) {
@@ -217,6 +269,11 @@ After a `429` with `Retry-After`, the client holds further calls to that endpoin
 ## Response metadata
 
 ```ts
+import EchoNova from 'echonova';
+
+const client = new EchoNova();
+const jobId = '...'; // a job ID from jobs.create()
+
 const { data: job, response, requestId, rateLimit } = await client.textToSpeech.jobs.get(jobId).withResponse();
 console.log(response.status, requestId, rateLimit);
 
@@ -230,6 +287,10 @@ Every result has `requestId`. Results mirror the API's JSON, including fields th
 Never ship an API key in a browser or mobile app. Instead, run a small proxy on your backend that adds the key (see [`proxy-examples/`](../proxy-examples)), and point the SDK at it:
 
 ```ts
+import EchoNova from 'echonova';
+
+declare function sessionToken(): Promise<string>; // your app's own credentials
+
 const client = new EchoNova({
   baseURL: 'https://api.example.com/echonova',
   auth: async () => ({ Authorization: `Bearer ${await sessionToken()}` }),

@@ -26,8 +26,6 @@ Requires Dart 3.5 or later (Flutter 3.24 or later).
 ## Quick start: server-side Dart
 
 ```dart
-import 'dart:io';
-
 import 'package:echonova/echonova.dart';
 
 Future<void> main() async {
@@ -56,9 +54,16 @@ Create one client and reuse it: it keeps the connection pool and the rate-limit 
 Point the app at your proxy, with your app's own credentials:
 
 ```dart
+import 'dart:typed_data';
+
+import 'package:echonova/echonova.dart';
+
+Future<String> sessionToken() async => '...'; // your app's own credentials
+final recording = Uint8List(0); // audio your app recorded
+
 final client = EchoNova.proxy(
   baseUrl: Uri.parse('https://api.example.com/echonova'),
-  auth: () async => {'Authorization': 'Bearer ${await session.token()}'},
+  auth: () async => {'Authorization': 'Bearer ${await sessionToken()}'},
 );
 
 final job = await client.speechToText.jobs.create(
@@ -92,6 +97,11 @@ print(done.transcription);
 Every API method also takes `options` for one call:
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+const jobId = '...'; // a job ID from jobs.create()
+
 await client.textToSpeech.jobs.get(
   jobId,
   options: const RequestOptions(timeout: Duration(seconds: 5), maxRetries: 0, headers: {'X-Trace': 'abc'}),
@@ -112,6 +122,12 @@ Default time limits per attempt (`package:http` has one deadline per request, so
 ## Text to Speech
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+const text = 'أهلاً بك في إيكونوفا';
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 final speech = await client.textToSpeech.generate(text, voiceId: voiceId, speed: 1.1, numSteps: 64);
 
 final job = await client.textToSpeech.jobs.create(text, voiceId: voiceId);
@@ -129,15 +145,26 @@ A job made on the Text to Speech stream has `stream`: its `sessionId`, its `synt
 Uploads are `AudioFile`s:
 
 ```dart
+import 'dart:io';
+
+import 'package:echonova/echonova.dart';
+
+final bytes = await File('call.mp3').readAsBytes();
+final file = File('recording.ogg');
+
 AudioFile.fromBytes(bytes, 'call.mp3');
-AudioFile.fromPath('meeting.wav');                       // not on the web; File works via file.path
-AudioFile.fromStream(stream, length, 'recording.ogg');   // sent once: not retried after it was read
+AudioFile.fromPath('meeting.wav'); // not on the web; File works via file.path
+AudioFile.fromStream(file.openRead(), await file.length(), 'recording.ogg'); // sent once: not retried after it was read
 AudioFile.fromBytes(bytes, 'clip', contentType: 'audio/webm');
 ```
 
 The SDK names the audio type from the file extension (mp3, wav, flac, ogg, opus, m4a, aac, webm, amr) or, failing that, from the file's first bytes. If it can't tell, it throws `UsageException` before sending anything. It never sends `application/octet-stream`, which the API rejects.
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+
 final result = await client.speechToText.transcribe(
   AudioFile.fromPath('call.mp3'),
   language: 'ar',
@@ -164,6 +191,10 @@ final data = await client.speechToText.jobs.exportJson(done.id); // TranscriptEx
 ## Sound Cleaning
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+
 final job = await client.soundCleaning.clean(
   AudioFile.fromPath('noisy.wav'),
   targetLufs: -16,
@@ -180,6 +211,13 @@ await client.soundCleaning.jobs.delete(job.id);
 Call these from your server.
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+void sendToYourClient(String? wsUrl, String token) {} // your app's own channel
+
+final client = EchoNova();
+const agentId = '...'; // your agent's ID
+
 final ticket = await client.widgets.createTicket(
   'wdg_a1B2c3D4e5F6g7H8i9J0',
   user: const WidgetUser(id: 'user_8431', name: 'Sara'),
@@ -206,6 +244,12 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 Every error is an `EchoNovaException`, a sealed class, so a `switch` over it is exhaustive:
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+const text = 'أهلاً بك في إيكونوفا';
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 try {
   await client.textToSpeech.generate(text, voiceId: voiceId);
 } on InvalidRequestException catch (e) {
@@ -213,7 +257,7 @@ try {
 } on SpendingLimitException {
   // The key reached its Credit Limit: never retried.
 } on RateLimitException catch (e) {
-  // Still limited after the automatic retries; e.retryAfter.
+  print('Still limited after the automatic retries; retry in ${e.retryAfter}');
 } on APIConnectionException catch (e) {
   if (e.mayHaveExecuted ?? true) {
     // Sent, but the response was lost: it may have run and been charged.
@@ -233,6 +277,11 @@ After a `429` with `Retry-After`, the client holds further calls to that endpoin
 Every method has a `…WithResponse` twin that returns a `RawResponse`:
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+final client = EchoNova();
+const jobId = '...'; // a job ID from jobs.create()
+
 final raw = await client.textToSpeech.jobs.getWithResponse(jobId);
 print('${raw.statusCode} ${raw.requestId} ${raw.rateLimit} ${raw.headers}');
 final job = raw.parse();
@@ -247,15 +296,27 @@ Every result has `requestId` and `raw` (the API's JSON, including fields this ve
 Keep one Text to Speech socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synthesis.sampleRate`, well before the whole text is spoken.
 
 ```dart
+import 'dart:typed_data';
+
+import 'package:echonova/echonova.dart';
+
+// Your app's audio output, voice activity detection and LLM text:
+void play(Uint8List pcm) {}
+bool userStartedTalking() => false;
+final llmTextDeltas = Stream<String>.empty();
+
+final client = EchoNova();
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+
 final tts = await client.textToSpeech.connect(voiceId: voiceId);
 final synthesis = tts.synthesize('أهلاً بك، كيف يمكنني مساعدتك؟');
 await for (final pcm in synthesis.audio) {
-  player.feed(pcm);
+  play(pcm);
   if (userStartedTalking()) break; // cancelling the subscription cancels the synthesis
 }
 final result = await synthesis.result; // outcome, creditsConsumed, charged
 await for (final pcm in tts.speakStream(llmTextDeltas)) {
-  player.feed(pcm); // a voice agent: LLM text in, audio out, sentence by sentence
+  play(pcm); // a voice agent: LLM text in, audio out, sentence by sentence
 }
 await tts.close();
 
@@ -267,6 +328,15 @@ A synthesis is charged per character when it starts. One stopped after its audio
 Speech to Text takes live PCM16LE mono audio and sends transcripts as each segment is cut (every 15 s of audio, or at `endSegment()`):
 
 ```dart
+import 'dart:io';
+
+import 'package:echonova/echonova.dart';
+
+final microphone = Stream<List<int>>.empty(); // your audio: PCM16LE mono at 16 kHz
+final chunks = File('meeting.pcm').openRead(); // the same format, from a file
+
+final client = EchoNova();
+
 final stt = await client.speechToText.connect(sampleRate: 16000, language: 'ar');
 final feeding = stt.feedFrom(microphone); // sends the audio, then stop()
 await for (final event in stt.events) {
@@ -293,14 +363,22 @@ Sessions never reconnect on their own; `transcribeStream` does, replaying only a
 ## Webhooks
 
 ```dart
-final event = verifyWebhook(rawBody, request.headers, [webhookSecret]);
-switch (event) {
-  case JobCompleted(:final jobId, :final service):
-    print('$service job $jobId finished');
-  case JobFailed(:final jobId, :final error):
-    print('job $jobId failed: $error');
-  case SpendingWarning() || SpendingExhausted() || UnknownWebhookEvent():
-    break;
+import 'dart:io';
+
+import 'package:echonova/echonova.dart';
+
+/// Call it with the request's body and headers, from any server framework.
+void onWebhook(List<int> rawBody, Map<String, String> headers) {
+  final secret = Platform.environment['ECHONOVA_WEBHOOK_SECRET']!;
+  final event = verifyWebhook(rawBody, headers, [secret]);
+  switch (event) {
+    case JobCompleted(:final jobId, :final service):
+      print('$service job $jobId finished');
+    case JobFailed(:final jobId, :final error):
+      print('job $jobId failed: $error');
+    case SpendingWarning() || SpendingExhausted() || UnknownWebhookEvent():
+      break;
+  }
 }
 ```
 

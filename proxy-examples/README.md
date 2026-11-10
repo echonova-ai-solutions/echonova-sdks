@@ -36,9 +36,13 @@ Every SDK has a proxy mode: a base URL on your server and an `auth` callback tha
 ```python
 from echonova import EchoNova
 
+
+def access_token() -> str: ...  # your user's access token
+
+
 client = EchoNova(
     base_url="https://api.myapp.com/echonova",
-    auth=lambda: {"Authorization": f"Bearer {my_session.access_token()}"},
+    auth=lambda: {"Authorization": f"Bearer {access_token()}"},
 )
 ```
 
@@ -47,9 +51,11 @@ client = EchoNova(
 ```ts
 import EchoNova from 'echonova';
 
+declare function accessToken(): Promise<string>; // your user's access token
+
 const client = new EchoNova({
   baseURL: 'https://api.myapp.com/echonova',
-  auth: async () => ({ Authorization: `Bearer ${await mySession.accessToken()}` }),
+  auth: async () => ({ Authorization: `Bearer ${await accessToken()}` }),
 });
 ```
 
@@ -58,9 +64,13 @@ In a browser that authenticates with a cookie instead, leave `auth` out and make
 **Dart / Flutter**
 
 ```dart
+import 'package:echonova/echonova.dart';
+
+Future<String> accessToken() async => '...'; // your user's access token
+
 final client = EchoNova.proxy(
   baseUrl: Uri.parse('https://api.myapp.com/echonova'),
-  auth: () async => {'Authorization': 'Bearer ${await session.token()}'},
+  auth: () async => {'Authorization': 'Bearer ${await accessToken()}'},
 );
 ```
 

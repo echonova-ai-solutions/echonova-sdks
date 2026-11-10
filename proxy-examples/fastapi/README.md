@@ -28,6 +28,7 @@ All settings are environment variables; see [Configuration](../README.md#configu
 
 ## Plug in your authentication and quota
 
+<!-- snippet: skip (my_sessions stands for your own session store) -->
 ```python
 from starlette.requests import HTTPConnection
 

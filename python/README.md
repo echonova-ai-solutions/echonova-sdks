@@ -48,6 +48,11 @@ Create one client and reuse it: it keeps a connection pool and the rate-limit st
 Every API method also accepts `timeout`, `max_retries`, `deadline` and `extra_headers` for one call:
 
 ```python
+from echonova import EchoNova
+
+client = EchoNova()
+job_id = "..."  # a job ID from jobs.create()
+
 client.text_to_speech.jobs.get(job_id, timeout=5, max_retries=0)
 fast = client.with_options(timeout=10)  # a copy that shares the connection pool
 ```
@@ -66,6 +71,12 @@ Default timeouts in seconds (connect is 10 everywhere):
 ## Text to Speech
 
 ```python
+from echonova import EchoNova
+
+client = EchoNova()
+text = "أهلاً بك في إيكونوفا"
+voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+
 speech = client.text_to_speech.generate(text, voice_id=voice_id, speed=1.1, num_steps=64)
 
 job = client.text_to_speech.jobs.create(text, voice_id=voice_id)
@@ -81,6 +92,15 @@ Options you don't pass are not sent, so the API's defaults apply.
 One socket carries many syntheses, one at a time. Audio arrives as PCM16 mono chunks at `synth.sample_rate`.
 
 ```python
+from echonova import EchoNova
+
+
+def play(chunk: bytes) -> None: ...  # your audio output
+
+
+client = EchoNova()
+voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+
 with client.text_to_speech.connect(voice_id=voice_id) as tts:
     synth = tts.synthesize("مرحبا، كيف يمكنني مساعدتك؟")
     for chunk in synth:
@@ -100,6 +120,12 @@ Each synthesis on the stream is also a job: `TtsJob.stream` holds its `session_i
 `file` is a path, bytes, a binary file object, or `(filename, content[, content_type])`.
 
 ```python
+from pathlib import Path
+
+from echonova import EchoNova
+
+client = EchoNova()
+
 result = client.speech_to_text.transcribe(
     "call.mp3",
     language="ar",
@@ -127,7 +153,16 @@ The SDK names the audio type from the file extension (mp3, wav, flac, ogg, opus,
 Send PCM16 mono audio at the `sample_rate` you declare, and read transcripts as they arrive:
 
 ```python
+from collections.abc import Iterator
+
+from echonova import EchoNova
 from echonova.types.streaming import Transcript
+
+
+def microphone_chunks() -> Iterator[bytes]: ...  # your audio: PCM16 mono at 16 kHz
+
+
+client = EchoNova()
 
 with client.speech_to_text.connect(sample_rate=16000, language="ar") as stt:
     sending = stt.feed_from(microphone_chunks())  # sends on a thread, then calls stop()
@@ -136,7 +171,7 @@ with client.speech_to_text.connect(sample_rate=16000, language="ar") as stt:
             print(event.text)
     summary = sending.result()
 
-if summary.saved_status == "saved":
+if summary.saved_status == "saved" and summary.job_id:
     job = client.speech_to_text.jobs.get(summary.job_id)
     client.download(job.audio_url, to="recording.wav")  # the session's recording
 ```
@@ -148,8 +183,14 @@ Each session is kept as a job. `stt.job_id` is its ID from the start; after `ses
 ## Sound Cleaning
 
 ```python
+from echonova import EchoNova
+
+client = EchoNova()
+
 job = client.sound_cleaning.clean("noisy.wav", target_lufs=-16, sample_rate=48000, bit_depth=24)
-print(job.metrics.integrated_lufs, job.credits_consumed)
+print(job.credits_consumed)
+if job.metrics:
+    print(job.metrics.integrated_lufs)
 client.download(job.output_url, to="clean.wav")
 client.sound_cleaning.jobs.delete(job)
 ```
@@ -159,6 +200,15 @@ client.sound_cleaning.jobs.delete(job)
 Start a live voice or chat session with an agent from your server. The key needs the `agents:talk` scope.
 
 ```python
+from echonova import EchoNova
+
+
+def send_to_your_client(ws_url: str | None, token: str) -> None: ...  # your app's own channel
+
+
+client = EchoNova()
+agent_id = "..."  # your agent's ID
+
 session = client.agents.sessions.start(agent_id, channel="voice")  # or "chat"
 send_to_your_client(session.ws_url, session.token)  # only the client that joins the room
 
@@ -182,6 +232,10 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 ```python
 import echonova
 
+client = echonova.EchoNova()
+text = "أهلاً بك في إيكونوفا"
+voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+
 try:
     client.text_to_speech.generate(text, voice_id=voice_id)
 except echonova.InvalidRequestError as e:
@@ -191,7 +245,7 @@ except echonova.SpendingLimitError:
 except echonova.RateLimitError as e:
     ...  # still limited after automatic retries; e.retry_after
 except echonova.APIConnectionError as e:
-    if e.may_have_executed is not False:  # True or None (unknown): it may have run and been charged
+    if e.may_have_executed is not False and e.sent_at:  # True or None (unknown): it may have run and been charged
         candidates = client.text_to_speech.jobs.find_candidates(e.sent_at, text=text)
 except echonova.APIStatusError as e:
     print(e.status_code, e.error_message, e.request_id)
@@ -204,6 +258,11 @@ After a `429` with `Retry-After`, the client holds further calls to that endpoin
 ## Response metadata
 
 ```python
+from echonova import EchoNova
+
+client = EchoNova()
+job_id = "..."  # a job ID from jobs.create()
+
 raw = client.with_raw_response.text_to_speech.jobs.get(job_id)
 print(raw.status_code, raw.request_id, raw.rate_limit, raw.headers)
 job = raw.parse()
@@ -218,11 +277,14 @@ Every result has `.request_id` and `.raw`, and `to_dict()`.
 ```python
 from echonova import AsyncEchoNova
 
+text = "أهلاً بك في إيكونوفا"
+voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+
 async with AsyncEchoNova() as client:
     job = await client.text_to_speech.jobs.create(text, voice_id=voice_id)
     done = await client.text_to_speech.jobs.wait(job)
-    async for job in client.speech_to_text.jobs.list(limit=100):
-        print(job.id, job.status)
+    async for stt_job in client.speech_to_text.jobs.list(limit=100):
+        print(stt_job.id, stt_job.status)
 ```
 
 ## Proxy mode
@@ -230,6 +292,12 @@ async with AsyncEchoNova() as client:
 Never ship an API key in a browser or mobile app. Instead, run a small proxy on your backend that adds the key, and point the SDK at it:
 
 ```python
+from echonova import EchoNova
+
+
+def session_token() -> str: ...  # your app's own credentials
+
+
 client = EchoNova(
     base_url="https://api.example.com/echonova", auth=lambda: {"Authorization": f"Bearer {session_token()}"}
 )
