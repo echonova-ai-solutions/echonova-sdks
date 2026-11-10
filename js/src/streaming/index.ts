@@ -5,6 +5,8 @@
  * `speak()` and `client.speechToText.connect()` / `transcribeStream()`, with a
  * `StreamOptions` built from its own configuration. Nothing here is imported by
  * the REST code, and the `ws` package is loaded only when a stream opens.
+ *
+ * @module echonova/streaming
  */
 
 import { abortReason } from '../runtime/ws-transport.js';

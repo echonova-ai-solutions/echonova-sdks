@@ -1,6 +1,8 @@
 /**
  * Official JavaScript and TypeScript SDK for the EchoNova speech API: Text to
  * Speech, Speech to Text, Sound Cleaning, agent sessions and webhooks.
+ *
+ * @module echonova
  */
 
 export { EchoNova, EchoNova as default, DEFAULT_BASE_URL } from './client.js';
