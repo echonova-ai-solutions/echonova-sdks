@@ -1,0 +1,73 @@
+name: Record API fixtures
+
+# Records live API traffic as scrubbed fixtures (tools/record/record.py) with
+# the test-workspace keys of the "live-tests" environment (see live.yml). It
+# COSTS CREDITS, about 1,350 for everything, so it runs only when started by
+# hand. The recordings are scrubbed and leak-checked here, then uploaded as an
+# artifact: review them, copy them into tools/record/out/, and commit what
+# `uv run tools/record/record.py promote` copies into spec/fixtures/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: What to record (test audio is always made first)
+        type: choice
+        options: [all, rest, tts-stream, stt-stream]
+        default: all
+      slow:
+        description: Also record the 120-second idle timeouts (free, but slow)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-api-tests # never alongside the live suites: same keys, same stream slots
+  cancel-in-progress: false
+
+jobs:
+  record:
+    name: Record
+    if: github.repository == 'echonova-ai-solutions/echonova-sdks'
+    runs-on: ubuntu-latest
+    environment: live-tests
+    timeout-minutes: 45
+    env:
+      ECHONOVA_API_KEY: ${{ secrets.ECHONOVA_API_KEY }}
+      ECHONOVA_TTS_ONLY_KEY: ${{ secrets.ECHONOVA_TTS_ONLY_KEY }}
+      ECHONOVA_DISABLED_KEY: ${{ secrets.ECHONOVA_DISABLED_KEY }}
+      ECHONOVA_AGENT_ID: ${{ vars.ECHONOVA_AGENT_ID }}
+      WHAT: ${{ inputs.what }}
+      SLOW: ${{ inputs.slow }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.13"
+      - name: Install ffmpeg (the test audio in every Speech to Text format)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg
+      - name: Record
+        run: |
+          set -euo pipefail
+          extra=()
+          if [ "$SLOW" = true ]; then extra=(--slow); fi
+          uv run tools/record/record.py audio
+          for what in rest tts-stream stt-stream; do
+            if [ "$WHAT" = all ] || [ "$WHAT" = "$what" ]; then
+              uv run tools/record/record.py "$what" "${extra[@]}"
+            fi
+          done
+      - name: Leak check (promote refuses anything that looks like a secret)
+        run: uv run tools/record/record.py promote
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recorded-fixtures
+          path: |
+            tools/record/out/**/*.json
+            tools/record/out/**/*.jsonl
+          if-no-files-found: error
+          retention-days: 7
