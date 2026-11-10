@@ -321,6 +321,12 @@ npm run typecheck
 npm test               # unit and conformance tests (no network, no API key)
 npm run build
 npm run lint:package   # attw, publint, ESM and CommonJS smoke tests, size budget
+npm run smoke:runtime  # the built package against a local mock API: REST, both streams, errors, file paths
+bun scripts/smoke-runtime.mjs            # the same on Bun
+deno run -A scripts/smoke-runtime.mjs    # and on Deno
+npm install --prefix /tmp/workerd miniflare && ECHONOVA_SMOKE_MINIFLARE=/tmp/workerd npm run smoke:workerd  # in workerd
 ```
+
+The runtime smoke tests run against a local mock of the API, so they need no network or API key. The table under [Requirements](#requirements) is what they verify: Node.js 22, Bun 1.4, Deno 2.9 and workerd (with and without `nodejs_compat`). Vercel Edge is checked only in Vercel's `edge-runtime` emulator.
 
 Tests read the shared contract in [`../spec`](../spec): the vendored API specs, the error rules, the parameter mapping and the test vectors every EchoNova SDK must pass.

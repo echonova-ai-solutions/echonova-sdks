@@ -69,6 +69,8 @@
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:dist": "node scripts/smoke-dist.mjs && node scripts/smoke-dist.cjs",
     "size": "node scripts/size.mjs",
+    "smoke:runtime": "node scripts/smoke-runtime.mjs",
+    "smoke:workerd": "node scripts/smoke-runtime-workerd.mjs",
     "docs": "typedoc",
     "lint:package": "attw --pack . && publint --strict && npm run test:dist && npm run size",
     "prepack": "npm run build"
