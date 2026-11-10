@@ -323,17 +323,27 @@ class TtsProtocol:
         core = item.core
         if item.kind == "cancel":
             return
-        core.sending = False
-        if self._sending is core:
-            self._sending = None
-        core.ever_sent = True
-        core.sent_at = now
+        if not core.sending:
+            return  # already confirmed by the server's reply to it (see _lookup), or finished meanwhile
         if not self.connected:  # the socket closed while this frame was being written
+            core.sending = False
+            if self._sending is core:
+                self._sending = None
+            core.ever_sent = True
+            core.sent_at = now
             info = self._last_close or CloseInfo(1006)
             error = close_error(info, may_have_executed=None) or StreamClosedError("the stream closed")
             attach_charge_state(error, "unknown")
             self._finish(core, "lost", error=error, charged=None, now=now)
             return
+        self._register_sent(core, now)
+
+    def _register_sent(self, core: SynthesisCore, now: float) -> None:
+        core.sending = False
+        if self._sending is core:
+            self._sending = None
+        core.ever_sent = True
+        core.sent_at = now
         core.conn_gen = self.conn_gen
         self._send_seq += 1
         core.send_seq = self._send_seq
@@ -437,12 +447,25 @@ class TtsProtocol:
             core.dropped_frames += 1
         self.orphan_frames += 1
 
-    def _lookup(self, event: Mapping[str, Any]) -> SynthesisCore | None:
-        rid = event.get("requestId")
-        return self._in_flight.get(rid) if isinstance(rid, str) else None
+    def _lookup(self, rid: object, now: float) -> SynthesisCore | None:
+        """The request ``rid`` names, if this session still tracks it.
+
+        A driver confirms a send (``sent()``) only once the write has returned, and a fast server
+        can answer before that. A reply naming the request being written proves it was sent, so it
+        is registered right here and the reply is not lost.
+        """
+        if not isinstance(rid, str):
+            return None
+        core = self._in_flight.get(rid)
+        if core is None:
+            sending = self._sending
+            if sending is not None and sending.request_id == rid and self.connected and not sending.terminal:
+                self._register_sent(sending, now)
+                core = sending
+        return core
 
     def _on_start(self, event: Mapping[str, Any], now: float) -> None:
-        core = self._lookup(event)
+        core = self._lookup(event.get("requestId"), now)
         if core is None:
             self.active = None  # audio until the next start belongs to a request we no longer track
             return
@@ -463,7 +486,7 @@ class TtsProtocol:
         self.active = core
 
     def _on_done(self, event: Mapping[str, Any], now: float) -> None:
-        core = self._lookup(event)
+        core = self._lookup(event.get("requestId"), now)
         if core is None:
             return
         core.end_event = dict(event)
@@ -474,7 +497,7 @@ class TtsProtocol:
             self._finish(core, "completed", charged=True, now=now)
 
     def _on_cancelled(self, event: Mapping[str, Any], now: float) -> None:
-        core = self._lookup(event)
+        core = self._lookup(event.get("requestId"), now)
         if core is None:
             return
         core.end_event = dict(event)
@@ -491,7 +514,7 @@ class TtsProtocol:
             self._held_error = (event, now)  # a policy close follows; it decides what fails
             return
         if isinstance(rid, str):
-            core = self._in_flight.get(rid)
+            core = self._lookup(rid, now)
             if core is None:
                 if rid not in self._recent:
                     self._held_error = (event, now)

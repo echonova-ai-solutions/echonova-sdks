@@ -91,6 +91,50 @@ def test_happy_path() -> None:
     assert metrics.frames == 3
 
 
+def test_a_reply_before_the_send_is_confirmed_keeps_the_audio() -> None:
+    # The driver calls sent() after its write returns; a fast server answers before that.
+    h = Harness()
+    core = h.synth("hello")
+    item = h.p.next_outbound(h.now)
+    assert item is not None
+    h.start("r1", rate=22_050)
+    h.audio(3)
+    h.p.sent(item, h.now)  # late confirmation: changes nothing
+    assert (core.state, core.send_seq, h.p.orphan_frames) == ("streaming", 1, 0)
+    h.done("r1")
+    assert core.state == "completed"
+    assert core.sample_rate == 22_050
+    assert len(core.chunks) == 3
+
+
+def test_a_whole_synthesis_before_the_send_is_confirmed() -> None:
+    h = Harness()
+    core = h.synth("hello")
+    item = h.p.next_outbound(h.now)
+    assert item is not None
+    h.start("r1")
+    h.audio(2)
+    h.done("r1")
+    h.p.sent(item, h.now)
+    assert core.state == "completed"
+    assert len(core.chunks) == 2
+    assert not h.p.in_flight()  # the late confirmation doesn't bring it back
+    second = h.synth("again")
+    assert [f["requestId"] for f in h.flush()] == ["r2"]
+    assert second.state == "sent"
+
+
+def test_an_error_before_the_send_is_confirmed_fails_the_request() -> None:
+    h = Harness()
+    core = h.synth("hello")
+    item = h.p.next_outbound(h.now)
+    assert item is not None
+    h.event("error", code="voice_not_found", message="Voice not found", requestId="r1")
+    h.p.sent(item, h.now)
+    assert core.state == "failed"
+    assert isinstance(core.error, VoiceNotFoundError)
+
+
 def test_session_sample_rate_follows_the_latest_start() -> None:
     h = Harness()
     assert h.p.sample_rate is None  # nothing started yet
