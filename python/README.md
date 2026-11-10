@@ -191,7 +191,7 @@ except echonova.SpendingLimitError:
 except echonova.RateLimitError as e:
     ...  # still limited after automatic retries; e.retry_after
 except echonova.APIConnectionError as e:
-    if e.may_have_executed:  # sent, but the response was lost: it may have run and been charged
+    if e.may_have_executed is not False:  # True or None (unknown): it may have run and been charged
         candidates = client.text_to_speech.jobs.find_candidates(e.sent_at, text=text)
 except echonova.APIStatusError as e:
     print(e.status_code, e.error_message, e.request_id)

@@ -200,8 +200,8 @@ try {
   if (err instanceof EchoNova.InvalidRequestError) console.error(err.errorMessage, err.requestId);
   else if (err instanceof EchoNova.SpendingLimitError) alertOps(); // the key reached its Credit Limit: never retried
   else if (err instanceof EchoNova.RateLimitError) retryLater(err.retryAfter); // still limited after automatic retries
-  else if (err instanceof EchoNova.APIConnectionError && err.mayHaveExecuted) {
-    // sent, but the response was lost: it may have run and been charged
+  else if (err instanceof EchoNova.APIConnectionError && err.mayHaveExecuted !== false) {
+    // true or null (unknown): the response was lost, and the request may have run and been charged
     const candidates = await client.textToSpeech.jobs.findCandidates(err.sentAt!, { text });
   } else if (err instanceof EchoNova.APIStatusError) console.error(err.statusCode, err.errorMessage, err.requestId);
   else throw err;
