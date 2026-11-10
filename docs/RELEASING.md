@@ -18,7 +18,7 @@ Done once by a maintainer with admin rights on the GitHub organization and each 
 2. **PyPI:** on the `echonova` project, add a trusted publisher (Publishing → Add a GitHub publisher): this repository, workflow `release.yml`, environment `release`. Do the same on TestPyPI first if you want a dry run.
 3. **npm:** on the `echonova` package settings, add a trusted publisher: GitHub Actions, this repository, workflow `release.yml`, environment `release`. Enable two-factor authentication for every maintainer of the package and the `@echonova` organization.
 4. **pub.dev:** on the `echonova` package admin page, enable automated publishing from GitHub Actions: this repository, tag pattern `dart-v{{version}}`, environment `release`. The package must belong to the `echonova.ai` verified publisher.
-5. **Before the first public release:** add the `LICENSE` file, fill in the security contact in [SECURITY.md](../SECURITY.md), and remove `publish_to: none` from `dart/pubspec.yaml`.
+5. **Before the first public release:** fill in the security contact in [SECURITY.md](../SECURITY.md) and remove `publish_to: none` from `dart/pubspec.yaml`.
 
 ## Releasing a version
 

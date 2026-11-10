@@ -326,3 +326,7 @@ uv run mypy
 ```
 
 Tests read the shared contract in [`../spec`](../spec): the vendored API specs, the error rules and the test vectors every EchoNova SDK must pass.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

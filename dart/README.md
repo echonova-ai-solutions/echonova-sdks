@@ -403,4 +403,4 @@ Tests read the shared contract in [`../spec`](../spec): the vendored API specs, 
 
 ## License
 
-To be decided before the first release.
+Apache License 2.0. See [LICENSE](LICENSE).

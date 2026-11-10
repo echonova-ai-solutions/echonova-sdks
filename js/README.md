@@ -330,3 +330,7 @@ npm install --prefix /tmp/workerd miniflare && ECHONOVA_SMOKE_MINIFLARE=/tmp/wor
 The runtime smoke tests run against a local mock of the API, so they need no network or API key. The table under [Requirements](#requirements) is what they verify: Node.js 22, Bun 1.4, Deno 2.9 and workerd (with and without `nodejs_compat`). Vercel Edge is checked only in Vercel's `edge-runtime` emulator.
 
 Tests read the shared contract in [`../spec`](../spec): the vendored API specs, the error rules, the parameter mapping and the test vectors every EchoNova SDK must pass.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

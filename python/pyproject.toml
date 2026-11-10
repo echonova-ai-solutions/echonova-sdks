@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.24"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,7 +8,8 @@ dynamic = ["version"]
 description = "Official Python SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning."
 readme = "README.md"
 requires-python = ">=3.11"
-# license: pending product decision P2 (Apache-2.0 recommended). Add before the first public release.
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "EchoNova" }]
 keywords = ["echonova", "speech", "tts", "stt", "arabic", "text-to-speech", "speech-to-text"]
 classifiers = [

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Bring the shared spec data each SDK needs at runtime into the SDK packages.
+"""Bring the shared files each SDK package needs into the SDK packages.
 
 Python reads a copy of error-rules.json; Dart and TypeScript compile it into
 generated source files (Flutter and bundlers can't read package data files).
+Each package also ships a copy of the repository's LICENSE, since every
+registry publishes from the package's own folder.
 
     python3 tools/sync_sdk_data.py           # copy and regenerate
     python3 tools/sync_sdk_data.py --check   # exit 1 if anything is stale (CI)
@@ -18,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COPIES = {
     ROOT / "spec" / "error-rules.json": [ROOT / "python" / "src" / "echonova" / "_data" / "error-rules.json"],
+    ROOT / "LICENSE": [ROOT / "python" / "LICENSE", ROOT / "js" / "LICENSE", ROOT / "dart" / "LICENSE"],
 }
 GENERATORS = [ROOT / "tools" / "gen_dart_rules.py", ROOT / "tools" / "gen_ts_rules.py"]
 

@@ -21,6 +21,7 @@
     "speech-to-text"
   ],
   "author": "EchoNova",
+  "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
   "engines": {
