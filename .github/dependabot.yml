@@ -36,7 +36,7 @@ updates:
       prefix: build
 
   - package-ecosystem: pub
-    directory: /dart
+    directories: [/dart, /samples/flutter]
     schedule:
       interval: weekly
     groups:

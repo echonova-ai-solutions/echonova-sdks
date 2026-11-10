@@ -218,6 +218,26 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  flutter-sample:
+    name: Flutter sample app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/flutter
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+      - run: flutter --disable-analytics
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --fatal-infos
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter test
+      - run: flutter build web --release
+
   proxy-fastapi:
     name: Proxy example (FastAPI)
     runs-on: ubuntu-latest
