@@ -238,6 +238,7 @@ final class _IoWebSocketConnection implements WebSocketConnection {
   bool _paused = false;
   bool _gone = false;
   bool _closing = false;
+  bool _aborted = false;
   Completer<void>? _resumed;
 
   void _wake() {
@@ -298,6 +299,7 @@ final class _IoWebSocketConnection implements WebSocketConnection {
   @override
   void abort() {
     _closing = true;
+    _aborted = true;
     _wake();
     _raw.destroy();
   }
@@ -306,10 +308,19 @@ final class _IoWebSocketConnection implements WebSocketConnection {
   int? get closeCode {
     final code = _socket.closeCode;
     if (code == null) return null;
-    // When the socket fails, or a frame from the server can't be read,
-    // dart:io closes with a code of its own (1002 or 1007) and no reason. No
-    // close frame came from the server: the connection was lost.
-    if (_socket.closeReason == null && !_closing) return abnormalClosure;
+    if (_aborted) return abnormalClosure;
+    if (_closing) return code;
+    // No close frame came from the server, so the connection was lost:
+    // - when the socket fails, or a frame from the server can't be read,
+    //   dart:io closes with a code of its own (1002 or 1007) and no reason;
+    // - older SDKs (Dart 3.5 among them) report a connection that ends
+    //   without a close frame as 1005 ("no status"), the same as an empty
+    //   close frame. Neither the API nor the reference proxies send an empty
+    //   close frame, so 1005 means the connection dropped.
+    if (_socket.closeReason == null ||
+        code == WebSocketStatus.noStatusReceived) {
+      return abnormalClosure;
+    }
     return code;
   }
 

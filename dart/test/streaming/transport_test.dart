@@ -99,6 +99,22 @@ void main() {
     expect(connection.closeReason, 'idle_timeout');
   });
 
+  // Older dart:io SDKs report a dropped connection the same way as a close
+  // frame without a code, so both read as a lost connection on every SDK.
+  test('a close frame without a code reads as a lost connection', () async {
+    final uri = await serve((socket, _) {
+      socket.listen(null);
+      unawaited(socket.close());
+    });
+    final connection = await openWebSocket(uri);
+    await connection.messages.drain<void>();
+    expect(connection.closeCode, 1006);
+    expect(
+      closeError(CloseInfo(connection.closeCode!)),
+      isA<StreamConnectionLostException>(),
+    );
+  });
+
   test('the link maps a silent peer to a lost connection', () async {
     final uri = await serve((socket, _) => socket.listen(null)); // no pongs
     final connection = await openWebSocket(uri);
