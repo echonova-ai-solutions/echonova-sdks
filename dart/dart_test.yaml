@@ -1,4 +1,9 @@
 tags:
   live:
-    # Uses the network; see test/live/. Never part of the default run.
+    # Calls the real API; see test/live/live_support.dart. Run nightly with
+    #   ECHONOVA_LIVE=1 dart test -t live
+    # Without ECHONOVA_LIVE=1 every live test is skipped, so the default run
+    # never uses the network. The tag is not excluded here because a config
+    # exclude_tags can't be undone with -t: `dart test -t live` would run
+    # nothing.
     timeout: 30s
