@@ -25,6 +25,10 @@ const String _webSocketGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 /// At most this much of a rejected handshake's body is read.
 const int _maxErrorBodyBytes = 65536;
 
+/// Whether the headers passed to [openWebSocket] reach the server. They do
+/// here; a browser can't send them.
+const bool sendsHeaders = true;
+
 /// Opens a WebSocket to [uri] (`wss://` or `ws://`), sending [headers] on the
 /// upgrade request.
 ///

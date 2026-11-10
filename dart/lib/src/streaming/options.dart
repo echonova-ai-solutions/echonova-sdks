@@ -101,7 +101,8 @@ final class StreamOptions {
   /// are appended to its path.
   final Uri wsBaseUri;
 
-  /// The headers for each connection attempt (not sent by browsers).
+  /// The headers for each connection attempt. Not called in a browser,
+  /// which can't send them.
   final StreamParameters headers;
 
   /// Query parameters added to each connection attempt, such as a

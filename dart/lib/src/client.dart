@@ -73,6 +73,10 @@ class EchoNova {
   /// * [rateLimitPreflight]: when the last response said no requests remain
   ///   in the rate-limit window, wait for the window to reset instead of
   ///   being throttled (default `true`).
+  /// * [streamKeepalive]: the streams this client opens send a `ping` after
+  ///   this long without sending anything (default 30 s), and treat the
+  ///   connection as lost when a ping gets no answer within 15 s or nothing
+  ///   arrives for 60 s. `null` turns keepalive and these checks off.
   ///
   /// Throws [UsageException] when there is no API key, and
   /// [UnsupportedEnvironmentException] in a browser unless
@@ -89,6 +93,7 @@ class EchoNova {
     Map<String, String>? defaultHeaders,
     bool rateLimitPreflight = true,
     bool dangerouslyAllowBrowser = false,
+    Duration? streamKeepalive = const Duration(seconds: 30),
   }) {
     final key =
         (apiKey ?? platform.environmentVariable('ECHONOVA_API_KEY'))?.trim();
@@ -111,7 +116,7 @@ class EchoNova {
         (fromEnvironment == null || fromEnvironment.trim().isEmpty
             ? defaultBaseUrl
             : Uri.parse(fromEnvironment.trim()));
-    _validate(url, maxRetries, timeout, deadline);
+    _validate(url, maxRetries, timeout, deadline, streamKeepalive);
     final authorization = {'Authorization': 'Bearer $key'};
     return EchoNova._(
       baseUrl: url,
@@ -122,6 +127,7 @@ class EchoNova {
       maxRetries: maxRetries,
       defaultHeaders: defaultHeaders ?? const {},
       rateLimitPreflight: rateLimitPreflight,
+      streamKeepalive: streamKeepalive,
       shared: _Shared(
         httpClient: httpClient,
         downloadClient: downloadHttpClient,
@@ -146,7 +152,12 @@ class EchoNova {
   /// [streamQuery] adds query parameters to stream URLs, called before every
   /// connection attempt. Browsers can't send headers on a WebSocket, so on
   /// Flutter web use it (or cookies) to authenticate streams with your proxy,
-  /// for example `() async => {'access_token': await streamToken()}`.
+  /// for example `() async => {'access_token': await streamToken()}`. There,
+  /// [auth] is not called for streams.
+  ///
+  /// An error thrown by [auth] or [streamQuery] fails the call or the
+  /// connection with that error, unchanged: it is your code's error, not an
+  /// [EchoNovaException].
   ///
   /// The other options are as for [EchoNova.new].
   factory EchoNova.proxy({
@@ -160,8 +171,9 @@ class EchoNova {
     http.Client? downloadHttpClient,
     Map<String, String>? defaultHeaders,
     bool rateLimitPreflight = true,
+    Duration? streamKeepalive = const Duration(seconds: 30),
   }) {
-    _validate(baseUrl, maxRetries, timeout, deadline);
+    _validate(baseUrl, maxRetries, timeout, deadline, streamKeepalive);
     return EchoNova._(
       baseUrl: baseUrl,
       apiKey: null,
@@ -172,6 +184,7 @@ class EchoNova {
       maxRetries: maxRetries,
       defaultHeaders: defaultHeaders ?? const {},
       rateLimitPreflight: rateLimitPreflight,
+      streamKeepalive: streamKeepalive,
       shared: _Shared(
         httpClient: httpClient,
         downloadClient: downloadHttpClient,
@@ -191,6 +204,7 @@ class EchoNova {
     required this.maxRetries,
     required Map<String, String> defaultHeaders,
     required this.rateLimitPreflight,
+    required this.streamKeepalive,
     required _Shared shared,
     required bool ownsShared,
   })  : _apiKey = apiKey,
@@ -220,6 +234,7 @@ class EchoNova {
     int maxRetries,
     Duration? timeout,
     Duration? deadline,
+    Duration? streamKeepalive,
   ) {
     if (!baseUrl.isAbsolute ||
         !(baseUrl.scheme == 'https' || baseUrl.scheme == 'http') ||
@@ -238,6 +253,13 @@ class EchoNova {
     }
     if (deadline != null && deadline <= Duration.zero) {
       throw ArgumentError.value(deadline, 'deadline', 'must be positive');
+    }
+    if (streamKeepalive != null && streamKeepalive <= Duration.zero) {
+      throw ArgumentError.value(
+        streamKeepalive,
+        'streamKeepalive',
+        'must be positive, or null to turn keepalive off',
+      );
     }
   }
 
@@ -272,6 +294,10 @@ class EchoNova {
   /// sending.
   final bool rateLimitPreflight;
 
+  /// How long a stream may send nothing before it sends a keepalive `ping`,
+  /// or `null` when keepalive and the connection checks are off.
+  final Duration? streamKeepalive;
+
   /// Whether this client calls your backend proxy instead of EchoNova.
   bool get isProxy => _apiKey == null;
 
@@ -296,7 +322,7 @@ class EchoNova {
 
   /// A copy with some options changed. It shares this client's
   /// connections, rate-limit state and polling budget; close this client,
-  /// not the copy.
+  /// not the copy. It keeps [streamKeepalive].
   EchoNova withOptions({
     Duration? timeout,
     Duration? deadline,
@@ -305,7 +331,7 @@ class EchoNova {
     bool? rateLimitPreflight,
   }) {
     final retries = maxRetries ?? this.maxRetries;
-    _validate(baseUrl, retries, timeout, deadline);
+    _validate(baseUrl, retries, timeout, deadline, streamKeepalive);
     return EchoNova._(
       baseUrl: baseUrl,
       apiKey: _apiKey,
@@ -316,6 +342,7 @@ class EchoNova {
       maxRetries: retries,
       defaultHeaders: defaultHeaders ?? _transport.defaultHeaders,
       rateLimitPreflight: rateLimitPreflight ?? this.rateLimitPreflight,
+      streamKeepalive: streamKeepalive,
       shared: _shared,
       ownsShared: false,
     );
@@ -425,13 +452,14 @@ class EchoNova {
   ClientRuntime get runtime => _shared.runtime;
 
   /// Stream settings derived from this client: URL, credentials, User-Agent,
-  /// retries and the proxy stream query.
+  /// retries, keepalive and the proxy stream query.
   @internal
   StreamOptions streamOptions() => StreamOptions(
         wsBaseUri: wsBaseUri,
         headers: streamHeaders,
         query: _streamQuery,
         userAgent: userAgent,
+        keepalive: streamKeepalive,
         retryPolicy: retryPolicy,
         clock: runtime.clock,
         sleep: runtime.sleep,
@@ -527,6 +555,7 @@ EchoNova clientWithRuntime(EchoNova client, ClientRuntime runtime) {
     maxRetries: client.maxRetries,
     defaultHeaders: client._transport.defaultHeaders,
     rateLimitPreflight: client.rateLimitPreflight,
+    streamKeepalive: client.streamKeepalive,
     shared: _Shared(
       httpClient: shared.httpClient,
       downloadClient: shared._downloadClient,

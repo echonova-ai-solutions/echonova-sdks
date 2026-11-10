@@ -13,8 +13,8 @@ from typing import Any, Self, TypeVar, cast, overload
 
 import httpx
 
-from ._base_client import NOT_GIVEN, BaseClient, RequestSpec, _Limits, _Pool, _Sink, check_options
-from ._config import DEFAULT_MAX_RETRIES, Runtime, Timeout
+from ._base_client import NOT_GIVEN, BaseClient, RequestSpec, _Limits, _Pool, _Sink, check_options, public_signature
+from ._config import DEFAULT_MAX_RETRIES, DEFAULT_STREAM_KEEPALIVE, Runtime, Timeout
 from ._response import ApiResponse, raw_mode
 from ._transport import Action, Authenticate, Call, Failure, Flow, Send, Sleep
 from .errors import EchoNovaError, UsageError
@@ -73,6 +73,11 @@ class EchoNova(BaseClient[httpx.Client]):
 
     Proxy mode: with ``base_url`` pointing at your own backend and ``auth``
     returning your app's headers, no EchoNova key is needed on the device.
+
+    ``stream_keepalive`` applies to the streams this client opens: after that many
+    seconds without sending anything, a stream sends a ping (default 30). It treats
+    the connection as lost when a ping gets no answer within 15 s or nothing arrives
+    for 60 s. None turns keepalive and these checks off.
     """
 
     text_to_speech: TextToSpeech
@@ -81,6 +86,7 @@ class EchoNova(BaseClient[httpx.Client]):
     widgets: Widgets
     agents: Agents
 
+    @public_signature
     def __init__(
         self,
         *,
@@ -96,6 +102,7 @@ class EchoNova(BaseClient[httpx.Client]):
         download_http_client: httpx.Client | None = None,
         on_request: Callable[[httpx.Request], Any] | None = None,
         on_response: Callable[[httpx.Response], Any] | None = None,
+        stream_keepalive: float | None = DEFAULT_STREAM_KEEPALIVE,
         _runtime: Runtime | None = None,
         _limits: _Limits | None = None,
         _pool: _Pool[httpx.Client] | None = None,
@@ -115,6 +122,7 @@ class EchoNova(BaseClient[httpx.Client]):
             on_response=on_response,
             runtime=_runtime,
             limits=_limits,
+            stream_keepalive=stream_keepalive,
         )
         if http_client is not None and not isinstance(http_client, httpx.Client):
             raise UsageError("http_client must be an httpx.Client (use httpx.AsyncClient with AsyncEchoNova)")
@@ -153,6 +161,7 @@ class EchoNova(BaseClient[httpx.Client]):
         http_client: httpx.Client | None = NOT_GIVEN,
         on_request: Callable[[httpx.Request], Any] | None = NOT_GIVEN,
         on_response: Callable[[httpx.Response], Any] | None = NOT_GIVEN,
+        stream_keepalive: float | None = NOT_GIVEN,
     ) -> Self:
         """A copy with some options changed. It shares this client's connection pool: close this one, not the copy."""
         changes = {k: v for k, v in locals().items() if k != "self" and not k.startswith("__")}
@@ -273,6 +282,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
     widgets: AsyncWidgets
     agents: AsyncAgents
 
+    @public_signature
     def __init__(
         self,
         *,
@@ -288,6 +298,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
         download_http_client: httpx.AsyncClient | None = None,
         on_request: Callable[[httpx.Request], Any] | None = None,
         on_response: Callable[[httpx.Response], Any] | None = None,
+        stream_keepalive: float | None = DEFAULT_STREAM_KEEPALIVE,
         _runtime: Runtime | None = None,
         _limits: _Limits | None = None,
         _pool: _Pool[httpx.AsyncClient] | None = None,
@@ -305,6 +316,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
             on_response=on_response,
             runtime=_runtime,
             limits=_limits,
+            stream_keepalive=stream_keepalive,
         )
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise UsageError("http_client must be an httpx.AsyncClient (use httpx.Client with EchoNova)")
@@ -343,6 +355,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
         http_client: httpx.AsyncClient | None = NOT_GIVEN,
         on_request: Callable[[httpx.Request], Any] | None = NOT_GIVEN,
         on_response: Callable[[httpx.Response], Any] | None = NOT_GIVEN,
+        stream_keepalive: float | None = NOT_GIVEN,
     ) -> Self:
         """A copy with some options changed. It shares this client's connection pool: close this one, not the copy."""
         changes = {k: v for k, v in locals().items() if k != "self" and not k.startswith("__")}

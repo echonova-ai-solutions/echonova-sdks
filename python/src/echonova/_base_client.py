@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import io
 import json
+import math
 import os
 import tempfile
 import threading
@@ -53,9 +54,21 @@ if TYPE_CHECKING:
     from ._streaming import StreamOptions
 
 T = TypeVar("T")
+F = TypeVar("F", bound=Callable[..., Any])
 HttpT = TypeVar("HttpT", httpx.Client, httpx.AsyncClient)
 
 _OPTION_KEYS = frozenset({"timeout", "max_retries", "deadline", "extra_headers"})
+
+
+def public_signature(init: F) -> F:
+    """Leave the SDK's own keyword arguments (``_runtime``, ...) out of ``inspect.signature()``.
+
+    ``help()`` and the API reference then show only the public options. Calls and type checking are unchanged.
+    """
+    signature = inspect.signature(init)
+    public = [p for p in signature.parameters.values() if not p.name.startswith("_")]
+    init.__signature__ = signature.replace(parameters=public)  # type: ignore[attr-defined]
+    return init
 
 
 class _NotGiven:
@@ -186,6 +199,7 @@ class BaseClient(Generic[HttpT]):
         on_response: Callable[[httpx.Response], Any] | None,
         runtime: Runtime | None,
         limits: _Limits | None,
+        stream_keepalive: float | None,
     ) -> None:
         setup_from_env()
         self._base_url = resolve_base_url(base_url)
@@ -205,6 +219,13 @@ class BaseClient(Generic[HttpT]):
             logger.warning("base_url uses plain http, so the API key would be sent unencrypted")
         if isinstance(max_retries, bool) or not isinstance(max_retries, int) or max_retries < 0:
             raise UsageError("max_retries must be a non-negative integer")
+        if stream_keepalive is not None and (
+            isinstance(stream_keepalive, bool)
+            or not isinstance(stream_keepalive, (int, float))
+            or not math.isfinite(stream_keepalive)
+            or stream_keepalive <= 0
+        ):
+            raise UsageError("stream_keepalive must be a positive number of seconds, or None to turn keepalive off")
         self._timeout = Timeout.coerce(timeout)
         self._max_retries = max_retries
         self._deadline = deadline
@@ -212,6 +233,7 @@ class BaseClient(Generic[HttpT]):
         self._default_headers = dict(default_headers or {})
         self._on_request = on_request
         self._on_response = on_response
+        self._stream_keepalive = None if stream_keepalive is None else float(stream_keepalive)
         self._runtime = runtime or Runtime()
         self._limits = limits or _Limits(
             tracker=RateLimitTracker(clock=self._runtime.clock), limiter=PollLimiter(clock=self._runtime.clock)
@@ -264,7 +286,7 @@ class BaseClient(Generic[HttpT]):
         return merge_headers(headers, extra)
 
     def _stream_options(self, *, asynchronous: bool) -> StreamOptions:
-        """Stream settings derived from this client: URL, credentials, default headers and retries."""
+        """Stream settings derived from this client: URL, credentials, default headers, retries and keepalive."""
         from ._streaming import StreamOptions  # imported here so REST-only use never loads websockets
 
         defaults = dict(self._default_headers)
@@ -275,14 +297,22 @@ class BaseClient(Generic[HttpT]):
                 return merge_headers(defaults, await self._async_auth_headers())
 
             return StreamOptions(
-                ws_base_url=self._ws_base_url, headers=async_headers, user_agent=self._user_agent, retry_policy=policy
+                ws_base_url=self._ws_base_url,
+                headers=async_headers,
+                user_agent=self._user_agent,
+                keepalive=self._stream_keepalive,
+                retry_policy=policy,
             )
 
         def headers() -> dict[str, str]:
             return merge_headers(defaults, self._auth_headers())
 
         return StreamOptions(
-            ws_base_url=self._ws_base_url, headers=headers, user_agent=self._user_agent, retry_policy=policy
+            ws_base_url=self._ws_base_url,
+            headers=headers,
+            user_agent=self._user_agent,
+            keepalive=self._stream_keepalive,
+            retry_policy=policy,
         )
 
     # --- Shared construction for with_options() ---------------------------------------------------
@@ -299,6 +329,7 @@ class BaseClient(Generic[HttpT]):
             "default_headers": self._default_headers,
             "on_request": self._on_request,
             "on_response": self._on_response,
+            "stream_keepalive": self._stream_keepalive,
         }
         unknown = set(changes) - set(current) - {"http_client"}
         if unknown:

@@ -59,6 +59,97 @@ void main() {
     expect(server.attempts.first.query['access_token'], 'short-lived');
   });
 
+  test('streamKeepalive reaches the stream options', () {
+    final direct = EchoNova(apiKey: 'ek_test');
+    addTearDown(direct.close);
+    expect(direct.streamKeepalive, const Duration(seconds: 30));
+    expect(direct.streamOptions().keepalive, const Duration(seconds: 30));
+
+    final quick = EchoNova(
+      apiKey: 'ek_test',
+      streamKeepalive: const Duration(seconds: 5),
+    );
+    addTearDown(quick.close);
+    expect(quick.streamOptions().keepalive, const Duration(seconds: 5));
+    expect(
+      quick.withOptions(maxRetries: 0).streamOptions().keepalive,
+      const Duration(seconds: 5),
+    );
+
+    final off = EchoNova.proxy(
+      baseUrl: Uri.parse('https://api.example.com/echonova'),
+      auth: () => {},
+      streamKeepalive: null,
+    );
+    addTearDown(off.close);
+    expect(off.streamOptions().keepalive, isNull);
+    expect(off.withOptions(maxRetries: 1).streamKeepalive, isNull);
+  });
+
+  test('streamKeepalive must be positive', () {
+    for (final value in [Duration.zero, const Duration(seconds: -1)]) {
+      expect(
+        () => EchoNova(apiKey: 'ek_test', streamKeepalive: value),
+        throwsArgumentError,
+      );
+      expect(
+        () => EchoNova.proxy(
+          baseUrl: Uri.parse('https://api.example.com/echonova'),
+          auth: () => {},
+          streamKeepalive: value,
+        ),
+        throwsArgumentError,
+      );
+    }
+  });
+
+  test('streamKeepalive pings an idle stream', () async {
+    server.tts.idleTimeout = const Duration(milliseconds: 300);
+    final client = EchoNova(
+      apiKey: 'ek_test',
+      baseUrl: _httpBase(server),
+      streamKeepalive: const Duration(milliseconds: 50),
+    );
+    addTearDown(client.close);
+    final tts = await client.textToSpeech.connect(voiceId: 'v1');
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(tts.isConnected, isTrue); // the pings kept it inside the timeout
+    await tts.close();
+    final pings = [
+      for (final frame in server.ttsConns.first.received)
+        if (frame is Map<String, Object?> && frame['type'] == 'ping') frame,
+    ];
+    expect(pings.length, greaterThanOrEqualTo(4));
+  });
+
+  test('an error from the auth or streamQuery hook reaches the caller as is',
+      () async {
+    final failing = EchoNova.proxy(
+      baseUrl: _httpBase(server),
+      auth: () => throw StateError('signed out'),
+    );
+    addTearDown(failing.close);
+    await expectLater(
+      failing.textToSpeech.connect(voiceId: 'v1'),
+      throwsA(isA<StateError>()),
+    );
+    await expectLater(
+      failing.textToSpeech.voices.list(),
+      throwsA(isA<StateError>()),
+    );
+    final noToken = EchoNova.proxy(
+      baseUrl: _httpBase(server),
+      auth: () => {},
+      streamQuery: () => throw StateError('no stream token'),
+    );
+    addTearDown(noToken.close);
+    await expectLater(
+      noToken.speechToText.connect(sampleRate: 16000, language: 'ar'),
+      throwsA(isA<StateError>()),
+    );
+    expect(server.attempts, isEmpty); // nothing was sent
+  });
+
   test('speechToText.connect and transcribeStream', () async {
     final client = EchoNova(apiKey: 'ek_test', baseUrl: _httpBase(server));
     addTearDown(client.close);

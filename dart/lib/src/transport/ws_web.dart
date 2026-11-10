@@ -36,6 +36,11 @@ const Duration _closeFallback = Duration(seconds: 2);
 
 const int _open = 1;
 
+/// Whether the headers passed to [openWebSocket] reach the server. A browser
+/// can't set headers on a WebSocket, so stream sessions don't even ask for
+/// them (the proxy's `auth` hook isn't called for streams).
+const bool sendsHeaders = false;
+
 @JS('WebSocket')
 extension type _BrowserSocket._(JSObject _) implements JSObject {
   external factory _BrowserSocket(String url);
@@ -184,11 +189,12 @@ final class _BrowserConnection implements WebSocketConnection {
 
   void _failOpen(int code) {
     _finish(code, '');
-    final hint = _droppedHeaders.isEmpty
+    final dropped = _droppedHeaders.isEmpty
         ? ''
-        : ' Browsers cannot send headers on a WebSocket, so '
-            '${_droppedHeaders.join(', ')} was not sent: authenticate '
-            'streams with cookies or query parameters (StreamOptions.query).';
+        : ', so ${_droppedHeaders.join(', ')} was not sent';
+    final hint = ' Browsers cannot send headers on a WebSocket$dropped: '
+        'authenticate streams with cookies or query parameters '
+        '(EchoNova.proxy streamQuery).';
     _opened.completeError(
       APIConnectionException(
         'The browser could not open the stream at $_where (close code '

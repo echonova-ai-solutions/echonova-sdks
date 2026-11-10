@@ -125,6 +125,25 @@ def test_proxy_mode_auth_headers_for_streaming() -> None:
     assert keyed._auth_headers() == {"Authorization": f"Bearer {TEST_KEY}", "X-Extra": "1"}
 
 
+class _SignedOut(Exception):
+    pass
+
+
+def _signed_out() -> dict[str, str]:
+    raise _SignedOut("the user signed out")
+
+
+def test_an_auth_hook_error_reaches_the_caller_unchanged_and_nothing_is_sent() -> None:
+    recorder = Recorder(job_handler)
+    client = make_client(recorder, api_key=None, base_url="https://proxy.example.com", auth=_signed_out)
+    with pytest.raises(_SignedOut):
+        client.text_to_speech.jobs.get(JOB_ID)
+    async_client = make_async_client(recorder, api_key=None, base_url="https://proxy.example.com", auth=_signed_out)
+    with pytest.raises(_SignedOut):
+        asyncio.run(async_client.text_to_speech.jobs.get(JOB_ID))
+    assert recorder.requests == []
+
+
 def test_sync_client_rejects_an_async_auth_hook() -> None:
     async def auth() -> dict[str, str]:
         return {}

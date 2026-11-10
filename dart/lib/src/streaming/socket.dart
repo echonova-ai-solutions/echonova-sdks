@@ -48,7 +48,10 @@ Future<ws.WebSocketConnection> openStream(
     }
     first = false;
     limiter.record(clock());
-    final headers = _withUserAgent(await options.headers(), options.userAgent);
+    // A browser can't send headers on a WebSocket: don't ask for them.
+    final headers = ws.sendsHeaders
+        ? _withUserAgent(await options.headers(), options.userAgent)
+        : const <String, String>{};
     final query = await options.query?.call() ?? const <String, String>{};
     final target = query.isEmpty
         ? url

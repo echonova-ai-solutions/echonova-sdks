@@ -64,6 +64,27 @@ void main() {
     expect(attempt['authorization'], isNull); // headers are never sent
   });
 
+  test('the headers provider is not called: a browser could not send them',
+      () async {
+    var calls = 0;
+    final tts = await connectTts(
+      StreamOptions(
+        wsBaseUri: proxy,
+        headers: () {
+          calls++;
+          throw StateError('a browser never asks for stream headers');
+        },
+        query: () => {'token': 'short-lived'},
+        closeTimeout: const Duration(seconds: 1),
+      ),
+      voiceId: 'v1',
+    );
+    addTearDown(tts.close);
+    final result = await tts.synthesize('hello').result;
+    expect(result.outcome, SynthesisOutcome.completed);
+    expect(calls, 0);
+  });
+
   test('cancelling the audio subscription cancels the synthesis', () async {
     final tts = await connectTts(options(), voiceId: 'v1');
     addTearDown(tts.close);
@@ -103,7 +124,7 @@ void main() {
     await expectLater(
       connectTts(options(), voiceId: 'v1'),
       throwsA(isA<APIConnectionException>()
-          .having((e) => e.message, 'message', contains('Authorization'))
+          .having((e) => e.message, 'message', contains('cookies'))
           .having((e) => e.message, 'message', contains('proxy'))),
     );
     final attempts = await ask(['attempts']) as List<Object?>;

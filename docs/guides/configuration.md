@@ -22,7 +22,7 @@ The defaults suit most programs: create one client, reuse it, close it at the en
 | Hooks | `on_request`, `on_response` | `onRequest`, `onResponse` | wrap `httpClient` |
 | Logging | the `echonova` logger | `logLevel`, `logger` | none for REST |
 | Browser guard override | none | `dangerouslyAllowBrowser` | `dangerouslyAllowBrowser` |
-| Stream settings | arguments of `connect()` | `stream` (`query`, `keepalive`, `waitForSlot`, `openTimeout`) | arguments of `connect()`, `streamQuery` |
+| Stream settings | `stream_keepalive` (seconds), arguments of `connect()` | `stream` (`query`, `keepalive`, `waitForSlot`, `openTimeout`) | `streamKeepalive` (`Duration`), `streamQuery`, arguments of `connect()` |
 
 Per call, Python methods take `timeout`, `max_retries`, `deadline` and `extra_headers` as keyword arguments; TypeScript methods take a last argument with `timeout`, `maxRetries`, `deadline`, `headers` and `signal`; Dart methods take `options: RequestOptions(...)`.
 

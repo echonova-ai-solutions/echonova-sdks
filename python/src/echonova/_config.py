@@ -18,6 +18,7 @@ from .errors import UsageError
 DEFAULT_BASE_URL = "https://api.echonova.ai"
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_CONNECT_TIMEOUT = 10.0
+DEFAULT_STREAM_KEEPALIVE = 30.0  # seconds without sending before a stream sends a ping
 API_KEY_ENV = "ECHONOVA_API_KEY"
 BASE_URL_ENV = "ECHONOVA_BASE_URL"
 

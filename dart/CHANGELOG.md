@@ -16,7 +16,8 @@
 - Downloads of signed links without credentials; an expired link throws `DownloadExpiredException`.
 - Webhook verification with `verifyWebhook`.
 - Streaming Text to Speech (`textToSpeech.connect`, `speak`): synthesize, enqueue, `speakStream` for LLM text, cancel and interrupt, `Stream<Uint8List>` audio, and the final cost of every synthesis. `TtsSession.sampleRate` gives the rate of `speakStream` audio.
+- `streamKeepalive` on `EchoNova` and `EchoNova.proxy`: the stream keepalive interval (default 30 s); `null` turns keepalive off.
 - Streaming Speech to Text (`speechToText.connect`, `transcribeStream`): framed audio with backpressure, segments, terminology, `stop`, saved sessions (`SessionSaved`, `jobId`), and rollover past the session limit.
-- Flutter web streaming through a proxy, authenticated with cookies or `EchoNova.proxy(streamQuery:)`.
+- Flutter web streaming through a proxy, authenticated with cookies or `EchoNova.proxy(streamQuery:)`. The `auth` hook isn't called for streams there, since a browser can't send its headers.
 - Connection errors name the server they couldn't reach: `EchoNova`, or your proxy's host.
 - `Audio` and WAV helpers.

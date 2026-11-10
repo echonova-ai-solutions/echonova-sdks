@@ -44,6 +44,7 @@ Create one client and reuse it: it keeps a connection pool and the rate-limit st
 | `http_client` | SDK-owned | Your own `httpx.Client` / `httpx.AsyncClient` (proxies, mTLS, limits). |
 | `download_http_client` | SDK-owned | The client used for signed download links. It must not add credentials. |
 | `on_request`, `on_response` | none | Called with each `httpx.Request` / `httpx.Response`. |
+| `stream_keepalive` | `30` | Seconds a stream may send nothing before it sends a keepalive ping. `None` turns keepalive and the connection checks off. |
 
 Every API method also accepts `timeout`, `max_retries`, `deadline` and `extra_headers` for one call:
 
@@ -111,7 +112,7 @@ with client.text_to_speech.connect(voice_id=voice_id) as tts:
 
 A new `synthesize()` replaces the one that is running; `enqueue()` plays texts in order; `interrupt()` stops everything (barge-in). `speak_stream(texts)` speaks text as it is written (for example an LLM's reply), sentence by sentence, as one stream of audio chunks at `tts.sample_rate`, the rate of the latest synthesis to start. Streams send a keepalive ping after 30 s without sending anything; the client's `stream_keepalive` option changes that (`None` turns it off).
 
-Billing: each synthesis is charged per character when it starts. One that stops after its audio started (a cancel, barge-in, or a speech service failure) costs only the share of audio sent, at least 1 credit; the rest is refunded. `result().credits_consumed` is the final cost the server reported, and `result().charged` is `False` for a synthesis cancelled before it was charged. A failed synthesis raises; its error carries `charge_state` (`"yes"`, `"no"` or `"unknown"`) and, when the server reported it, `credits_consumed`. The SDK never resends a synthesis that may have been charged.
+Billing: each synthesis is charged per character when it starts. One that stops after its audio started (a cancel, barge-in, or a speech service failure) costs only the share of audio sent, at least 1 credit; the rest is refunded. `result().credits_consumed` (also `synth.credits_consumed`) is the final cost the server reported, and `result().charged` is `False` for a synthesis cancelled before it was charged. A failed synthesis raises; its error carries `charge_state` (`"yes"`, `"no"` or `"unknown"`) and, when the server reported it, `credits_consumed`. The SDK never resends a synthesis that may have been charged.
 
 Each synthesis on the stream is also a job: `TtsJob.stream` holds its `session_id`, its `synthesis_request_id` (the `Synthesis.request_id`), and whether it was `cancelled` early or its audio was dropped (`audio_dropped`).
 

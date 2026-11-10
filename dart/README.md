@@ -93,6 +93,7 @@ print(done.transcription);
 | `defaultHeaders` | none | Sent with every API request (not with downloads). |
 | `httpClient` | SDK-owned | Your own `package:http` client (proxies, certificates, cookies). `close()` leaves it open. |
 | `downloadHttpClient` | SDK-owned | The client for signed download links. It must not add credentials. |
+| `streamKeepalive` | 30 s | How long a stream may send nothing before it sends a keepalive ping. `null` turns keepalive and the connection checks off. |
 
 Every API method also takes `options` for one call:
 
@@ -241,7 +242,7 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 
 ## Errors and retries
 
-Every error is an `EchoNovaException`, a sealed class, so a `switch` over it is exhaustive:
+Every error the SDK throws is an `EchoNovaException`, a sealed class, so a `switch` over it is exhaustive. An error thrown by your own `auth` or `streamQuery` hook reaches you unchanged, as in the Python and TypeScript SDKs, so you can tell it from an API error:
 
 ```dart
 import 'package:echonova/echonova.dart';
@@ -358,7 +359,7 @@ await for (final event in client.speechToText.transcribeStream(chunks, sampleRat
 
 Sessions never reconnect on their own; `transcribeStream` does, replaying only audio that was never cut into a segment. Each session is saved as a Speech to Text job.
 
-**Flutter web:** browsers can't send headers on a WebSocket, so streams there only work through your proxy, authenticated with cookies or `EchoNova.proxy(streamQuery: () async => {'access_token': await streamToken()})`. On Android, iOS and desktop, the proxy's `auth` headers are sent as usual.
+**Flutter web:** browsers can't send headers on a WebSocket, so streams there only work through your proxy, authenticated with cookies or `EchoNova.proxy(streamQuery: () async => {'access_token': await streamToken()})`. There `auth` isn't called for streams, since its headers couldn't be sent. On Android, iOS and desktop, the proxy's `auth` headers are sent as usual.
 
 ## Webhooks
 
