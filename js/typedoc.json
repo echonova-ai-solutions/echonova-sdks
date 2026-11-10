@@ -1,0 +1,26 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "EchoNova JavaScript and TypeScript SDK",
+  "entryPoints": ["src/index.ts", "src/streaming/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "build/docs",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "treatWarningsAsErrors": true,
+  "intentionallyNotExported": [
+    "src/webhooks.ts:Raw",
+    "src/core/rules.ts:Rule",
+    "src/core/rules.ts:RuleSet",
+    "src/core/rules.ts:Phase",
+    "src/core/retry.ts:RetryDecision",
+    "src/core/retry.ts:DecideStatusOptions",
+    "src/core/retry.ts:DecideTransportOptions",
+    "src/core/http.ts:APIResponse",
+    "src/core/pagination.ts:PageInit",
+    "src/streaming/options.ts:StringMap",
+    "src/streaming/pcm-framer.ts:AudioChunk"
+  ]
+}

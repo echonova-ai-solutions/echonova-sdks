@@ -41,6 +41,8 @@ dev = [
     "mypy>=1.11",
     "ruff>=0.6",
 ]
+# The API reference (CONTRIBUTING.md): not installed by default, `uv run --group docs ...` adds it.
+docs = ["pdoc>=16"]
 
 [tool.hatch.version]
 path = "src/echonova/_version.py"

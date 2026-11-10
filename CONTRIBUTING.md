@@ -154,6 +154,31 @@ Live tests (marked `live` in Python) call the real EchoNova API.
 - Run them explicitly: `cd python && uv run pytest -m live`. The TypeScript and Dart SDKs follow the same rules.
 - CI runs the live suites nightly and before releases with its own test-workspace key. They never run on pull requests from forks, and you don't need to run them to contribute.
 
+## Code samples and the API reference
+
+`tools/check_snippets.py` type-checks every Python, TypeScript and Dart code block in the READMEs, `docs/guides/` and the proxy READMEs against the SDK source, with mypy, `tsc` and `dart analyze`. It needs no network or API key, only each SDK's toolchain (and `npm ci` in `js/`).
+
+```bash
+python3 tools/check_snippets.py              # every block
+python3 tools/check_snippets.py --lang dart  # one language: python, ts or dart
+```
+
+Write each block so it stands on its own: its own imports, and a client created from the environment (`EchoNova()` reads `ECHONOVA_API_KEY`). Top-level `await` is fine. For a block that can't be checked, such as one that needs Flutter, put `<!-- snippet: skip (the reason) -->` on the line before it.
+
+### API reference
+
+Each SDK's reference is built from its doc comments into a git-ignored folder:
+
+```bash
+cd python && uv run --group docs pdoc echonova echonova.resources echonova.types.streaming -o build/docs
+cd js && npm run docs     # TypeDoc, into build/docs
+cd dart && dart doc       # into doc/api
+```
+
+- Python uses [pdoc](https://pdoc.dev) from the `docs` dependency group, which `uv sync` doesn't install. Only public modules get a page. `echonova.resources` and `echonova.types.streaming` are named in the command because the package's `__all__` doesn't list them.
+- TypeDoc documents the `echonova` and `echonova/streaming` entry points and treats warnings as errors. If a public signature uses a type the package doesn't export, export it, or add it to `intentionallyNotExported` in `js/typedoc.json`.
+- `dart doc` must report 0 warnings.
+
 ## Checking that nothing private is published
 
 Before you push, run this from the repository root:
@@ -198,5 +223,5 @@ Use the same format for the pull request title.
 
 - Keep a pull request to one change. Split unrelated changes.
 - Fill in the pull request template and its checklist.
-- Update docs and examples with the code. Every code sample in the READMEs and guides runs in CI, because a doc that can't be run goes stale.
+- Update docs and examples with the code. Every code sample in the READMEs and guides is type-checked in CI (`tools/check_snippets.py`), because a sample that no longer compiles goes stale unnoticed.
 - Describe API behaviour only as the EchoNova docs and published specs describe it. Where the SDK is more cautious than the docs require, describe that as SDK policy (ADR 0012).

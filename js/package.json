@@ -69,6 +69,7 @@
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:dist": "node scripts/smoke-dist.mjs && node scripts/smoke-dist.cjs",
     "size": "node scripts/size.mjs",
+    "docs": "typedoc",
     "lint:package": "attw --pack . && publint --strict && npm run test:dist && npm run size",
     "prepack": "npm run build"
   },
@@ -80,6 +81,7 @@
     "fast-check": "^4.10.2",
     "publint": "^0.3.25",
     "tsup": "^9.0.0",
+    "typedoc": "^0.28.20",
     "typescript": "~6.0.3",
     "vitest": "^5.1.0"
   },
