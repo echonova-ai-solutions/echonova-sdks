@@ -1,6 +1,10 @@
 # Weekly dependency updates. SDK runtime dependency ranges are kept as wide as
 # the code supports, so only lockfiles and dev tooling move here; widening or
 # raising a runtime range is a deliberate change (see docs/adr/0009).
+#
+# Minor and patch updates come grouped, one pull request per ecosystem. Major
+# updates come one per pull request, so a breaking one (a new TypeScript, a
+# new undici) never holds back the safe updates grouped with it.
 version: 2
 
 updates:
@@ -11,6 +15,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
     commit-message:
       prefix: ci
 
@@ -21,6 +26,7 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: [minor, patch]
     commit-message:
       prefix: build
 
@@ -32,6 +38,12 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # The Node.js types follow the oldest supported Node.js (22), so code
+      # can't use an API that version doesn't have.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     commit-message:
       prefix: build
 
@@ -42,5 +54,6 @@ updates:
     groups:
       dart:
         patterns: ["*"]
+        update-types: [minor, patch]
     commit-message:
       prefix: build
