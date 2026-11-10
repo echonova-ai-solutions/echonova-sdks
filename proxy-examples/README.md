@@ -59,7 +59,7 @@ const client = new EchoNova({
 });
 ```
 
-In a browser that authenticates with a cookie instead, leave `auth` out and make the SDK's requests carry cookies across origins: `fetch: (url, init) => fetch(url, { ...init, credentials: 'include' })`. No `apiKey` is set, so the SDK's browser guard doesn't apply.
+In a browser that authenticates with a cookie instead, pass `auth: () => ({})` (no extra headers: the cookie does the work) and make the SDK's requests carry cookies across origins: `fetch: (url, init) => fetch(url, { ...init, credentials: 'include' })`. No `apiKey` is set, so the SDK's browser guard doesn't apply.
 
 **Dart / Flutter**
 

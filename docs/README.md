@@ -2,38 +2,25 @@
 
 This folder holds documentation shared by every EchoNova SDK. The API itself is documented in the [EchoNova developer docs](https://echonova.ai/docs/developers), which stay the reference for endpoints, parameters and limits.
 
+## Guides
+
+The [guides](guides/README.md) cover every SDK, with each example in Python, TypeScript and Dart: getting started, authentication and proxy mode, Text to Speech, Speech to Text, Sound Cleaning, jobs, streaming, agents and widgets, errors, webhooks, configuration, migrating from raw HTTP, and troubleshooting. Every code sample in them is type-checked against the SDK source in CI (`tools/check_snippets.py`).
+
 ## In this repository
 
 | Where | What |
 | --- | --- |
+| [`guides/`](guides/README.md) | User guides for all three SDKs |
 | [`adr/`](adr/README.md) | Architecture decision records: why the SDKs are built the way they are |
-- [Releasing](RELEASING.md): tags, trusted publishing and the one-time registry setup.
+| [`RELEASING.md`](RELEASING.md) | Tags, trusted publishing and the one-time registry setup |
 | [`../spec/README.md`](../spec/README.md) | The shared contract every SDK is tested against |
 | [`../python/README.md`](../python/README.md) | The Python SDK |
+| [`../js/README.md`](../js/README.md) | The JavaScript / TypeScript SDK |
+| [`../dart/README.md`](../dart/README.md) | The Dart / Flutter SDK |
+| [`../proxy-examples/README.md`](../proxy-examples/README.md) | Reference backend proxies that keep the API key on your server |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Development setup, the spec workflow, commit and testing rules |
 | [`../SECURITY.md`](../SECURITY.md) | Reporting vulnerabilities, supported versions and key handling |
 
-## Planned guides
+## API reference
 
-These user guides will be written as the SDKs reach beta. Each guide will cover every SDK, with a tab per language, and every code sample in them will run in CI.
-
-- **Install and supported runtimes**
-- **Quickstart:** from install to first audio in under five minutes
-- **Authentication:** keys in environment variables or a secrets manager, key rotation, why keys never go into browsers or mobile apps, and proxy mode
-- **Text to Speech:** voices, choosing between sync, async jobs and streaming, options, and splitting long text
-- **Speech to Text:** audio formats, choosing the language, numbers, speaker identification, terminology, and exporting transcripts
-- **Sound Cleaning:** tuning the options and reading the metrics
-- **Batch and async jobs:** polling or webhooks, `wait()`, and recovering when a POST's response was lost
-- **Streaming:**
-  - the session lifecycle, PCM audio formats and keepalive;
-  - barge-in, and `speak_stream` for voice agents;
-  - microphone and playback recipes;
-  - session length limits and rollover;
-  - billing notes: a synthesis stopped after its audio started costs only the share sent (at least 1 credit), streams are saved as jobs, and how the limit of 10 open streams per workspace affects concurrent voice calls
-- **Error handling:** the error classes, what the SDK retries and why, and using request IDs with support
-- **Webhooks:** verifying signatures, deduplicating events, and acknowledging quickly
-- **Configuration:** timeouts, retries, HTTP proxies, custom HTTP clients, hooks and logging
-- **Migrating from raw HTTP**
-- **Troubleshooting and FAQ**
-
-Each SDK will also have a generated API reference: mkdocs-material with mkdocstrings for Python, TypeDoc for TypeScript and dartdoc for Dart. Runnable examples will live in each SDK's `examples/` folder and in `proxy-examples/`.
+Each SDK's reference is generated from its doc comments: pdoc for Python, TypeDoc for TypeScript and `dart doc` for Dart. CI builds all three on every change and keeps them as a build artifact; [CONTRIBUTING.md](../CONTRIBUTING.md#api-reference) has the commands. Runnable examples live in each SDK's examples folder (`python/examples`, `js/examples`, `dart/example`) and in `proxy-examples/`.
