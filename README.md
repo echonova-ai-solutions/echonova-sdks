@@ -70,3 +70,7 @@ Without a key only the free checks run. CI runs all three nightly ([live.yml](.g
 ## Security
 
 Never put an API key in client-side code (browsers, mobile apps). Keep keys on your server and read them from the environment. Report security issues privately to EchoNova rather than in a public issue.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
