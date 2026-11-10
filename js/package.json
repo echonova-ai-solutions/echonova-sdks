@@ -64,7 +64,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.examples.json",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:dist": "node scripts/smoke-dist.mjs && node scripts/smoke-dist.cjs",

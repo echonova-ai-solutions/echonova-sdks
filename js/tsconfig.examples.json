@@ -1,0 +1,14 @@
+{
+  // Type-checks examples/ against the source: 'echonova' and 'echonova/streaming' map to src/,
+  // so no build is needed. (At run time Node.js resolves them to this package's dist/.)
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "skipLibCheck": true,
+    "paths": {
+      "echonova": ["./src/index.ts"],
+      "echonova/streaming": ["./src/streaming/index.ts"]
+    }
+  },
+  "include": ["examples"]
+}
