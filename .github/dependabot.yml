@@ -1,0 +1,46 @@
+# Weekly dependency updates. SDK runtime dependency ranges are kept as wide as
+# the code supports, so only lockfiles and dev tooling move here; widening or
+# raising a runtime range is a deliberate change (see docs/adr/0009).
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: uv
+    directories: [/python, /proxy-examples/fastapi]
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: npm
+    directories: [/js, /proxy-examples/express]
+    schedule:
+      interval: weekly
+    versioning-strategy: increase-if-necessary
+    groups:
+      npm:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: pub
+    directory: /dart
+    schedule:
+      interval: weekly
+    groups:
+      dart:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
