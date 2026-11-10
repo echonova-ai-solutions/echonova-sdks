@@ -27,11 +27,14 @@ def main() -> None:
     except echonova.RateLimitError as exc:
         print(f"still rate limited after retries; try again in {exc.retry_after} s")
     except echonova.APIConnectionError as exc:
-        if exc.may_have_executed and exc.sent_at is not None:
+        if exc.may_have_executed is False:
+            print("the request did not run; it is safe to send it again")
+        elif exc.sent_at is not None:
+            # True or None (unknown): it may have run and been charged
             candidates = client.text_to_speech.jobs.find_candidates(exc.sent_at, text=text)
             print(f"no response, but {len(candidates)} matching job(s) exist; check them before retrying")
         else:
-            print("the request did not run; it is safe to send it again")
+            print("the request may have run; check your recent jobs before sending it again")
     except echonova.APIStatusError as exc:
         print(f"{exc.status_code} {exc.error_message} (request {exc.request_id})")
     finally:
