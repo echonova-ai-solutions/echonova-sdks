@@ -1,0 +1,3 @@
+# Code owners review every change once the main branch requires their
+# approval (see docs/RELEASING.md). The last matching pattern wins.
+* @Mahmoud-Mohsen-Mokhtar @echonova-ai @mahmoud-khaled-salah
