@@ -5,7 +5,7 @@ Small servers you run on your own backend so that browser, Flutter and mobile ap
 | Proxy | Stack | Folder |
 |---|---|---|
 | FastAPI | Python 3.11+, FastAPI, httpx, websockets | [`fastapi/`](fastapi/) |
-| Express | Node 22+, Express 5, ws, built-in `fetch` | [`express/`](express/) |
+| Express | Node 22.19+, Express 5, ws, undici | [`express/`](express/) |
 
 Both behave the same way and pass the same test cases. Pick the one that matches your backend, or read them as a blueprint for your own framework. They don't depend on any EchoNova SDK.
 

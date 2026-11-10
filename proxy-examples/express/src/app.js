@@ -45,12 +45,15 @@ export function createProxy(settings, hooks = {}) {
     authenticate,
     quota: hooks.quota ?? new InMemoryQuota(settings),
     log: hooks.logger ?? createLogger(),
-    // Node's built-in fetch, with timeouts suited to the API: long synchronous calls (STT, Sound
-    // Cleaning) can take minutes, and the built-in default gives up after 300 s.
+    // The pool behind fetch (http-proxy.js), with timeouts suited to the API: long synchronous
+    // calls (STT, Sound Cleaning) can take minutes, and undici's default gives up after 300 s.
+    // HTTP/1.1 only, as before undici 8 (which would otherwise negotiate HTTP/2 over TLS): one
+    // connection per request in flight, so a large upload doesn't share a connection with others.
     dispatcher: new Agent({
       connect: { timeout: settings.connectTimeoutMs },
       headersTimeout: settings.readTimeoutMs,
       bodyTimeout: settings.readTimeoutMs,
+      allowH2: false,
     }),
   };
 

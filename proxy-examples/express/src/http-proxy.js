@@ -3,6 +3,12 @@
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
+// undici's fetch, not the global one: the dispatcher (app.js) comes from the same undici, so
+// the two always agree on the dispatcher API. Node's built-in fetch is a bundled undici whose
+// version depends on the Node release (undici 6 on Node 22), and undici 8's Agent refuses its
+// handlers ("invalid onRequestStart method").
+import { fetch } from 'undici';
+
 import {
   FORWARDED_REQUEST_HEADERS,
   MESSAGES,
@@ -122,9 +128,9 @@ export async function handleHttp(req, res, ctx) {
     body = limited(req, settings.maxUploadBytes);
   }
 
-  /** @type {Response} */
+  /** @type {import('undici').Response} */
   let upstream;
-  // Node's fetch streams an async-iterable body with duplex: 'half', through the undici dispatcher.
+  // fetch streams an async-iterable body with duplex: 'half', through the proxy's dispatcher.
   // redirect: 'error' (with window: null) matters: with any other mode, fetch keeps a copy of
   // the request for redirects, which holds every uploaded chunk in memory until the call ends.
   const init = {

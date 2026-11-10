@@ -2,7 +2,7 @@
 
 A reference backend proxy that lets your apps use EchoNova while the API key stays on your server. Start with [the overview](../README.md): it explains what the proxy does, how to point the SDKs at it and what to check before you deploy.
 
-Node 22+, with Express 5, ws, and Node's built-in `fetch` (with an undici `Agent` for the timeouts). Plain JavaScript with JSDoc types, checked by `tsc`.
+Node 22.19+, with Express 5, ws, and undici (its `fetch`, with an `Agent` for the timeouts). Plain JavaScript with JSDoc types, checked by `tsc`.
 
 ## Run it
 
@@ -72,7 +72,8 @@ Call `await proxy.close()` when the server stops: it closes open streams (`1012`
 
 ## Notes
 
-- Node's `fetch` gives up waiting for response headers after 300 s by default. The proxy passes its own undici `Agent` (connect 10 s, read 600 s), because synchronous EchoNova calls on long audio can take several minutes.
+- undici gives up waiting for response headers after 300 s by default. The proxy passes its own `Agent` (connect 10 s, read 600 s), because synchronous EchoNova calls on long audio can take several minutes. The proxy calls undici's `fetch`, not Node's built-in one, so `fetch` and the `Agent` are always the same undici version.
+- Calls to EchoNova use HTTP/1.1 (`allowH2: false`), so each request in flight, such as a large upload, has its own connection. undici 8 would otherwise negotiate HTTP/2.
 - Uploads are sent with `redirect: 'error'`. With any other redirect mode, `fetch` keeps a copy of the request body for a possible redirect, which holds the whole upload in memory. The upload test measures this.
 - The server's `requestTimeout` is raised to 15 minutes, so a 150 MiB upload from a slow connection isn't cut off.
 - Outbound calls don't use `HTTPS_PROXY`. If your servers reach the internet through an egress proxy, pass a matching dispatcher (undici's `ProxyAgent`) and a WebSocket `agent`.
