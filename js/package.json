@@ -66,6 +66,7 @@
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "test:dist": "node scripts/smoke-dist.mjs && node scripts/smoke-dist.cjs",
     "size": "node scripts/size.mjs",
     "lint:package": "attw --pack . && publint --strict && npm run test:dist && npm run size",
