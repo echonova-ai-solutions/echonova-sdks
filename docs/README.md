@@ -18,6 +18,7 @@ The [guides](guides/README.md) cover every SDK, with each example in Python, Typ
 | [`../js/README.md`](../js/README.md) | The JavaScript / TypeScript SDK |
 | [`../dart/README.md`](../dart/README.md) | The Dart / Flutter SDK |
 | [`../proxy-examples/README.md`](../proxy-examples/README.md) | Reference backend proxies that keep the API key on your server |
+| [`../samples/flutter/README.md`](../samples/flutter/README.md) | A Flutter sample app that streams speech through a reference proxy |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Development setup, the spec workflow, commit and testing rules |
 | [`../SECURITY.md`](../SECURITY.md) | Reporting vulnerabilities, supported versions and key handling |
 
