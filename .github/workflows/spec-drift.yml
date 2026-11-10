@@ -32,6 +32,7 @@ jobs:
         run: |
           title="API spec drift detected"
           existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
+          # shellcheck disable=SC2016 # the backticks are Markdown in the issue body, not a command
           body="$(printf 'The published API specs no longer match spec/spec-lock.json.\n\n```\n%s\n```\n\nRun `python3 tools/spec_sync.py`, review the diff, and triage SDK changes.' "$(cat drift.txt)")"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
