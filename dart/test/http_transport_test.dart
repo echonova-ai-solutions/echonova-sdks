@@ -436,6 +436,20 @@ void main() {
         'ws://localhost:8080/v1/stream');
   });
 
+  test('messages name EchoNova, or the host of a proxy', () {
+    HttpTransport at(String url) => HttpTransport(
+          baseUrl: Uri.parse(url),
+          authHeaders: () => const {},
+          client: MockClient((_) async => http.Response('', 500)),
+          ownsClient: true,
+        );
+    expect(at('https://api.echonova.ai').serverName, 'EchoNova');
+    expect(at('https://API.EchoNova.ai/').serverName, 'EchoNova');
+    expect(
+        at('https://api.example.com/echonova').serverName, 'api.example.com');
+    expect(at('http://localhost:8080').serverName, 'localhost:8080');
+  });
+
   group('real sockets (dart:io)', () {
     test('a refused connection is a connect failure: a POST is retried',
         () async {
@@ -461,7 +475,9 @@ void main() {
         )),
         throwsA(isA<APIConnectionException>()
             .having((e) => e.mayHaveExecuted, 'mayHaveExecuted', isFalse)
-            .having((e) => e.message, 'message', contains('connect'))),
+            // It names the server it tried, not EchoNova: here, a proxy.
+            .having((e) => e.message, 'message',
+                startsWith('Could not connect to 127.0.0.1:$port'))),
       );
       expect(client.sends, 3);
       expect(sleeps, [seconds(0.375), seconds(0.75)]);

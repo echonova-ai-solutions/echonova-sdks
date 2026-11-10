@@ -48,6 +48,9 @@ enum TimeoutProfile {
   final Duration duration;
 }
 
+/// The EchoNova API's host. Messages name any other host, such as a proxy.
+const String _apiHost = 'api.echonova.ai';
+
 /// How long connecting may take before it counts as a connect failure.
 const Duration connectTimeout = Duration(seconds: 10);
 
@@ -342,6 +345,13 @@ final class HttpTransport {
   /// The default headers sent with every API request.
   Map<String, String> get defaultHeaders => _defaultHeaders;
 
+  /// How messages name the server: `EchoNova` for the EchoNova API, and the
+  /// host for anything else, such as your proxy (`api.example.com`).
+  String get serverName {
+    if (baseUrl.host.toLowerCase() == _apiHost) return 'EchoNova';
+    return baseUrl.hasPort ? '${baseUrl.host}:${baseUrl.port}' : baseUrl.host;
+  }
+
   /// The authentication headers: the API key, or the proxy `auth` hook's
   /// headers. Called before every attempt.
   Future<Map<String, String>> authHeaders() async => {...await _authHeaders()};
@@ -475,6 +485,7 @@ final class HttpTransport {
           continue;
         }
         throw failure.toException(
+          server: serverName,
           mayHaveExecuted: executedFlag(decision.mayHaveExecuted, method),
           sentAt: firstSentAt,
           deadline: limit,
@@ -515,7 +526,7 @@ final class HttpTransport {
           continue;
         }
         throw attempt.protocolException(
-          'EchoNova sent an unreadable response: $reason',
+          '$serverName sent an unreadable response: $reason',
           mayHaveExecuted: executedFlag(decision.mayHaveExecuted, method),
           sentAt: firstSentAt,
           cause: cause,
@@ -882,6 +893,7 @@ final class _TransportFailure implements Exception {
   }
 
   APIConnectionException toException({
+    required String server,
     required bool? mayHaveExecuted,
     required DateTime? sentAt,
     required Duration deadline,
@@ -895,7 +907,7 @@ final class _TransportFailure implements Exception {
     if (phase == FailurePhase.connect) {
       return timedOut
           ? APITimeoutException(
-              'Timed out connecting to EchoNova$suffix',
+              'Timed out connecting to $server$suffix',
               kind: TimeoutKind.connect,
               mayHaveExecuted: mayHaveExecuted,
               sentAt: sentAt,
@@ -903,7 +915,7 @@ final class _TransportFailure implements Exception {
               cause: cause,
             )
           : APIConnectionException(
-              'Could not connect to EchoNova$suffix',
+              'Could not connect to $server$suffix',
               mayHaveExecuted: mayHaveExecuted,
               sentAt: sentAt,
               retryDisabledReason: retryDisabledReason,
@@ -912,7 +924,7 @@ final class _TransportFailure implements Exception {
     }
     return timedOut
         ? APITimeoutException(
-            'No response from EchoNova within ${_seconds(deadline)}$ran',
+            'No response from $server within ${_seconds(deadline)}$ran',
             kind: TimeoutKind.total,
             mayHaveExecuted: mayHaveExecuted,
             sentAt: sentAt,
@@ -920,7 +932,7 @@ final class _TransportFailure implements Exception {
             cause: cause,
           )
         : APIConnectionException(
-            'The connection to EchoNova failed before a response arrived'
+            'The connection to $server failed before a response arrived'
             '$suffix$ran',
             mayHaveExecuted: mayHaveExecuted,
             sentAt: sentAt,
