@@ -49,7 +49,8 @@ jobs:
       - name: Install ffmpeg (the test audio in every Speech to Text format)
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q ffmpeg
+          # libavcodec-extra adds the AMR encoder that Ubuntu's ffmpeg leaves out.
+          sudo apt-get install -y -q ffmpeg libavcodec-extra
       - name: Record
         run: |
           set -euo pipefail
