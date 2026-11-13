@@ -1,0 +1,13 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=16000&language=ar", "authorization": "set"}}
+{"t": 0.591, "dir": "in", "kind": "open", "data": {}}
+{"t": 1.382, "dir": "in", "kind": "json", "data": {"type": "session.started", "sessionId": "00000000-0000-4000-8000-000000000001", "jobId": "000000000000000000000001", "language": "ar", "sampleRate": 16000, "maxSessionSeconds": 1500}}
+{"t": 1.397, "dir": "out", "kind": "json", "data": {"type": "terminology", "terminology": {"keywords": ["EchoNova", "KYC"]}}}
+{"t": 1.579, "dir": "in", "kind": "json", "data": {"type": "terminology.set", "active": true}}
+{"t": 1.6, "dir": "out", "kind": "json", "data": {"type": "terminology", "terminology": {"keywords": 5}}}
+{"t": 1.782, "dir": "in", "kind": "json", "data": {"type": "error", "code": "validation_failed", "message": "terminology must be a JSON object with a keywords list"}}
+{"t": 1.802, "dir": "out", "kind": "json", "data": {"type": "terminology", "terminology": null}}
+{"t": 1.984, "dir": "in", "kind": "json", "data": {"type": "terminology.set", "active": false}}
+{"t": 2.005, "dir": "out", "kind": "json", "data": {"type": "stop"}}
+{"t": 2.187, "dir": "in", "kind": "json", "data": {"type": "session.ended", "reason": "stopped", "totalSeconds": 0, "creditsConsumed": 0}}
+{"t": 2.187, "dir": "in", "kind": "json", "data": {"type": "session.saved", "jobId": "000000000000000000000001", "status": "empty"}}
+{"t": 3.373, "dir": "in", "kind": "close", "data": {"code": 1000, "reason": "stopped"}}

@@ -1,0 +1,46 @@
+{
+  "name": "stt/sync_format_mp3",
+  "recorded_at": "2026-11-13T14:10:43+00:00",
+  "elapsed_seconds": 0.788,
+  "request": {
+    "method": "POST",
+    "path": "/v1/speech-to-text/sync",
+    "form": {
+      "language": "ar"
+    },
+    "file": {
+      "field": "file",
+      "filename": "ar.mp3",
+      "content_type": "audio/mpeg",
+      "bytes": 43628
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "96",
+      "x-ratelimit-reset": "56",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "jobId": "000000000000000000000001",
+        "status": "completed",
+        "transcription": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام إلى نص.",
+        "durationSeconds": 5.36,
+        "language": "ar",
+        "numbersAsDigits": true,
+        "identifySpeakers": false,
+        "segments": [],
+        "speakers": [],
+        "creditsConsumed": 9
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

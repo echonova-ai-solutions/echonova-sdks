@@ -1,0 +1,59 @@
+{
+  "name": "stt/sync_ok_speakers",
+  "recorded_at": "2026-11-13T14:10:41+00:00",
+  "elapsed_seconds": 1.426,
+  "request": {
+    "method": "POST",
+    "path": "/v1/speech-to-text/sync",
+    "form": {
+      "language": "en",
+      "identify_speakers": "true"
+    },
+    "file": {
+      "field": "file",
+      "filename": "en.wav",
+      "content_type": "audio/wav",
+      "bytes": 119118
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "58",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "jobId": "000000000000000000000001",
+        "status": "completed",
+        "transcription": "Welcome to Echonova. This is a short speech to text test.",
+        "durationSeconds": 3.72,
+        "language": "en",
+        "numbersAsDigits": true,
+        "identifySpeakers": true,
+        "segments": [
+          {
+            "start": 0.34,
+            "end": 3.6,
+            "text": "Welcome to Echonova. This is a short speech to text test.",
+            "speaker": "spk0"
+          }
+        ],
+        "speakers": [
+          {
+            "id": "spk0",
+            "talkTime": 3.26
+          }
+        ],
+        "creditsConsumed": 6
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

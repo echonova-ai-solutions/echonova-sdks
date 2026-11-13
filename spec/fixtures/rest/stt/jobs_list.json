@@ -1,0 +1,71 @@
+{
+  "name": "stt/jobs_list",
+  "recorded_at": "2026-11-13T14:10:59+00:00",
+  "elapsed_seconds": 0.213,
+  "request": {
+    "method": "GET",
+    "path": "/v1/speech-to-text/jobs",
+    "query": {
+      "limit": 2
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "99",
+      "x-ratelimit-reset": "60",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "items": [
+          {
+            "id": "000000000000000000000001",
+            "status": "completed",
+            "transcription": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص.",
+            "durationSeconds": 5.36,
+            "language": "ar",
+            "numbersAsDigits": true,
+            "identifySpeakers": true,
+            "segments": [
+              {
+                "start": 0,
+                "end": 5.36,
+                "text": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص.",
+                "speaker": "spk0"
+              }
+            ],
+            "speakers": [
+              {
+                "id": "spk0",
+                "talkTime": 5.31
+              }
+            ],
+            "creditsConsumed": 9,
+            "createdAt": "2026-11-13T14:10:52.018Z"
+          },
+          {
+            "id": "000000000000000000000002",
+            "status": "completed",
+            "transcription": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام إلى نص.",
+            "durationSeconds": 5.36,
+            "language": "ar",
+            "numbersAsDigits": true,
+            "identifySpeakers": false,
+            "segments": [],
+            "speakers": [],
+            "creditsConsumed": 9,
+            "createdAt": "2026-11-13T14:10:50.705Z"
+          }
+        ],
+        "total": 127
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

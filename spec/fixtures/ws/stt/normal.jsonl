@@ -1,0 +1,63 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=16000&language=ar", "authorization": "set"}}
+{"t": 0.591, "dir": "in", "kind": "open", "data": {}}
+{"t": 1.3, "dir": "in", "kind": "json", "data": {"type": "session.started", "sessionId": "00000000-0000-4000-8000-000000000001", "jobId": "000000000000000000000001", "language": "ar", "sampleRate": 16000, "maxSessionSeconds": 1500}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.317, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 3200}}
+{"t": 1.318, "dir": "out", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 1.318, "dir": "out", "kind": "json", "data": {"type": "end_segment"}}
+{"t": 2.651, "dir": "in", "kind": "json", "data": {"type": "transcript", "segmentId": "000000000000000000000002", "text": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص.", "language": "ar", "durationSeconds": 5.36, "creditsConsumed": 18, "isFinal": true}}
+{"t": 2.672, "dir": "out", "kind": "json", "data": {"type": "stop"}}
+{"t": 2.85, "dir": "in", "kind": "json", "data": {"type": "session.ended", "reason": "stopped", "totalSeconds": 5.36, "creditsConsumed": 18}}
+{"t": 2.913, "dir": "in", "kind": "json", "data": {"type": "session.saved", "jobId": "000000000000000000000001", "status": "saved"}}
+{"t": 4.094, "dir": "in", "kind": "close", "data": {"code": 1000, "reason": "stopped"}}

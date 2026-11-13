@@ -1,0 +1,26 @@
+{
+  "name": "stt/job_export_txt",
+  "recorded_at": "2026-11-13T14:10:58+00:00",
+  "elapsed_seconds": 0.202,
+  "request": {
+    "method": "GET",
+    "path": "/v1/speech-to-text/jobs/000000000000000000000001/export",
+    "query": {
+      "format": "txt"
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "55",
+      "cache-control": "no-store",
+      "content-type": "text/plain; charset=utf-8",
+      "content-disposition": "attachment; filename=\"ar.txt\""
+    },
+    "text": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص."
+  }
+}

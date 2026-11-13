@@ -1,0 +1,54 @@
+{
+  "name": "clean/clean_ok",
+  "recorded_at": "2026-11-13T14:11:03+00:00",
+  "elapsed_seconds": 3.552,
+  "request": {
+    "method": "POST",
+    "path": "/v1/sound-cleaning",
+    "form": {
+      "targetLufs": "-16",
+      "sampleRate": "48000",
+      "bitDepth": "24"
+    },
+    "file": {
+      "field": "file",
+      "filename": "ar.wav",
+      "content_type": "audio/wav",
+      "bytes": 171598
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "99",
+      "x-ratelimit-reset": "60",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "id": "000000000000000000000001",
+        "status": "completed",
+        "fileName": "ar.wav",
+        "outputUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
+        "durationSeconds": 5,
+        "creditsConsumed": 89,
+        "options": {
+          "targetLufs": -16
+        },
+        "metrics": {
+          "sampleRate": 48000,
+          "bitDepth": 24,
+          "integratedLufs": -15.94,
+          "truePeakDbfs": -1
+        },
+        "createdAt": "2026-11-13T14:11:03.660Z"
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

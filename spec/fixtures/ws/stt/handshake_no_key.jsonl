@@ -1,0 +1,2 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=16000&language=ar", "authorization": "none"}}
+{"t": 0.542, "dir": "in", "kind": "handshake_rejected", "data": {"status": 401, "headers": {"content-type": "application/json; charset=utf-8", "x-request-id": "00000000-0000-4000-8000-000000000001"}, "body": {"data": null, "statusCode": 401, "success": false, "errorMessage": "Unauthorized", "docs": "https://echonova.ai/docs/developers/authentication"}}}

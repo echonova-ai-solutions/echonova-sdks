@@ -1,0 +1,54 @@
+{
+  "name": "tts/jobs_list",
+  "recorded_at": "2026-11-13T14:10:36+00:00",
+  "elapsed_seconds": 0.18,
+  "request": {
+    "method": "GET",
+    "path": "/v1/text-to-speech/jobs",
+    "query": {
+      "limit": 2,
+      "offset": 0
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "99",
+      "x-ratelimit-reset": "60",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "items": [
+          {
+            "id": "000000000000000000000001",
+            "status": "completed",
+            "text": "Welcome to EchoNova. This is a short speech to text test.",
+            "voiceId": "000000000000000000000002",
+            "audioUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
+            "durationSeconds": 3.72,
+            "creditsConsumed": 57,
+            "createdAt": "2026-11-13T14:10:32.780Z"
+          },
+          {
+            "id": "000000000000000000000004",
+            "status": "completed",
+            "text": "مرحبا بكم في إيكونوفا. هذا اختبار قصير لتحويل الكلام إلى نص.",
+            "voiceId": "000000000000000000000005",
+            "audioUrl": "https://storage.example.com/files/2.wav?signature=REDACTED",
+            "durationSeconds": 5.36,
+            "creditsConsumed": 60,
+            "createdAt": "2026-11-13T14:10:31.782Z"
+          }
+        ],
+        "total": 4
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

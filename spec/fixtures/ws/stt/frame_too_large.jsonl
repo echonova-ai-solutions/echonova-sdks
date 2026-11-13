@@ -1,0 +1,6 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=16000&language=ar", "authorization": "set"}}
+{"t": 0.594, "dir": "in", "kind": "open", "data": {}}
+{"t": 1.359, "dir": "in", "kind": "json", "data": {"type": "session.started", "sessionId": "00000000-0000-4000-8000-000000000001", "jobId": "000000000000000000000001", "language": "ar", "sampleRate": 16000, "maxSessionSeconds": 1500}}
+{"t": 1.361, "dir": "out", "kind": "binary", "data": {"bytes": 70000}}
+{"t": 1.905, "dir": "in", "kind": "json", "data": {"type": "error", "code": "frame_too_large", "message": "Frames must be at most 65536 bytes"}}
+{"t": 3.089, "dir": "in", "kind": "close", "data": {"code": 1008, "reason": "frame_too_large"}}

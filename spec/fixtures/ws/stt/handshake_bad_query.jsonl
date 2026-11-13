@@ -1,0 +1,2 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=7000&language=ar", "authorization": "set"}}
+{"t": 0.533, "dir": "in", "kind": "handshake_rejected", "data": {"status": 400, "headers": {"content-type": "application/json; charset=utf-8", "x-request-id": "00000000-0000-4000-8000-000000000001"}, "body": {"data": null, "statusCode": 400, "success": false, "errorMessage": "sample_rate must be an integer from 8000 to 48000", "docs": "https://echonova.ai/docs/developers/errors"}}}

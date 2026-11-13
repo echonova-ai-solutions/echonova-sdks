@@ -1,0 +1,48 @@
+{
+  "name": "stt/job_export_json",
+  "recorded_at": "2026-11-13T14:10:59+00:00",
+  "elapsed_seconds": 0.204,
+  "request": {
+    "method": "GET",
+    "path": "/v1/speech-to-text/jobs/000000000000000000000001/export",
+    "query": {
+      "format": "json"
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "96",
+      "x-ratelimit-reset": "54",
+      "cache-control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": "attachment; filename=\"ar.json\""
+    },
+    "json": {
+      "id": "000000000000000000000001",
+      "fileName": "ar.wav",
+      "durationSeconds": 5.36,
+      "language": "ar",
+      "text": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص.",
+      "speakers": [
+        {
+          "id": "spk0",
+          "label": "Speaker 1",
+          "talkTime": 5.31
+        }
+      ],
+      "segments": [
+        {
+          "start": 0,
+          "end": 5.36,
+          "speaker": "spk0",
+          "speakerLabel": "Speaker 1",
+          "text": "مرحبا بكم في ايكونوفا. هذا اختبار قصير لتحويل الكلام الى نص."
+        }
+      ]
+    }
+  }
+}

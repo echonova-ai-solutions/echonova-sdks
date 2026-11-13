@@ -1,0 +1,5 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/text-to-speech/stream", "authorization": "set"}}
+{"t": 0.575, "dir": "in", "kind": "open", "data": {}}
+{"t": 0.575, "dir": "out", "kind": "text", "data": {"text": "not json"}}
+{"t": 0.752, "dir": "in", "kind": "json", "data": {"type": "error", "code": "invalid_message", "message": "Frames must be binary audio or a JSON object with a known type"}}
+{"t": 1.932, "dir": "in", "kind": "close", "data": {"code": 1008, "reason": "invalid_message"}}

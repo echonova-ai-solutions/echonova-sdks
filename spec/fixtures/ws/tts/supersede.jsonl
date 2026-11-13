@@ -1,0 +1,53 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/text-to-speech/stream", "authorization": "set"}}
+{"t": 0.518, "dir": "in", "kind": "open", "data": {}}
+{"t": 0.518, "dir": "out", "kind": "json", "data": {"type": "synthesize", "requestId": "r1", "text": "هذا نص طويل نسبيا لاختبار البث، نستخدمه لنتأكد من أن الصوت يصل على دفعات متتالية، وأن الإلغاء والاستبدال يعملان كما هو موثق، قبل أن تنتهي القراءة بالكامل.", "voiceId": "000000000000000000000001"}}
+{"t": 2.434, "dir": "in", "kind": "json", "data": {"type": "start", "requestId": "r1", "sampleRate": 24000, "encoding": "pcm_s16le", "channels": 1}}
+{"t": 2.434, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.434, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.434, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.435, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.435, "dir": "out", "kind": "json", "data": {"type": "synthesize", "requestId": "r2", "text": "مرحبا", "voiceId": "000000000000000000000001"}}
+{"t": 2.435, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.588, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.589, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.59, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.59, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.59, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 2.743, "dir": "in", "kind": "json", "data": {"type": "cancelled", "requestId": "r1", "creditsConsumed": 12}}
+{"t": 3.329, "dir": "in", "kind": "json", "data": {"type": "start", "requestId": "r2", "sampleRate": 24000, "encoding": "pcm_s16le", "channels": 1}}
+{"t": 3.329, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.33, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.33, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.33, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.33, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.331, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.331, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.331, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.331, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.331, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.484, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.484, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "binary", "data": {"bytes": 1920}}
+{"t": 3.485, "dir": "in", "kind": "json", "data": {"type": "done", "requestId": "r2", "durationSeconds": 0.96, "characters": 5, "creditsConsumed": 5}}
+{"t": 3.505, "dir": "out", "kind": "close", "data": {"code": 1000}}
+{"t": 4.665, "dir": "in", "kind": "close", "data": {"code": 1000, "reason": ""}}

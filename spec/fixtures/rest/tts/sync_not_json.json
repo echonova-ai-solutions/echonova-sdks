@@ -1,0 +1,31 @@
+{
+  "name": "tts/sync_not_json",
+  "recorded_at": "2026-11-13T14:10:32+00:00",
+  "elapsed_seconds": 0.18,
+  "request": {
+    "method": "POST",
+    "path": "/v1/text-to-speech/sync",
+    "content": {
+      "bytes": 5,
+      "content_type": "text/plain"
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 415,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "93",
+      "x-ratelimit-reset": "52",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 415,
+      "success": false,
+      "errorMessage": "Content-Type must be application/json",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

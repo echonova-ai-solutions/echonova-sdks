@@ -1,0 +1,7 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/text-to-speech/stream", "authorization": "set"}}
+{"t": 0.598, "dir": "in", "kind": "open", "data": {}}
+{"t": 0.598, "dir": "out", "kind": "json", "data": {"type": "synthesize", "requestId": "r1", "text": "هذا نص طويل نسبيا لاختبار البث، نستخدمه لنتأكد من أن الصوت يصل على دفعات متتالية، وأن الإلغاء والاستبدال يعملان كما هو موثق، قبل أن تنتهي القراءة بالكامل.", "voiceId": "000000000000000000000001"}}
+{"t": 0.598, "dir": "out", "kind": "json", "data": {"type": "cancel"}}
+{"t": 0.902, "dir": "in", "kind": "json", "data": {"type": "cancelled", "requestId": "r1", "creditsConsumed": 1}}
+{"t": 0.921, "dir": "out", "kind": "close", "data": {"code": 1000}}
+{"t": 2.108, "dir": "in", "kind": "close", "data": {"code": 1000, "reason": ""}}

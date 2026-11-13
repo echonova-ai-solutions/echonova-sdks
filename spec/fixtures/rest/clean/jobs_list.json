@@ -1,0 +1,66 @@
+{
+  "name": "clean/jobs_list",
+  "recorded_at": "2026-11-13T14:11:06+00:00",
+  "elapsed_seconds": 0.206,
+  "request": {
+    "method": "GET",
+    "path": "/v1/sound-cleaning/jobs",
+    "query": {
+      "limit": 2
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "99",
+      "x-ratelimit-reset": "60",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "items": [
+          {
+            "id": "000000000000000000000001",
+            "status": "completed",
+            "fileName": "ar.wav",
+            "outputUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
+            "durationSeconds": 5,
+            "creditsConsumed": 89,
+            "metrics": {
+              "sampleRate": 24000,
+              "bitDepth": 16,
+              "integratedLufs": -15.94,
+              "truePeakDbfs": -0.99
+            },
+            "createdAt": "2026-11-13T14:11:06.115Z"
+          },
+          {
+            "id": "000000000000000000000003",
+            "status": "completed",
+            "fileName": "ar.wav",
+            "outputUrl": "https://storage.example.com/files/2.wav?signature=REDACTED",
+            "durationSeconds": 5,
+            "creditsConsumed": 89,
+            "options": {
+              "targetLufs": -16
+            },
+            "metrics": {
+              "sampleRate": 48000,
+              "bitDepth": 24,
+              "integratedLufs": -15.94,
+              "truePeakDbfs": -1
+            },
+            "createdAt": "2026-11-13T14:11:03.660Z"
+          }
+        ],
+        "total": 2
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

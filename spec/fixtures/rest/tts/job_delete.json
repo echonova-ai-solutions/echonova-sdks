@@ -1,0 +1,28 @@
+{
+  "name": "tts/job_delete",
+  "recorded_at": "2026-11-13T14:10:37+00:00",
+  "elapsed_seconds": 0.204,
+  "request": {
+    "method": "DELETE",
+    "path": "/v1/text-to-speech/jobs/000000000000000000000001",
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "56",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "deleted": true
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

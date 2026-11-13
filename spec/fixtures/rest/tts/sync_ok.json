@@ -1,0 +1,36 @@
+{
+  "name": "tts/sync_ok",
+  "recorded_at": "2026-11-13T14:10:31+00:00",
+  "elapsed_seconds": 0.663,
+  "request": {
+    "method": "POST",
+    "path": "/v1/text-to-speech/sync",
+    "json": {
+      "text": "مرحبا بكم في إيكونوفا. هذا اختبار قصير لتحويل الكلام إلى نص.",
+      "voiceId": "000000000000000000000001"
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "97",
+      "x-ratelimit-reset": "53",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "jobId": "000000000000000000000002",
+        "status": "completed",
+        "audioUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
+        "durationSeconds": 5.36,
+        "creditsConsumed": 60
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}

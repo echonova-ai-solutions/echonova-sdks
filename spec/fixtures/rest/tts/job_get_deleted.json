@@ -1,0 +1,27 @@
+{
+  "name": "tts/job_get_deleted",
+  "recorded_at": "2026-11-13T14:10:37+00:00",
+  "elapsed_seconds": 0.178,
+  "request": {
+    "method": "GET",
+    "path": "/v1/text-to-speech/jobs/000000000000000000000001",
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "96",
+      "x-ratelimit-reset": "56",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 404,
+      "success": false,
+      "errorMessage": "TTS Job not found",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

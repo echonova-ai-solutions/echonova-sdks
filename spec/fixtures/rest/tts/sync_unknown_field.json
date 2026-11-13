@@ -1,0 +1,32 @@
+{
+  "name": "tts/sync_unknown_field",
+  "recorded_at": "2026-11-13T14:10:32+00:00",
+  "elapsed_seconds": 0.176,
+  "request": {
+    "method": "POST",
+    "path": "/v1/text-to-speech/sync",
+    "json": {
+      "text": "مرحبا",
+      "voiceId": "000000000000000000000001",
+      "foo": 1
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "94",
+      "x-ratelimit-reset": "52",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 400,
+      "success": false,
+      "errorMessage": "property foo should not exist",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

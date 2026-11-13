@@ -1,0 +1,27 @@
+{
+  "name": "stt/job_export_ar_labels",
+  "recorded_at": "2026-11-13T14:10:59+00:00",
+  "elapsed_seconds": 0.204,
+  "request": {
+    "method": "GET",
+    "path": "/v1/speech-to-text/jobs/000000000000000000000001/export",
+    "query": {
+      "format": "srt",
+      "lang": "ar"
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "95",
+      "x-ratelimit-reset": "54",
+      "cache-control": "no-store",
+      "content-type": "application/x-subrip; charset=utf-8",
+      "content-disposition": "attachment; filename=\"ar.srt\""
+    },
+    "text": "1\n00:00:00,000 --> 00:00:05,360\n[المتحدث 1] مرحبا بكم في ايكونوفا.\nهذا اختبار قصير لتحويل الكلام الى نص.\n"
+  }
+}

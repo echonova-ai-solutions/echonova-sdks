@@ -1,0 +1,36 @@
+{
+  "name": "clean/clean_option_out_of_range",
+  "recorded_at": "2026-11-13T14:11:04+00:00",
+  "elapsed_seconds": 0.727,
+  "request": {
+    "method": "POST",
+    "path": "/v1/sound-cleaning",
+    "form": {
+      "targetLufs": "0"
+    },
+    "file": {
+      "field": "file",
+      "filename": "ar.wav",
+      "content_type": "audio/wav",
+      "bytes": 171598
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "57",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 400,
+      "success": false,
+      "errorMessage": "targetLufs must not be greater than -6",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

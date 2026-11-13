@@ -1,0 +1,10 @@
+{"t": 0.0, "dir": "out", "kind": "connect", "data": {"path": "/v1/speech-to-text/stream?sample_rate=16000&language=ar", "authorization": "set"}}
+{"t": 0.536, "dir": "in", "kind": "open", "data": {}}
+{"t": 1.233, "dir": "in", "kind": "json", "data": {"type": "session.started", "sessionId": "00000000-0000-4000-8000-000000000001", "jobId": "000000000000000000000001", "language": "ar", "sampleRate": 16000, "maxSessionSeconds": 1500}}
+{"t": 1.243, "dir": "out", "kind": "json", "data": {"type": "end_segment"}}
+{"t": 1.243, "dir": "out", "kind": "binary", "data": {"bytes": 960}}
+{"t": 1.243, "dir": "out", "kind": "json", "data": {"type": "end_segment"}}
+{"t": 6.249, "dir": "out", "kind": "json", "data": {"type": "stop"}}
+{"t": 6.411, "dir": "in", "kind": "json", "data": {"type": "session.ended", "reason": "stopped", "totalSeconds": 0, "creditsConsumed": 0}}
+{"t": 6.411, "dir": "in", "kind": "json", "data": {"type": "session.saved", "jobId": "000000000000000000000001", "status": "empty"}}
+{"t": 7.576, "dir": "in", "kind": "close", "data": {"code": 1000, "reason": "stopped"}}

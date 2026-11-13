@@ -1,0 +1,36 @@
+{
+  "name": "stt/sync_octet_stream_mp3",
+  "recorded_at": "2026-11-13T14:10:51+00:00",
+  "elapsed_seconds": 0.469,
+  "request": {
+    "method": "POST",
+    "path": "/v1/speech-to-text/sync",
+    "form": {
+      "language": "ar"
+    },
+    "file": {
+      "field": "file",
+      "filename": "ar.mp3",
+      "content_type": "application/octet-stream",
+      "bytes": 43628
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "89",
+      "x-ratelimit-reset": "47",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 400,
+      "success": false,
+      "errorMessage": "Unsupported file type: application/octet-stream. Please upload an audio file.",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

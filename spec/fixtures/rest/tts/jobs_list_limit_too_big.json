@@ -1,0 +1,30 @@
+{
+  "name": "tts/jobs_list_limit_too_big",
+  "recorded_at": "2026-11-13T14:10:36+00:00",
+  "elapsed_seconds": 0.177,
+  "request": {
+    "method": "GET",
+    "path": "/v1/text-to-speech/jobs",
+    "query": {
+      "limit": 101
+    },
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "98",
+      "x-ratelimit-reset": "60",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 400,
+      "success": false,
+      "errorMessage": "limit must not be greater than 100",
+      "docs": "https://echonova.ai/docs/developers/errors"
+    }
+  }
+}

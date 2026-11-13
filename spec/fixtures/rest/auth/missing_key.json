@@ -1,0 +1,24 @@
+{
+  "name": "auth/missing_key",
+  "recorded_at": "2026-11-13T14:11:07+00:00",
+  "elapsed_seconds": 0.187,
+  "request": {
+    "method": "GET",
+    "path": "/v1/text-to-speech/voices",
+    "authorization": "none"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": null,
+      "statusCode": 401,
+      "success": false,
+      "errorMessage": "Unauthorized",
+      "docs": "https://echonova.ai/docs/developers/authentication"
+    }
+  }
+}

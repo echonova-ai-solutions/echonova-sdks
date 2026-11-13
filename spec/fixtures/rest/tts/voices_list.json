@@ -1,0 +1,214 @@
+{
+  "name": "tts/voices_list",
+  "recorded_at": "2026-11-13T14:11:07+00:00",
+  "elapsed_seconds": 0.714,
+  "request": {
+    "method": "GET",
+    "path": "/v1/text-to-speech/voices",
+    "authorization": "test key"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "x-request-id": "00000000-0000-4000-8000-000000000001",
+      "x-ratelimit-limit": "100",
+      "x-ratelimit-remaining": "97",
+      "x-ratelimit-reset": "17",
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": {
+        "items": [
+          {
+            "id": "000000000000000000000001",
+            "name": "sy_rasha",
+            "displayName": "Rasha",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/1.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000002",
+            "name": "lb_maya",
+            "displayName": "Maya",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/2.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000003",
+            "name": "en_clara",
+            "displayName": "Clara",
+            "language": "en",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/3.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000004",
+            "name": "en_thomas",
+            "displayName": "Thomas",
+            "language": "en",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/4.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000005",
+            "name": "sa_haifa",
+            "displayName": "Haifa",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/5.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000006",
+            "name": "kw_noor",
+            "displayName": "Noor",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/6.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000007",
+            "name": "fu_ayman",
+            "displayName": "Ayman",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/7.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000008",
+            "name": "eg_huda",
+            "displayName": "Huda",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/8.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000009",
+            "name": "ae_abdulla",
+            "displayName": "Abdulla",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/9.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000a",
+            "name": "en_arthur",
+            "displayName": "Arthur",
+            "language": "en",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/10.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000b",
+            "name": "en_alistair",
+            "displayName": "Alistair",
+            "language": "en",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/11.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000c",
+            "name": "en_susan",
+            "displayName": "Susan",
+            "language": "en",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/12.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000d",
+            "name": "en_robert",
+            "displayName": "Robert",
+            "language": "en",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/13.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000e",
+            "name": "en_mary",
+            "displayName": "Mary",
+            "language": "en",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/14.wav?signature=REDACTED"
+          },
+          {
+            "id": "00000000000000000000000f",
+            "name": "sa_saif",
+            "displayName": "Saif",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/15.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000010",
+            "name": "kw_anwar",
+            "displayName": "Anwar",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/16.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000011",
+            "name": "kw_mohammad",
+            "displayName": "Mohammad",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/17.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000012",
+            "name": "kw_ali",
+            "displayName": "Ali",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/18.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000013",
+            "name": "fu_huda",
+            "displayName": "Huda",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/19.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000014",
+            "name": "eg_ayman",
+            "displayName": "Ayman",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/20.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000015",
+            "name": "ae_rehab",
+            "displayName": "Rehab",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/21.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000016",
+            "name": "ae_ahmed",
+            "displayName": "Ahmed",
+            "language": "ar",
+            "gender": "male",
+            "previewUrl": "https://storage.example.com/files/22.wav?signature=REDACTED"
+          },
+          {
+            "id": "000000000000000000000017",
+            "name": "ae_haifa",
+            "displayName": "Haifa",
+            "language": "ar",
+            "gender": "female",
+            "previewUrl": "https://storage.example.com/files/23.wav?signature=REDACTED"
+          }
+        ],
+        "total": 23
+      },
+      "success": true,
+      "statusCode": 200,
+      "errorMessage": null
+    }
+  }
+}
