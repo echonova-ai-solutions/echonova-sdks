@@ -1,5 +1,5 @@
 {
-  "$comment": "What every SDK must do with each recorded fixture in rest/ and ws/. Maintained by hand: a newly recorded fixture needs an entry here, and each SDK's replay tests fail without one. REST: ok = the SDK method for that operation (spec/mapping.json, matched by method and path) returns the response parsed, with the X-Request-Id as its request ID; error = it raises that class (Dart adds the Exception suffix) carrying the status, the API's errorMessage and the request ID. WS: requests maps the recorded requestIds to each synthesis's outcome (completed, cancelled, superseded, failed:<class>, lost:<class>); session_error and handshake_error are the error the session or connect raises; pong means a ping is answered; transcripts counts transcript events; ended is the session.ended reason; saved means a session.saved event with a job ID; events lists the events the caller sees, in order. A note explains anything a replay can't do the way the recording did.",
+  "$comment": "What every SDK must do with each recorded fixture in rest/ and ws/. Maintained by hand: a newly recorded fixture needs an entry here, and each SDK's replay tests fail without one. REST: ok = the SDK method for that operation (spec/mapping.json, matched by method and path) returns the response parsed, with the X-Request-Id as its request ID; error = it raises that class (Dart adds the Exception suffix) carrying the status, the API's errorMessage and the request ID. Some recordings send what an SDK's API can't (an unknown field, a non-JSON body, a generic content type, a missing required argument, an unsupported value): there the replay sends the closest call the SDK can make and checks the response handling in full. WS: requests maps the recorded requestIds to each synthesis's outcome (completed, cancelled, superseded, failed:<class>, lost:<class>); session_error is the error that ends the session, raised directly or as the cause of the error a later call raises; handshake_error is the error connect raises; pong means a ping is answered; transcripts counts transcript events; ended is the session.ended reason; saved means a session.saved event with a job ID (its status can be \"empty\" when nothing was transcribed); events lists what the caller sees, in order, whether it arrives on the session's event stream or is raised by the call that caused it (a rejected terminology update is raised by set_terminology / setTerminology). A note explains anything a replay can't do the way the recording did.",
   "rest": {
     "auth/missing_key": {
       "error": "AuthenticationError"
@@ -154,7 +154,7 @@
       "transcripts": 1,
       "ended": "stopped",
       "saved": true,
-      "note": "audio sent before session.started is accepted"
+      "note": "the server accepts audio sent before session.started, but an SDK's connect returns only after session.started, so a replay delivers it first"
     },
     "stt/auto_cut": {
       "transcripts": 2,
@@ -176,13 +176,14 @@
     },
     "stt/frame_too_large": {
       "session_error": "ProtocolError",
-      "note": "the SDK refuses oversized frames itself (UsageError); replay the server's error and 1008 close"
+      "note": "the SDKs split audio into frames of at most 64 KiB, so they never send this frame; replay the server's error and 1008 close"
     },
     "stt/handshake_bad_query": {
       "handshake_error": "InvalidRequestError"
     },
     "stt/handshake_missing_language": {
-      "handshake_error": "InvalidRequestError"
+      "handshake_error": "InvalidRequestError",
+      "note": "the SDKs always send a language; a replay sends an empty one and expects the server's 400"
     },
     "stt/handshake_no_key": {
       "handshake_error": "AuthenticationError"
@@ -193,7 +194,8 @@
       "saved": true
     },
     "stt/ping": {
-      "pong": true
+      "pong": true,
+      "note": "the recording's session.started arrived after the client's stop; an SDK's connect waits for session.started, so a replay delivers it first"
     },
     "stt/terminology": {
       "events": [
