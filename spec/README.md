@@ -13,6 +13,7 @@ Every EchoNova SDK is built and tested against the files in this folder. They ar
 | `fixtures/errors/catalog.json` | Every error example documented in `openapi.json` | `tools/build_error_catalog.py` |
 | `fixtures/webhooks/vectors.json` | Webhook signature vectors (valid and invalid) | `tools/build_webhook_vectors.py` |
 | `fixtures/rest/`, `fixtures/ws/` | Recorded, scrubbed API traffic | `tools/record/record.py` |
+| `fixtures/expected.json` | What every SDK must do with each recorded fixture; each SDK's replay tests read it | by hand: a new recording needs an entry |
 
 ## Updating after an API change
 

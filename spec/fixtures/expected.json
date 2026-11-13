@@ -1,0 +1,274 @@
+{
+  "$comment": "What every SDK must do with each recorded fixture in rest/ and ws/. Maintained by hand: a newly recorded fixture needs an entry here, and each SDK's replay tests fail without one. REST: ok = the SDK method for that operation (spec/mapping.json, matched by method and path) returns the response parsed, with the X-Request-Id as its request ID; error = it raises that class (Dart adds the Exception suffix) carrying the status, the API's errorMessage and the request ID. WS: requests maps the recorded requestIds to each synthesis's outcome (completed, cancelled, superseded, failed:<class>, lost:<class>); session_error and handshake_error are the error the session or connect raises; pong means a ping is answered; transcripts counts transcript events; ended is the session.ended reason; saved means a session.saved event with a job ID; events lists the events the caller sees, in order. A note explains anything a replay can't do the way the recording did.",
+  "rest": {
+    "auth/missing_key": {
+      "error": "AuthenticationError"
+    },
+    "clean/clean_mime_mismatch": {
+      "ok": true
+    },
+    "clean/clean_ok": {
+      "ok": true
+    },
+    "clean/clean_option_out_of_range": {
+      "error": "InvalidRequestError"
+    },
+    "clean/clean_unknown_field": {
+      "error": "InvalidRequestError"
+    },
+    "clean/job_delete": {
+      "ok": true
+    },
+    "clean/job_get": {
+      "ok": true
+    },
+    "clean/jobs_list": {
+      "ok": true
+    },
+    "stt/job_create": {
+      "ok": true
+    },
+    "stt/job_delete": {
+      "ok": true
+    },
+    "stt/job_export_ar_labels": {
+      "ok": true
+    },
+    "stt/job_export_bad_format": {
+      "error": "InvalidRequestError"
+    },
+    "stt/job_export_json": {
+      "ok": true
+    },
+    "stt/job_export_not_completed": {
+      "error": "InvalidRequestError"
+    },
+    "stt/job_export_srt": {
+      "ok": true
+    },
+    "stt/job_export_txt": {
+      "ok": true
+    },
+    "stt/job_get_final": {
+      "ok": true
+    },
+    "stt/job_get_processing": {
+      "ok": true
+    },
+    "stt/jobs_list": {
+      "ok": true
+    },
+    "stt/sync_bad_terminology": {
+      "error": "InvalidRequestError"
+    },
+    "stt/sync_format_aac": {
+      "ok": true
+    },
+    "stt/sync_format_flac": {
+      "ok": true
+    },
+    "stt/sync_format_m4a": {
+      "ok": true
+    },
+    "stt/sync_format_mp3": {
+      "ok": true
+    },
+    "stt/sync_format_ogg": {
+      "ok": true
+    },
+    "stt/sync_format_opus": {
+      "ok": true
+    },
+    "stt/sync_format_wav": {
+      "ok": true
+    },
+    "stt/sync_format_webm": {
+      "ok": true
+    },
+    "stt/sync_missing_language": {
+      "error": "InvalidRequestError"
+    },
+    "stt/sync_octet_stream_mp3": {
+      "error": "InvalidRequestError"
+    },
+    "stt/sync_ok_speakers": {
+      "ok": true
+    },
+    "stt/sync_ok_terminology": {
+      "ok": true
+    },
+    "tts/job_create": {
+      "ok": true
+    },
+    "tts/job_delete": {
+      "ok": true
+    },
+    "tts/job_delete_while_processing": {
+      "error": "InvalidRequestError"
+    },
+    "tts/job_get_deleted": {
+      "error": "JobNotFoundError"
+    },
+    "tts/job_get_final": {
+      "ok": true
+    },
+    "tts/job_get_invalid_id": {
+      "error": "InvalidRequestError"
+    },
+    "tts/job_get_processing": {
+      "ok": true
+    },
+    "tts/jobs_list": {
+      "ok": true
+    },
+    "tts/jobs_list_limit_too_big": {
+      "error": "InvalidRequestError"
+    },
+    "tts/sync_not_json": {
+      "error": "InvalidRequestError"
+    },
+    "tts/sync_ok": {
+      "ok": true
+    },
+    "tts/sync_ok_ar": {
+      "ok": true
+    },
+    "tts/sync_ok_en": {
+      "ok": true
+    },
+    "tts/sync_text_too_long": {
+      "error": "InvalidRequestError"
+    },
+    "tts/sync_unknown_field": {
+      "error": "InvalidRequestError"
+    },
+    "tts/sync_voice_not_found": {
+      "error": "VoiceNotFoundError"
+    },
+    "tts/voices_list": {
+      "ok": true
+    }
+  },
+  "ws": {
+    "stt/audio_before_started": {
+      "transcripts": 1,
+      "ended": "stopped",
+      "saved": true,
+      "note": "audio sent before session.started is accepted"
+    },
+    "stt/auto_cut": {
+      "transcripts": 2,
+      "ended": "stopped",
+      "saved": true,
+      "note": "the server cuts a segment at 15 s without end_segment"
+    },
+    "stt/empty_and_tiny_segments": {
+      "transcripts": 0,
+      "ended": "stopped",
+      "saved": true,
+      "note": "empty and very short segments produce no transcript"
+    },
+    "stt/fifo_order": {
+      "transcripts": "in order",
+      "ended": "stopped",
+      "saved": true,
+      "note": "transcripts arrive in the order their segments were cut"
+    },
+    "stt/frame_too_large": {
+      "session_error": "ProtocolError",
+      "note": "the SDK refuses oversized frames itself (UsageError); replay the server's error and 1008 close"
+    },
+    "stt/handshake_bad_query": {
+      "handshake_error": "InvalidRequestError"
+    },
+    "stt/handshake_missing_language": {
+      "handshake_error": "InvalidRequestError"
+    },
+    "stt/handshake_no_key": {
+      "handshake_error": "AuthenticationError"
+    },
+    "stt/normal": {
+      "transcripts": 1,
+      "ended": "stopped",
+      "saved": true
+    },
+    "stt/ping": {
+      "pong": true
+    },
+    "stt/terminology": {
+      "events": [
+        "terminology.set",
+        "error:InvalidRequestError",
+        "terminology.set"
+      ],
+      "ended": "stopped",
+      "saved": true,
+      "note": "an invalid terminology update is rejected without ending the session"
+    },
+    "tts/binary_frame": {
+      "session_error": "ProtocolError",
+      "note": "the SDK never sends binary on the TTS stream; replay the server's error and 1008 close"
+    },
+    "tts/cancel_before_start": {
+      "requests": {
+        "r1": "cancelled"
+      },
+      "note": "charged: the cancelled event reports creditsConsumed"
+    },
+    "tts/cancel_mid_stream": {
+      "requests": {
+        "r1": "cancelled"
+      },
+      "note": "audio after the cancel is dropped, never delivered"
+    },
+    "tts/cancel_while_idle": {
+      "requests": {},
+      "note": "the SDK sends no cancel when nothing is in flight, and nothing is expected back"
+    },
+    "tts/drop_mid_stream": {
+      "requests": {
+        "r1": "lost:StreamConnectionLostError"
+      },
+      "note": "charge state yes: audio had started"
+    },
+    "tts/handshake_no_key": {
+      "handshake_error": "AuthenticationError"
+    },
+    "tts/invalid_json": {
+      "session_error": "ProtocolError",
+      "note": "the SDK never sends invalid JSON; replay the server's error and 1008 close"
+    },
+    "tts/invalid_while_running": {
+      "requests": {
+        "r1": "superseded",
+        "r2": "failed:InvalidRequestError"
+      },
+      "note": "the SDK cancels r1 itself once r2 is rejected, because the caller asked r1 to stop; the recorded server never saw that cancel and finished r1, which still ends as superseded and charged"
+    },
+    "tts/normal": {
+      "requests": {
+        "r1": "completed"
+      }
+    },
+    "tts/ping": {
+      "pong": true
+    },
+    "tts/supersede": {
+      "requests": {
+        "r1": "superseded",
+        "r2": "completed"
+      }
+    },
+    "tts/unknown_field": {
+      "requests": {
+        "r1": "failed:InvalidRequestError"
+      },
+      "note": "the unknown field can only be sent through extra_body / extraBody"
+    },
+    "tts/voice_not_found": {
+      "requests": {
+        "r1": "failed:VoiceNotFoundError"
+      }
+    }
+  }
+}
