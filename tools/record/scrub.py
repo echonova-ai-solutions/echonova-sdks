@@ -2,7 +2,9 @@
 
 Every recorded value passes through a Scrubber:
 - API keys (ek_...) and webhook secrets (whsec_...) are replaced.
-- Signed storage links lose their host and query string.
+- Signed storage links lose their host, path and query string: only the file
+  extension is kept (https://storage.example.com/files/1.wav). The path names the
+  storage container and how files are laid out in it, which is not public.
 - 24-hex IDs (jobs, voices, keys, segments) and UUIDs (request and session IDs)
   become stable placeholders, so a fixture stays internally consistent
   (the same job ID maps to the same placeholder everywhere in one recording).
@@ -23,6 +25,11 @@ UUID = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4
 URL = re.compile(r"https?://[^\s\"'<>]+")
 
 PLACEHOLDER_STORAGE_HOST = "storage.example.com"
+# What placeholders look like, so scrubbing an already scrubbed fixture changes nothing.
+PLACEHOLDER_OBJECT_ID = re.compile(r"0{12}[0-9a-f]{12}")
+PLACEHOLDER_UUID = re.compile(r"00000000-0000-4000-8000-[0-9a-f]{12}")
+PLACEHOLDER_FILE_PATH = re.compile(r"/files/\d+(\.[a-z0-9]{1,5})?")
+FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
 API_HOSTS = {"api.echonova.ai", "echonova.ai", "www.echonova.ai"}
 SENSITIVE_FIELDS = {"apiKeyName", "workspaceName", "email", "userName", "name_of_key", "token", "ticket"}
 
@@ -43,10 +50,11 @@ class Scrubber:
     def __init__(self) -> None:
         self._ids: dict[str, str] = {}
         self._uuids: dict[str, str] = {}
+        self._paths: dict[str, int] = {}
 
     def _object_id(self, match: re.Match[str]) -> str:
         value = match.group(0)
-        if value in self._ids.values():
+        if PLACEHOLDER_OBJECT_ID.fullmatch(value):
             return value  # already a placeholder: scrubbing twice changes nothing
         if value not in self._ids:
             self._ids[value] = f"{len(self._ids) + 1:024x}"
@@ -54,7 +62,7 @@ class Scrubber:
 
     def _uuid(self, match: re.Match[str]) -> str:
         value = match.group(0).lower()
-        if value in self._uuids.values():
+        if PLACEHOLDER_UUID.fullmatch(value):
             return value
         if value not in self._uuids:
             self._uuids[value] = f"00000000-0000-4000-8000-{len(self._uuids) + 1:012x}"
@@ -65,9 +73,16 @@ class Scrubber:
         host = (parts.hostname or "").lower()
         if host in API_HOSTS:
             return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
-        # Anything else is a storage link: the host names the storage account and the query is the signature.
+        # Anything else is a storage link: the host names the storage account, the path its container and
+        # layout, and the query is the signature. Only the file extension survives.
         query = "signature=REDACTED" if parts.query else ""
-        return urlunsplit(("https", PLACEHOLDER_STORAGE_HOST, parts.path, query, ""))
+        if host == PLACEHOLDER_STORAGE_HOST and PLACEHOLDER_FILE_PATH.fullmatch(parts.path):
+            path = parts.path
+        else:
+            number = self._paths.setdefault(parts.path, len(self._paths) + 1)
+            extension = FILE_EXTENSION.search(parts.path)
+            path = f"/files/{number}{extension.group(0).lower() if extension else ''}"
+        return urlunsplit(("https", PLACEHOLDER_STORAGE_HOST, path, query, ""))
 
     def text(self, value: str) -> str:
         value = API_KEY.sub("ek_REDACTED", value)
@@ -95,9 +110,16 @@ class Scrubber:
         return kept
 
 
-def find_leaks(text: str) -> list[str]:
-    """Patterns that must never appear in a committed fixture."""
+def find_leaks(text: str, *, fixture: bool = False) -> list[str]:
+    """Patterns that must never appear in a committed file.
+
+    ``fixture=True`` also requires every storage link to have a placeholder path, as the scrubber
+    writes it: a recorded path names the storage container and its layout. Documentation can use
+    any example path.
+    """
     problems = []
+    if fixture and re.search(r"https?://storage\.example\.com/(?!files/\d+(?:\.[a-z0-9]{1,5})?(?![\w./%-]))", text):
+        problems.append("storage path")
     # Documentation examples on example.com/example.org are not real links.
     text = re.sub(r"https?://[^\s\"'<>]*\bexample\.(?:com|org)[^\s\"'<>]*", "", text)
     if re.search(r"(?<![A-Za-z0-9_])ek_(?!REDACTED)[A-Za-z0-9_\-]{8,}", text):

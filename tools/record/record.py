@@ -622,13 +622,25 @@ async def run_stt(args: argparse.Namespace) -> None:
 # --- Promote ----------------------------------------------------------------------------------------
 
 
+def rescrub(path: Path) -> None:
+    """Run a recording through the current scrubber, so one made before a scrubber fix is cleaned too."""
+    text = path.read_text(encoding="utf-8")
+    scrubber = Scrubber()  # placeholders already in the file are kept as they are
+    if path.suffix == ".jsonl":
+        lines = [json.dumps(scrubber.value(json.loads(line)), ensure_ascii=False) for line in text.splitlines() if line]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        path.write_text(json.dumps(scrubber.value(json.loads(text)), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def cmd_promote(_: argparse.Namespace) -> None:
     if not OUT.exists():
         sys.exit("nothing recorded yet")
     problems = []
     files = [p for p in OUT.rglob("*") if p.is_file() and p.suffix in (".json", ".jsonl")]
     for path in files:
-        for leak in find_leaks(path.read_text(encoding="utf-8")):
+        rescrub(path)
+        for leak in find_leaks(path.read_text(encoding="utf-8"), fixture=True):
             problems.append(f"{path.relative_to(OUT)}: {leak}")
     if problems:
         sys.exit("not promoted, possible leaks:\n  " + "\n  ".join(problems))

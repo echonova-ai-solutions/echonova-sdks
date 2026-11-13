@@ -16,7 +16,7 @@ def test_secrets_and_signed_links_are_removed() -> None:
     out = s.value({"auth": f"Bearer {KEY}", "audioUrl": SAS, "secret": "whsec_" + "x" * 43})
     assert out == {
         "auth": "Bearer ek_REDACTED",
-        "audioUrl": "https://storage.example.com/tts/out.wav?signature=REDACTED",
+        "audioUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
         "secret": "whsec_REDACTED",
     }
     assert find_leaks(str(out)) == []
@@ -72,3 +72,30 @@ def test_identifiers_containing_ek_are_not_keys() -> None:
 def test_find_leaks_ignores_documentation_examples() -> None:
     assert find_leaks("Authorization: Bearer followed by your API key, e.g. Bearer ek_...") == []
     assert find_leaks("https://storage.example.com/tts/out.wav?X-Amz-Signature=...") == []
+
+
+def test_storage_paths_keep_only_the_file_extension() -> None:
+    s = Scrubber()
+    first = "https://acct.blob.core.windows.net/container-name/workspaces/66e5f0c2a1b2c3d4e5f60718/tts/a__out.WAV?sig=x"
+    second = "https://acct.blob.core.windows.net/container-name/voices/b__preview.mp3"
+    out = s.value({"a": first, "again": first, "b": second})
+    assert out == {
+        "a": "https://storage.example.com/files/1.wav?signature=REDACTED",
+        "again": "https://storage.example.com/files/1.wav?signature=REDACTED",
+        "b": "https://storage.example.com/files/2.mp3",
+    }
+    assert "container-name" not in str(out)
+    assert find_leaks(str(out), fixture=True) == []
+
+
+def test_find_leaks_catches_a_storage_path() -> None:
+    leaked = "https://storage.example.com/container-name/workspaces/x.wav"
+    assert find_leaks(leaked, fixture=True) == ["storage path"]
+    assert find_leaks("https://storage.example.com/files/3.wav.bak", fixture=True) == ["storage path"]
+    assert find_leaks('"https://storage.example.com/files/3.wav?signature=REDACTED"', fixture=True) == []
+    assert find_leaks(leaked) == []  # documentation may use any example path
+
+
+def test_rescrubbing_with_a_new_scrubber_keeps_placeholders() -> None:
+    once = Scrubber().value({"ids": ["66e5f0c2a1b2c3d4e5f60719", "66e5f0c2a1b2c3d4e5f60718"], "url": SAS})
+    assert Scrubber().value(once) == once  # a fresh scrubber, as when promote re-scrubs an older recording

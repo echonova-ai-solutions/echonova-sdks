@@ -53,7 +53,8 @@ def main() -> int:
         relative = path.relative_to(ROOT)
         if relative.as_posix() in ("tools/record/scrub.py", "tools/record/test_scrub.py"):
             continue  # they contain the leak patterns on purpose
-        problems += [f"{relative}: {leak}" for leak in find_leaks(text)]
+        fixture = relative.as_posix().startswith(("spec/fixtures/rest/", "spec/fixtures/ws/"))  # recorded traffic
+        problems += [f"{relative}: {leak}" for leak in find_leaks(text, fixture=fixture)]
         lowered = text.lower()
         problems += [f"{relative}: private term #{terms.index(t) + 1}" for t in terms if t in lowered]
     if not terms:
