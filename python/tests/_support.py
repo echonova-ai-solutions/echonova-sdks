@@ -211,3 +211,29 @@ def envelope(status: int, message: str | None, **extra: Any) -> bytes:
 def load_mapping() -> dict[str, Any]:
     mapping: dict[str, Any] = json.loads((SPEC_DIR / "mapping.json").read_text(encoding="utf-8"))
     return mapping
+
+
+# --- Recorded API traffic (spec/fixtures/rest, spec/fixtures/ws) -----------------------------------
+
+
+def recorded_fixtures(kind: str) -> list[str]:
+    """The recorded fixtures of one kind (``rest`` or ``ws``) found on disk, by name (``tts/sync_ok``)."""
+    root = SPEC_DIR / "fixtures" / kind
+    suffix = ".json" if kind == "rest" else ".jsonl"
+    return sorted(path.relative_to(root).with_suffix("").as_posix() for path in root.rglob(f"*{suffix}"))
+
+
+def fixture_expectations(kind: str) -> dict[str, Any]:
+    """What every SDK must do with each recorded fixture of one kind (``spec/fixtures/expected.json``)."""
+    expected: dict[str, Any] = load_spec("fixtures/expected.json")[kind]
+    return expected
+
+
+def coverage_problems(kind: str) -> list[str]:
+    """Fixtures without an expectation and expectations without a fixture: each SDK's replay must cover both."""
+    on_disk, expected = set(recorded_fixtures(kind)), set(fixture_expectations(kind))
+    problems = [f"{kind}/{name} has no entry in expected.json" for name in sorted(on_disk - expected)]
+    problems += [f"expected.json names {kind}/{name}, which has no fixture" for name in sorted(expected - on_disk)]
+    if not on_disk:
+        problems.append(f"no {kind} fixtures found under spec/fixtures/{kind}")
+    return problems
