@@ -42,6 +42,5 @@
       "statusCode": 200,
       "errorMessage": null
     }
-  },
-  "note": "expected 400"
+  }
 }

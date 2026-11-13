@@ -276,7 +276,8 @@ def cmd_rest(_: argparse.Namespace) -> None:
     rec.call("clean/clean_unknown_field", "POST", clean, files={"file": audio_file("wav")}, data={"foo": "1"},
              expect=400)
     name, blob, _ = audio_file("wav")
-    rec.call("clean/clean_mime_mismatch", "POST", clean, files={"file": (name, blob, "audio/mpeg")}, expect=400)
+    # The docs say the type must match the extension, but the API accepted this (recorded 2026-11-13).
+    rec.call("clean/clean_mime_mismatch", "POST", clean, files={"file": (name, blob, "audio/mpeg")}, expect=200)
     rec.call("clean/jobs_list", "GET", f"{clean}/jobs", params={"limit": 2}, expect=200)
     rec.call("clean/job_get", "GET", f"{clean}/jobs/{cleaned['id']}", expect=200)
     rec.call("clean/job_delete", "DELETE", f"{clean}/jobs/{cleaned['id']}", expect=200)
