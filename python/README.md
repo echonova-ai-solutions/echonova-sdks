@@ -329,4 +329,4 @@ Tests read the shared contract in [`../spec`](../spec): the vendored API specs, 
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

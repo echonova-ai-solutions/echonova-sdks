@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Official Python SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning."
 readme = "README.md"
 requires-python = ">=3.11"
-license = "Apache-2.0"
+license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "EchoNova" }]
 keywords = ["echonova", "speech", "tts", "stt", "arabic", "text-to-speech", "speech-to-text"]

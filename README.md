@@ -73,4 +73,4 @@ Never put an API key in client-side code (browsers, mobile apps). Keep keys on y
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
