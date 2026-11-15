@@ -24,7 +24,7 @@ Building Dart in parallel brings risks:
   - Flutter web streaming through a proxy with cookie authentication;
   - microphone capture and PCM playback latency in a throwaway app.
 - **Architecture:**
-  - a pure-Dart package, `echonova`, with no Flutter dependency, usable from Flutter and from server-side Dart;
+  - a pure-Dart package, `echonova` (*amended 2026-11-15:* published as `echonova_ai`), with no Flutter dependency, usable from Flutter and from server-side Dart;
   - `EchoNova(apiKey:)` for servers, and `EchoNova.proxy(baseUrl:, auth:)` for apps (ADR 0008);
   - `package:http` with an injectable `Client`;
   - WebSockets through a manual `dart:io` upgrade, and a browser transport for Flutter web, which supports proxy mode only;

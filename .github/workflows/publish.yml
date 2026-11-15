@@ -1,0 +1,110 @@
+name: Publish SDKs
+
+# Publishes one SDK when its release tag is pushed:
+#   py-vX.Y.Z    ->  PyPI     echonova-ai    (environment "pypi")
+#   js-vX.Y.Z    ->  npm      @echonova/ai   (environment "npm")
+#   dart-vX.Y.Z  ->  pub.dev  echonova_ai    (environment "pubdev")
+# Every registry trusts this workflow file (publish.yml) through OIDC trusted
+# publishing: no API token or secret is stored anywhere. Each job first checks
+# that the tag's version equals the package's version, and runs the tests.
+# How to release: README.md, "Releasing".
+
+on:
+  push:
+    tags: ["py-v*", "js-v*", "dart-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    name: Publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/py-v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.12"
+      - name: The tag matches the package version
+        # The version has one source, src/echonova/_version.py, which pyproject.toml reads.
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/echonova/_version.py)
+          test "py-v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - run: uv sync --locked
+      - run: uv run pytest
+      - name: Build the sdist and wheel
+        run: uv build --out-dir dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3 (release/v1)
+        with:
+          packages-dir: python/dist
+
+  npm:
+    name: Publish to npm
+    if: startsWith(github.ref, 'refs/tags/js-v')
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: The tag matches the package version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          test "js-v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - name: Use an npm with trusted publishing (11.5.1 or later)
+        run: npm install -g "npm@^11.5.1"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run lint:package
+      - name: Publish (OIDC; no NODE_AUTH_TOKEN)
+        run: |
+          case "$(node -p "require('./package.json').version")" in *-*) tag=beta ;; *) tag=latest ;; esac
+          npm publish --access public --tag "$tag"
+
+  dart-check:
+    name: Check the Dart package
+    if: startsWith(github.ref, 'refs/tags/dart-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dart
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - name: The tag matches the package version
+        run: |
+          version=$(sed -n 's/^version: *//p' pubspec.yaml)
+          test "dart-v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+          grep -q "^## $version\b" CHANGELOG.md || { echo "CHANGELOG.md has no entry for $version"; exit 1; }
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - run: dart test
+
+  pubdev:
+    name: Publish to pub.dev
+    if: startsWith(github.ref, 'refs/tags/dart-v')
+    needs: dart-check
+    # A job that calls a reusable workflow can't have steps of its own: the checks are in dart-check.
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+    permissions:
+      id-token: write
+    with:
+      working-directory: dart
+      environment: pubdev

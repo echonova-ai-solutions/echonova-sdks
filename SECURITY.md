@@ -36,9 +36,9 @@ Security fixes are released as patch releases on the latest minor version of eac
 
 | SDK | Package | Supported |
 | --- | --- | --- |
-| Python | `echonova` on PyPI | latest minor of the current major |
-| JavaScript/TypeScript | `echonova` on npm | latest minor of the current major |
-| Dart/Flutter | `echonova` on pub.dev | latest minor of the current major |
+| Python | `echonova-ai` on PyPI | latest minor of the current major |
+| JavaScript/TypeScript | `@echonova/ai` on npm | latest minor of the current major |
+| Dart/Flutter | `echonova_ai` on pub.dev | latest minor of the current major |
 
 - Before `1.0.0`, only the latest pre-release is supported. Betas (`0.9.x`) get fixes in a new beta, not in older ones.
 - When a new major version ships, its release notes say how long the previous major will receive security fixes.

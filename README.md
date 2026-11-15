@@ -67,6 +67,16 @@ cd dart && ECHONOVA_LIVE=1 ECHONOVA_API_KEY=... dart test -t live
 
 Without a key only the free checks run. CI runs all three nightly ([live.yml](.github/workflows/live.yml), which lists the optional variables). `tools/record/record.py` records live API traffic as scrubbed fixtures, with the same kind of key; see the script's help.
 
+## Releasing
+
+Each SDK is published by pushing its tag; the [publish workflow](.github/workflows/publish.yml) checks the version, runs the tests and publishes with OIDC trusted publishing (no tokens). Details and the one-time registry setup: [docs/RELEASING.md](docs/RELEASING.md).
+
+| SDK | Bump the version in | Then |
+| --- | --- | --- |
+| Python (`echonova-ai`) | `python/src/echonova/_version.py` | `git tag py-vX.Y.Z && git push origin py-vX.Y.Z` |
+| npm (`@echonova/ai`) | `js/package.json` and `js/src/version.ts` | `git tag js-vX.Y.Z && git push origin js-vX.Y.Z` |
+| Dart (`echonova_ai`) | `dart/pubspec.yaml`, `dart/lib/src/version.dart` and `dart/CHANGELOG.md` | `git tag dart-vX.Y.Z && git push origin dart-vX.Y.Z` |
+
 ## Security
 
 Never put an API key in client-side code (browsers, mobile apps). Keep keys on your server and read them from the environment. Report security issues privately to EchoNova rather than in a public issue.

@@ -22,9 +22,12 @@ dist/
 build/
 *.egg-info/
 
-# JS / Dart (later phases)
+# JavaScript
 node_modules/
+
+# Dart (a library: dependents resolve their own versions, so no lockfile)
 .dart_tool/
+dart/pubspec.lock
 
 # Editors
 .idea/
