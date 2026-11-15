@@ -23,7 +23,7 @@ client.download(job.output_url, to="clean.wav")
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -115,7 +115,7 @@ client.sound_cleaning.jobs.delete(job_id)  # removes the original and the cleane
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 

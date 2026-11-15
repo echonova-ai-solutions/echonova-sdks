@@ -47,7 +47,7 @@ Two choices in this tree matter when you write handlers:
 - **`SpendingLimitError` is not a `RateLimitError`.** A rate limit clears by waiting; a spending limit doesn't. Code that catches `RateLimitError` and retries later can never retry a spending limit by accident.
 - **Unknown messages fall back to the generic class for their status.** A new `404` message raises `NotFoundError`, never a more specific class.
 
-Import them from the package: `from echonova import RateLimitError` in Python, `import { RateLimitError } from 'echonova'` (or `EchoNova.RateLimitError`) in TypeScript, and `package:echonova/echonova.dart` in Dart. In TypeScript, `instanceof` works across the ESM and CommonJS builds. In Dart, `EchoNovaException` is `sealed`, so a `switch` over it is exhaustive.
+Import them from the package: `from echonova import RateLimitError` in Python, `import { RateLimitError } from '@echonova/ai'` (or `EchoNova.RateLimitError`) in TypeScript, and `package:echonova/echonova.dart` in Dart. In TypeScript, `instanceof` works across the ESM and CommonJS builds. In Dart, `EchoNovaException` is `sealed`, so a `switch` over it is exhaustive.
 
 ## What an error tells you
 
@@ -99,7 +99,7 @@ except echonova.APIStatusError as err:
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -231,7 +231,7 @@ done = client.text_to_speech.jobs.wait(job_id)
 **TypeScript**
 
 ```ts
-import EchoNova, { APIConnectionError, APIStatusError } from 'echonova';
+import EchoNova, { APIConnectionError, APIStatusError } from '@echonova/ai';
 
 const client = new EchoNova();
 const text = 'أهلاً بك في إيكونوفا';

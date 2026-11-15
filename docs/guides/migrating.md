@@ -69,7 +69,7 @@ print(speech.raw)  # the API's JSON, exactly as received
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -148,7 +148,7 @@ print(result.transcription)
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -209,7 +209,7 @@ except JobWaitTimeoutError as err:
 **TypeScript**
 
 ```ts
-import EchoNova, { JobFailedError, JobWaitTimeoutError, type TtsJob } from 'echonova';
+import EchoNova, { JobFailedError, JobWaitTimeoutError, type TtsJob } from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()

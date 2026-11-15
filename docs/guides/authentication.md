@@ -32,7 +32,7 @@ client = EchoNova(api_key=api_key)  # the trailing newline is removed
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const apiKey = await readFile('/run/secrets/echonova_api_key', 'utf8');
 const client = new EchoNova({ apiKey }); // the trailing newline is removed
@@ -116,7 +116,7 @@ client = EchoNova(base_url="https://api.example.com/echonova", auth=app_credenti
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 // Your app's own sign-in: the signed-in user's access token for your backend.
 async function accessToken(): Promise<string> {
@@ -156,7 +156,7 @@ A web app that authenticates with a session cookie doesn't need to add headers. 
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({
   baseURL: 'https://api.example.com/echonova',
@@ -192,7 +192,7 @@ The SDKs call the query function before every connection attempt, so each attemp
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const proxy = 'https://api.example.com/echonova';
 

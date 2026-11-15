@@ -1,8 +1,8 @@
 // The Cloudflare Worker of the workerd smoke test: smoke-runtime-workerd.mjs bundles it with the
 // built package and runs it in workerd. GET /?base=<mock URL>&closed=<refused URL> runs the checks.
 
-import * as sdk from 'echonova';
-import * as streaming from 'echonova/streaming';
+import * as sdk from '@echonova/ai';
+import * as streaming from '@echonova/ai/streaming';
 import { runChecks } from './smoke-runtime-checks.mjs';
 
 /** With `nodejs_compat`, a Worker has `node:fs` over an in-memory file system with a writable /tmp. */

@@ -5,7 +5,7 @@
 //   deno run -A scripts/smoke-runtime.mjs
 //
 // It starts the local mock API (smoke-runtime-server.mjs, under Node.js: `node` must be on the
-// PATH, or set ECHONOVA_SMOKE_NODE), imports 'echonova' and 'echonova/streaming' by name, and
+// PATH, or set ECHONOVA_SMOKE_NODE), imports '@echonova/ai' and '@echonova/ai/streaming' by name, and
 // runs the checks in smoke-runtime-checks.mjs: REST, error mapping, both streams, a refused
 // stream handshake, and file-path uploads and downloads. Set ECHONOVA_SMOKE_URL to use a mock
 // that is already running. No network access and no API key are needed.
@@ -66,8 +66,8 @@ const mock = await startMock();
 const dir = await mkdtemp(join(tmpdir(), 'echonova-smoke-'));
 let passed = false;
 try {
-  const sdk = await import('echonova');
-  const streaming = await import('echonova/streaming');
+  const sdk = await import('@echonova/ai');
+  const streaming = await import('@echonova/ai/streaming');
   const files = {
     path: (name) => join(dir, name),
     write: (path, bytes) => writeFile(path, bytes),
@@ -78,8 +78,8 @@ try {
   // The CommonJS build, through require().
   try {
     const require = createRequire(import.meta.url);
-    const cjs = require('echonova');
-    const cjsStreaming = require('echonova/streaming');
+    const cjs = require('@echonova/ai');
+    const cjsStreaming = require('@echonova/ai/streaming');
     const voices = await new cjs.EchoNova({ apiKey: OK_KEY, baseURL: mock.url }).textToSpeech.voices.list();
     if (voices.items.length !== 2 || typeof cjsStreaming.connectStt !== 'function') throw new Error('unexpected exports or result');
     if (!(new cjs.AuthenticationError() instanceof sdk.APIStatusError)) throw new Error('instanceof fails across the builds');

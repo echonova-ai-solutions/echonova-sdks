@@ -39,7 +39,7 @@ except VoiceNotFoundError:
 **TypeScript**
 
 ```ts
-import EchoNova, { VoiceNotFoundError } from 'echonova';
+import EchoNova, { VoiceNotFoundError } from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -100,7 +100,7 @@ client.download(speech.audio_url, to="weather.wav")
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -172,7 +172,7 @@ client.text_to_speech.jobs.download(done, to="welcome.wav")  # gets a fresh link
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -254,8 +254,8 @@ Audio(b"".join(a.pcm for a in audio), audio[0].sample_rate).to_wav("chapter.wav"
 
 ```ts
 import { readFile, writeFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
-import { pcmToWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { pcmToWav } from '@echonova/ai/streaming';
 
 /** Whole sentences, packed into pieces of at most `limit` characters. */
 function splitText(text: string, limit = 500): string[] {
@@ -372,7 +372,7 @@ except DownloadExpiredError:
 **TypeScript**
 
 ```ts
-import EchoNova, { DownloadExpiredError } from 'echonova';
+import EchoNova, { DownloadExpiredError } from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // a Text to Speech job ID

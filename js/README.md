@@ -2,7 +2,7 @@
 
 Official JavaScript and TypeScript SDK for the [EchoNova API](https://echonova.ai/docs/developers): Text to Speech, Speech to Text, Sound Cleaning and agent sessions.
 
-> **Status: pre-release.** This package is under active development and is not yet published to npm. The first beta will be `0.9.0-beta.1`.
+> **Status: pre-release.** Not yet published to npm; the first release will be `0.0.1`.
 
 - Typed results that mirror the API's JSON, with the request ID on every result.
 - Retries that never charge you twice, client-side rate limiting, job polling and safe downloads.
@@ -22,13 +22,13 @@ Without file paths, pass a `Blob`, bytes or a stream, and download to memory. A 
 ## Install
 
 ```bash
-npm install echonova
+npm install @echonova/ai
 ```
 
 ## Quick start
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova(); // reads ECHONOVA_API_KEY
 
@@ -40,7 +40,7 @@ console.log(speech.durationSeconds, speech.creditsConsumed, speech.requestId);
 await client.download(speech.audioUrl, { to: 'speech.wav' });
 ```
 
-CommonJS works too: `const { EchoNova } = require('echonova');`.
+CommonJS works too: `const { EchoNova } = require('@echonova/ai');`.
 
 Create one client and reuse it: it keeps the rate-limit state that all calls share. `await client.close()` cancels calls still in flight and refuses new ones; `await using client = new EchoNova()` closes it at the end of the scope.
 
@@ -64,7 +64,7 @@ Create one client and reuse it: it keeps the rate-limit state that all calls sha
 Every API method takes per-call options as its last argument: `signal`, `timeout`, `maxRetries`, `deadline` and `headers`.
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // a job ID from jobs.create()
@@ -88,7 +88,7 @@ const fast = client.withOptions({ timeout: 10_000 }); // a copy that shares the 
 ## Text to Speech
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const text = 'أهلاً بك في إيكونوفا';
@@ -109,7 +109,7 @@ Options you don't pass are not sent, so the API's defaults apply.
 Keep one socket open and send a synthesis per sentence or reply. Audio arrives as PCM16LE mono chunks at `synth.sampleRate`, well before the whole text is spoken. `speakStream()` yields only chunks; their rate is `tts.sampleRate`, the rate of the latest synthesis to start.
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 // Your app's audio output, voice activity detection and LLM text:
 declare const speaker: { write(pcm: Uint8Array): void };
@@ -141,7 +141,7 @@ A synthesis is charged per character when it starts. One stopped after its audio
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova, { toFile } from 'echonova';
+import EchoNova, { toFile } from '@echonova/ai';
 
 const client = new EchoNova();
 const bytes = await readFile('meeting.wav');
@@ -172,7 +172,7 @@ Send live PCM16LE mono audio and receive transcripts as each segment is cut (eve
 
 ```ts
 import { createReadStream } from 'node:fs';
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 declare function microphone(): AsyncIterable<Uint8Array>; // your audio: PCM16LE mono at 16 kHz
 const chunks = createReadStream('meeting.pcm'); // the same format, from a file
@@ -192,14 +192,14 @@ for await (const event of client.speechToText.transcribeStream(chunks, { sampleR
 }
 ```
 
-Sessions never reconnect on their own; `transcribeStream()` does, replaying only audio that was never cut into a segment. Each session is saved as a Speech to Text job: `summary.jobId`, or a `session.saved` event. Streaming code loads on first use, so it costs nothing until you open a stream; its helpers (`Audio`, `pcmToWav`, `connectTts`, ...) are importable from `echonova/streaming`.
+Sessions never reconnect on their own; `transcribeStream()` does, replaying only audio that was never cut into a segment. Each session is saved as a Speech to Text job: `summary.jobId`, or a `session.saved` event. Streaming code loads on first use, so it costs nothing until you open a stream; its helpers (`Audio`, `pcmToWav`, `connectTts`, ...) are importable from `@echonova/ai/streaming`.
 
 In browsers, streams only work in proxy mode: set `stream: { query: async () => ({ access_token: await getStreamToken() }) }`, because a browser can't send headers on a WebSocket.
 
 ## Sound Cleaning
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -214,7 +214,7 @@ await client.soundCleaning.jobs.delete(job);
 Start a live voice or chat session with an agent from your server. The key needs the `agents:talk` scope.
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 declare function sendToYourClient(wsUrl: string, token: string): void; // your app's own channel
 
@@ -244,7 +244,7 @@ Widget tickets for one visitor: `await client.widgets.createTicket(publicId, { u
 ## Errors and retries
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 declare function alertOps(): void;
 declare function retryLater(seconds: number | null): void;
@@ -267,7 +267,7 @@ try {
 }
 ```
 
-Every error class is also exported by name (`import { RateLimitError } from 'echonova'`), and `instanceof` works across the ESM and CommonJS builds.
+Every error class is also exported by name (`import { RateLimitError } from '@echonova/ai'`), and `instanceof` works across the ESM and CommonJS builds.
 
 The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors carry `mayHaveExecuted: true` and `sentAt`; `findCandidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
 
@@ -276,7 +276,7 @@ After a `429` with `Retry-After`, the client holds further calls to that endpoin
 ## Response metadata
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // a job ID from jobs.create()
@@ -294,7 +294,7 @@ Every result has `requestId`. Results mirror the API's JSON, including fields th
 Never ship an API key in a browser or mobile app. Instead, run a small proxy on your backend that adds the key (see [`proxy-examples/`](../proxy-examples)), and point the SDK at it:
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 declare function sessionToken(): Promise<string>; // your app's own credentials
 

@@ -4,7 +4,7 @@
  *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/stt-transcribe.ts call.mp3
  */
 
-import EchoNova, { type Terminology } from 'echonova';
+import EchoNova, { type Terminology } from '@echonova/ai';
 
 const [path] = process.argv.slice(2);
 if (!path) {

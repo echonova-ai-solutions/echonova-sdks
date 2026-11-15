@@ -35,7 +35,7 @@ with client.text_to_speech.connect(voice_id=voice_id) as tts:
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -135,7 +135,7 @@ async with AsyncEchoNova() as client, client.text_to_speech.connect(voice_id=voi
 
 ```ts
 import { setTimeout as sleep } from 'node:timers/promises';
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from voices.list()
@@ -194,7 +194,7 @@ Future<void> main() async {
 
 - Audio is 16-bit signed little-endian mono PCM, with no header, at the sample rate the server announces in its `start` event. `synth.sample_rate` (`sampleRate`) holds it from then on (it is set before the first chunk is delivered); for `speak_stream()`, the session's `tts.sample_rate` does. The API docs give 24 kHz today but ask you to read it rather than hard-code it: a player at another rate plays too fast, too slow or as noise.
 - Audio is generated a few seconds of speech at a time, so it arrives in bursts. Give your player a small buffer, a few hundred milliseconds, so it doesn't run dry between bursts.
-- To keep the audio, `synth.collect()` returns it all as `Audio`, which writes a WAV file (`to_wav()`, `toWav()`). To write a WAV file while it streams, use `echonova.audio.WavWriter` in Python, `wavHeader()` from `echonova/streaming` in TypeScript, or `wavStream()` in Dart.
+- To keep the audio, `synth.collect()` returns it all as `Audio`, which writes a WAV file (`to_wav()`, `toWav()`). To write a WAV file while it streams, use `echonova.audio.WavWriter` in Python, `wavHeader()` from `@echonova/ai/streaming` in TypeScript, or `wavStream()` in Dart.
 - The stream can't send MP3 or Opus: encode the PCM yourself, or use `generate()` for a WAV file.
 
 ### Keepalive, reconnects and rotation
@@ -227,7 +227,7 @@ with client.text_to_speech.connect(voice_id=voice_id) as tts:
 **TypeScript**
 
 ```ts
-import EchoNova, { StreamConnectionLostError } from 'echonova';
+import EchoNova, { StreamConnectionLostError } from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from voices.list()
@@ -380,8 +380,8 @@ if summary.saved_status == "saved" and summary.job_id:
 ```ts
 import { readFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
-import EchoNova from 'echonova';
-import { iterFrames, parseWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { iterFrames, parseWav } from '@echonova/ai/streaming';
 
 const client = new EchoNova();
 const wav = parseWav(await readFile('call.wav')); // a 16-bit mono PCM WAV file
@@ -487,8 +487,8 @@ for event in events:
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
-import { iterFrames, parseWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { iterFrames, parseWav } from '@echonova/ai/streaming';
 
 const client = new EchoNova();
 const wav = parseWav(await readFile('broadcast.wav')); // 16-bit mono PCM, of any length
@@ -653,7 +653,7 @@ The page below captures the microphone with an AudioWorklet and streams it to Sp
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const proxy = 'https://api.example.com/echonova'; // your proxy, not api.echonova.ai
 

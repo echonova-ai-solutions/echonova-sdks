@@ -10,8 +10,8 @@
 
 import { readFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
-import EchoNova from 'echonova';
-import { iterFrames, parseWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { iterFrames, parseWav } from '@echonova/ai/streaming';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--long');
 const long = process.argv.includes('--long');

@@ -47,7 +47,7 @@ def on_delivery(raw_body: bytes, headers: dict[str, str]) -> int:
 **TypeScript**
 
 ```ts
-import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from 'echonova';
+import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from '@echonova/ai';
 
 const secrets = (process.env.ECHONOVA_WEBHOOK_SECRETS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -193,7 +193,7 @@ def process(event: webhooks.WebhookEvent) -> None:
 **TypeScript**
 
 ```ts
-import EchoNova, { type WebhookEvent } from 'echonova';
+import EchoNova, { type WebhookEvent } from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -313,7 +313,7 @@ def echonova_webhook() -> tuple[str, int]:
 
 ```ts
 import express from 'express';
-import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from 'echonova';
+import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from '@echonova/ai';
 
 const secrets = (process.env.ECHONOVA_WEBHOOK_SECRETS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const seen = new Set<string>(); // use your database or Redis in production
@@ -350,7 +350,7 @@ In the App Router, put this in `app/webhooks/echonova/route.ts`. `after()` runs 
 
 ```ts
 import { after } from 'next/server';
-import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from 'echonova';
+import { verifyWebhook, WebhookVerificationError, type WebhookEvent } from '@echonova/ai';
 
 const secrets = (process.env.ECHONOVA_WEBHOOK_SECRETS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const seen = new Set<string>(); // serverless instances don't share memory: use your database or Redis

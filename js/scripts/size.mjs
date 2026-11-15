@@ -1,5 +1,5 @@
 // Fail if the SDK grows past its size budgets (minified + gzipped). Run after `npm run build`.
-//  - REST: what `import { EchoNova } from 'echonova'` costs. Streaming is reached only through
+//  - REST: what `import { EchoNova } from '@echonova/ai'` costs. Streaming is reached only through
 //    import(), so it is left out here, as it is for anyone who never opens a stream.
 //  - Streaming: the lazily loaded part, measured on its own ('ws' is external; browsers use WebSocket).
 //    The Cloudflare Workers transport is a chunk of its own that only Workers load, so it is left out.

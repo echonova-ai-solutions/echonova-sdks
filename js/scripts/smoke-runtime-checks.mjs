@@ -54,8 +54,8 @@ async function sha256(bytes) {
  * Run every check. Resolves to `[{ name, ok, detail }]`; never rejects.
  *
  * @param {object} options
- * @param {object} options.sdk the 'echonova' module
- * @param {object} options.streaming the 'echonova/streaming' module
+ * @param {object} options.sdk the '@echonova/ai' module
+ * @param {object} options.streaming the '@echonova/ai/streaming' module
  * @param {string} options.baseURL the mock's http:// URL
  * @param {object | null} options.files `{ path(name), write(path, bytes), read(path) }`, or null without a file system
  * @param {string} options.closedURL an http:// URL where nothing listens (connection refused)
@@ -103,8 +103,8 @@ export async function runChecks({
   const streamCheck = streams ? check : async () => {};
 
   await check('entry points load', () => {
-    expect(typeof EchoNova === 'function' && sdk.default === EchoNova, "'echonova' exports the client");
-    expect(typeof streaming.connectTts === 'function' && typeof streaming.pcmToWav === 'function', "'echonova/streaming' exports its helpers");
+    expect(typeof EchoNova === 'function' && sdk.default === EchoNova, "'@echonova/ai' exports the client");
+    expect(typeof streaming.connectTts === 'function' && typeof streaming.pcmToWav === 'function', "'@echonova/ai/streaming' exports its helpers");
     expect(new sdk.InsufficientBalanceError() instanceof sdk.APIStatusError, 'error classes are exported');
     return `echonova ${sdk.VERSION}`;
   });

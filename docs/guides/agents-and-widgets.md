@@ -43,7 +43,7 @@ def widget_ticket(user_id: str, user_name: str) -> dict[str, str]:
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova(); // a key with access to Agents
 const widgetId = 'wdg_a1B2c3D4e5F6g7H8i9J0'; // from the widget's settings
@@ -109,7 +109,7 @@ client.agents.sessions.end(agent_id, session.id)  # when the user is done
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova(); // a key with the agents:talk scope
 const agentId = '...'; // the agent's ID
@@ -173,7 +173,7 @@ except APIConnectionError as e:
 **TypeScript**
 
 ```ts
-import EchoNova, { APIConnectionError, ConcurrencyLimitError } from 'echonova';
+import EchoNova, { APIConnectionError, ConcurrencyLimitError } from '@echonova/ai';
 
 const client = new EchoNova();
 const agentId = '...'; // the agent's ID

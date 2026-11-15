@@ -7,7 +7,7 @@
  *     APP_TOKEN=... node --experimental-strip-types examples/proxy-mode.ts https://api.example.com/echonova
  */
 
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const [baseURL] = process.argv.slice(2);
 const appToken = process.env['APP_TOKEN'];

@@ -9,8 +9,8 @@
 
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
-import EchoNova from 'echonova';
-import { pcmToWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { pcmToWav } from '@echonova/ai/streaming';
 
 const [voiceId, output = 'reply.wav'] = process.argv.slice(2);
 if (!voiceId) {

@@ -49,7 +49,7 @@ client = EchoNova(
 **TypeScript / JavaScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 declare function accessToken(): Promise<string>; // your user's access token
 

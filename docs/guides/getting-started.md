@@ -6,8 +6,8 @@ Install an EchoNova SDK, put your API key in the environment, and turn text into
 
 | SDK | Package | Requires | Runs on |
 | --- | --- | --- | --- |
-| Python | `echonova` on PyPI | CPython 3.11 or later | Any OS. A blocking client (`EchoNova`) and an asyncio client (`AsyncEchoNova`) with the same methods. |
-| JavaScript / TypeScript | `echonova` on npm | Node.js 22 or later, Bun, or Deno 2 | ESM and CommonJS, with type definitions. Cloudflare Workers runs REST and streaming (file paths only with `nodejs_compat`); Vercel Edge runs REST only, without file paths. Browsers use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps) only. |
+| Python | `echonova-ai` on PyPI (import `echonova`) | CPython 3.11 or later | Any OS. A blocking client (`EchoNova`) and an asyncio client (`AsyncEchoNova`) with the same methods. |
+| JavaScript / TypeScript | `@echonova/ai` on npm | Node.js 22 or later, Bun, or Deno 2 | ESM and CommonJS, with type definitions. Cloudflare Workers runs REST and streaming (file paths only with `nodejs_compat`); Vercel Edge runs REST only, without file paths. Browsers use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps) only. |
 | Dart / Flutter | `echonova` on pub.dev | Dart 3.5 or later (Flutter 3.24 or later) | Server-side Dart with an API key. Flutter apps on Android, iOS, desktop and the web use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps). |
 
 Each SDK supports every language version that is still maintained upstream. A version that reaches end of life is dropped in a minor release, announced one release ahead in the changelog.
@@ -23,8 +23,8 @@ pip install echonova-ai       # or: uv add echonova-ai (import it as echonova)
 **TypeScript**
 
 ```bash
-npm install echonova          # or: pnpm add echonova, yarn add echonova, bun add echonova
-deno add npm:echonova         # Deno
+npm install @echonova/ai          # or: pnpm add @echonova/ai, yarn add @echonova/ai, bun add @echonova/ai
+deno add npm:@echonova/ai         # Deno
 ```
 
 **Dart**
@@ -77,7 +77,7 @@ Save it as `quickstart.py` and run `python quickstart.py`.
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova(); // reads ECHONOVA_API_KEY
 

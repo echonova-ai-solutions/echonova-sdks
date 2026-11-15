@@ -4,7 +4,7 @@
  *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/sound-cleaning.ts noisy.wav clean.wav
  */
 
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const [source, output = 'clean.wav'] = process.argv.slice(2);
 if (!source) {

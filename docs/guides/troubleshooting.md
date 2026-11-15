@@ -86,8 +86,8 @@ for event in client.speech_to_text.transcribe_stream(audio.pcm, sample_rate=audi
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
-import { parseWav } from 'echonova/streaming';
+import EchoNova from '@echonova/ai';
+import { parseWav } from '@echonova/ai/streaming';
 
 const client = new EchoNova();
 
@@ -147,7 +147,7 @@ result = client.speech_to_text.transcribe(("voicemail.ogg", data, "audio/ogg"), 
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova, { toFile } from 'echonova';
+import EchoNova, { toFile } from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -207,7 +207,7 @@ except DownloadExpiredError:
 **TypeScript**
 
 ```ts
-import EchoNova, { DownloadExpiredError } from 'echonova';
+import EchoNova, { DownloadExpiredError } from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // a Text to Speech job ID you stored
@@ -266,7 +266,7 @@ with client.text_to_speech.connect(voice_id=voice_id, wait_for_slot=30) as tts: 
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -306,7 +306,7 @@ Opening streams very often hits a different limit, on connection attempts per ke
 
 <!-- snippet: skip (needs the undici package) -->
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 
 // Node's fetch, and with it the SDK's API calls and downloads, now honour HTTPS_PROXY, HTTP_PROXY and NO_PROXY.

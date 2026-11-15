@@ -1,11 +1,11 @@
 // Smoke test of the built package as an ES module, imported by its own name
-// (Node resolves "echonova" to this package through its "exports" map).
+// (Node resolves "@echonova/ai" to this package through its "exports" map).
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import EchoNova, { EchoNova as Named, RateLimitError, EchoNovaError, VERSION, verifyWebhook } from 'echonova';
+import EchoNova, { EchoNova as Named, RateLimitError, EchoNovaError, VERSION, verifyWebhook } from '@echonova/ai';
 
 const require = createRequire(import.meta.url);
-const cjs = require('echonova');
+const cjs = require('@echonova/ai');
 
 assert.equal(EchoNova, Named, 'default export is the client');
 assert.equal(typeof verifyWebhook, 'function');
@@ -28,7 +28,7 @@ assert.equal(String(client), "EchoNova(baseURL='https://api.echonova.ai', apiKey
 console.log(`ESM build OK (echonova ${VERSION})`);
 
 // The REST surface works from the built package, against a stand-in fetch.
-const { Page, PagePromise, APIPromise, toFile } = await import('echonova');
+const { Page, PagePromise, APIPromise, toFile } = await import('@echonova/ai');
 const replies = [
   { items: [{ id: 'j1', status: 'completed' }], total: 1 },
   { jobId: 'j2', status: 'pending' },

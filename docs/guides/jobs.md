@@ -40,7 +40,7 @@ except JobWaitTimeoutError:
 **TypeScript**
 
 ```ts
-import EchoNova, { JobWaitTimeoutError } from 'echonova';
+import EchoNova, { JobWaitTimeoutError } from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // from client.speechToText.jobs.create()
@@ -113,7 +113,7 @@ for job in client.text_to_speech.jobs.list(limit=100):  # every job, page after 
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -166,7 +166,7 @@ print(result.deleted, result.already_deleted)
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const jobId = '...'; // a finished Speech to Text job
@@ -214,7 +214,7 @@ if session.audio_url:
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -268,7 +268,7 @@ except APIConnectionError as e:
 **TypeScript**
 
 ```ts
-import EchoNova, { APIConnectionError } from 'echonova';
+import EchoNova, { APIConnectionError } from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()

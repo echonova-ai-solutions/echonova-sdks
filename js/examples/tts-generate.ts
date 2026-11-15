@@ -4,7 +4,7 @@
  *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/tts-generate.ts "أهلاً بك في إيكونوفا" speech.wav
  */
 
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const [text = 'أهلاً بك في إيكونوفا', output = 'speech.wav'] = process.argv.slice(2);
 

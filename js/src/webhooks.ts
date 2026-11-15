@@ -2,7 +2,7 @@
  * Verify and parse EchoNova webhook requests.
  *
  * ```ts
- * import { verifyWebhook } from 'echonova';
+ * import { verifyWebhook } from '@echonova/ai';
  *
  * const event = await verifyWebhook(rawBody, request.headers, process.env.ECHONOVA_WEBHOOK_SECRET!);
  * ```

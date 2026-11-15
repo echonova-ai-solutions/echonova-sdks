@@ -9,7 +9,7 @@
  */
 
 import { setTimeout as sleep } from 'node:timers/promises';
-import EchoNova, { ConcurrencyLimitError } from 'echonova';
+import EchoNova, { ConcurrencyLimitError } from '@echonova/ai';
 
 const [agentId, channel = 'voice'] = process.argv.slice(2);
 if (!agentId) {

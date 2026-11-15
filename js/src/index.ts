@@ -2,7 +2,7 @@
  * Official JavaScript and TypeScript SDK for the EchoNova speech API: Text to
  * Speech, Speech to Text, Sound Cleaning, agent sessions and webhooks.
  *
- * @module echonova
+ * @module @echonova/ai
  */
 
 export { EchoNova, EchoNova as default, DEFAULT_BASE_URL } from './client.js';
@@ -143,7 +143,7 @@ export type {
 export { VERSION } from './version.js';
 
 // Streaming types. The streaming code itself loads lazily (client.textToSpeech.connect() and friends);
-// its helpers (Audio, pcmToWav, connectTts, ...) are importable from 'echonova/streaming'.
+// its helpers (Audio, pcmToWav, connectTts, ...) are importable from '@echonova/ai/streaming'.
 export type {
   Audio,
   AudioDropped,

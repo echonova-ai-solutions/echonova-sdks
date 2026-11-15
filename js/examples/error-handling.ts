@@ -13,7 +13,7 @@ import EchoNova, {
   InvalidRequestError,
   RateLimitError,
   SpendingLimitError,
-} from 'echonova';
+} from '@echonova/ai';
 
 const [voiceId] = process.argv.slice(2);
 if (!voiceId) {

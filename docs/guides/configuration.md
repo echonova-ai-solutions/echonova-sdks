@@ -56,7 +56,7 @@ voices = client.text_to_speech.voices.list(timeout=10, max_retries=0)  # one cal
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({ timeout: 60_000 }); // milliseconds, per attempt
 
@@ -104,7 +104,7 @@ voices = client.text_to_speech.voices.list(deadline=5)  # or for one call
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({ deadline: 30_000 }); // milliseconds, for every call
 
@@ -150,7 +150,7 @@ voices = client.text_to_speech.voices.list(extra_headers={"X-Trace-Id": "checkou
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({ defaultHeaders: { 'X-App-Version': '4.2.0' } });
 const voices = await client.textToSpeech.voices.list({ headers: { 'X-Trace-Id': 'checkout-7f3a' } });
@@ -204,7 +204,7 @@ Use `httpx.AsyncClient` with `AsyncEchoNova`.
 The `fetch` option replaces `globalThis.fetch` for API calls and downloads alike. This one logs each request's method, path and status (never its query string: a download link's query string is its signature):
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({
   fetch: async (url, init) => {
@@ -292,7 +292,7 @@ With `AsyncEchoNova`, the hooks may be async functions.
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova({
   onRequest: (request) => {
@@ -339,7 +339,7 @@ for name in ("httpx", "httpcore", "websockets"):
 Logging is off by default. Set `logLevel` (`'debug'`, `'info'`, `'warn'` or `'error'`) or `ECHONOVA_LOG`, and optionally a `logger` with `error`, `warn`, `info` and `debug` methods (the default is `console`):
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const line = (level: string) => (message: string) => console.log(JSON.stringify({ level, message }));
 
@@ -376,7 +376,7 @@ print(client.rate_limits.get("text_to_speech.voices.list"))  # limit, remaining,
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -421,7 +421,7 @@ client.close()  # closes the shared connections; patient.close() would do nothin
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 const patient = client.withOptions({ timeout: 300_000, maxRetries: 4 });

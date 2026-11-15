@@ -6,8 +6,8 @@ the proxy examples' READMEs is checked, one tool run per language:
 
 - Python: mypy, in python/'s uv environment. A block with a top-level ``await``, ``async with``
   or ``async for`` is wrapped in an ``async def`` (its imports stay at module level).
-- TypeScript: tsc --noEmit, strict, as ES modules with top-level await. 'echonova' and
-  'echonova/streaming' resolve to js/src, so a sample is checked against the code, not the
+- TypeScript: tsc --noEmit, strict, as ES modules with top-level await. '@echonova/ai' and
+  '@echonova/ai/streaming' resolve to js/src, so a sample is checked against the code, not the
   last build. Needs ``npm ci`` in js/.
 - Dart: dart analyze --fatal-infos, in a throwaway package that depends on dart/ by path. A
   block without ``main`` has its imports kept at the top and the rest wrapped in
@@ -342,8 +342,8 @@ def check_ts(blocks: list[Block], work: Path) -> None:
             "types": ["node"],
             "typeRoots": [str(js / "node_modules" / "@types")],
             "paths": {
-                "echonova": [str(js / "src" / "index.ts")],
-                "echonova/streaming": [str(js / "src" / "streaming" / "index.ts")],
+                "@echonova/ai": [str(js / "src" / "index.ts")],
+                "@echonova/ai/streaming": [str(js / "src" / "streaming" / "index.ts")],
             },
         },
         "files": ["frameworks.d.ts", *sorted(sources)],

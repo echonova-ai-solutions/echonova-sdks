@@ -41,7 +41,7 @@ result = client.speech_to_text.transcribe(("voice-note.ogg", note, "audio/ogg"),
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import EchoNova, { toFile } from 'echonova';
+import EchoNova, { toFile } from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -120,7 +120,7 @@ for speaker in result.speakers or ():
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -193,7 +193,7 @@ if result.terminology:
 **TypeScript**
 
 ```ts
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 
@@ -281,7 +281,7 @@ for segment in data.segments or ():
 
 ```ts
 import { writeFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
 

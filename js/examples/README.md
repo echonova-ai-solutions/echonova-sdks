@@ -17,7 +17,7 @@ Short TypeScript scripts that use the SDK end to end. Each reads your API key fr
 
 ## Running them
 
-The examples are plain TypeScript that Node.js runs directly with type stripping (Node.js 22.6 or later; from 22.18 the flag isn't needed, and it does no harm). In this repository, build the package first, because the examples import `echonova` by name and that resolves to this package's `dist/`:
+The examples are plain TypeScript that Node.js runs directly with type stripping (Node.js 22.6 or later; from 22.18 the flag isn't needed, and it does no harm). In this repository, build the package first, because the examples import `@echonova/ai` by name and that resolves to this package's `dist/`:
 
 ```bash
 cd js
@@ -27,8 +27,8 @@ ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/tts-generate.ts
 
 Each file's header shows its arguments. Run one without arguments to see its usage.
 
-To use one in your own project, `npm install echonova` and copy the file into a folder whose `package.json` has `"type": "module"` (or rename it to `.mts`). The examples use top-level `await`, so they must run as ES modules.
+To use one in your own project, `npm install @echonova/ai` and copy the file into a folder whose `package.json` has `"type": "module"` (or rename it to `.mts`). The examples use top-level `await`, so they must run as ES modules.
 
 ## Checks
 
-`npm run typecheck` type-checks the examples against the source (`tsconfig.examples.json` maps `echonova` and `echonova/streaming` to `src/`). The examples are not part of the published package.
+`npm run typecheck` type-checks the examples against the source (`tsconfig.examples.json` maps `@echonova/ai` and `@echonova/ai/streaming` to `src/`). The examples are not part of the published package.

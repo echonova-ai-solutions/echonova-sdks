@@ -3,7 +3,7 @@
  * the service namespaces.
  *
  * ```ts
- * import EchoNova from 'echonova';
+ * import EchoNova from '@echonova/ai';
  * const client = new EchoNova(); // reads ECHONOVA_API_KEY
  * ```
  */

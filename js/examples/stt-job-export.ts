@@ -5,7 +5,7 @@
  */
 
 import { writeFile } from 'node:fs/promises';
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const [path] = process.argv.slice(2);
 if (!path) {

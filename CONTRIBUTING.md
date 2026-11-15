@@ -176,7 +176,7 @@ cd dart && dart doc       # into doc/api
 ```
 
 - Python uses [pdoc](https://pdoc.dev) from the `docs` dependency group, which `uv sync` doesn't install. Only public modules get a page. `echonova.resources` and `echonova.types.streaming` are named in the command because the package's `__all__` doesn't list them.
-- TypeDoc documents the `echonova` and `echonova/streaming` entry points and treats warnings as errors. If a public signature uses a type the package doesn't export, export it, or add it to `intentionallyNotExported` in `js/typedoc.json`.
+- TypeDoc documents the `@echonova/ai` and `@echonova/ai/streaming` entry points and treats warnings as errors. If a public signature uses a type the package doesn't export, export it, or add it to `intentionallyNotExported` in `js/typedoc.json`.
 - `dart doc` must report 0 warnings.
 
 ## Checking that nothing private is published

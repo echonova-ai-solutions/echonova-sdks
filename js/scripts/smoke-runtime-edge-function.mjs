@@ -3,8 +3,8 @@
 // runs the checks. The SDK doesn't stream on Vercel Edge and there is no file system, so the
 // checks expect streams and file paths to fail with UnsupportedEnvironmentError.
 
-import * as sdk from 'echonova';
-import * as streaming from 'echonova/streaming';
+import * as sdk from '@echonova/ai';
+import * as streaming from '@echonova/ai/streaming';
 import { runChecks } from './smoke-runtime-checks.mjs';
 
 addEventListener('fetch', (event) => {

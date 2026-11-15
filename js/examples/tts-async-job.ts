@@ -4,7 +4,7 @@
  *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/tts-async-job.ts VOICE_ID
  */
 
-import EchoNova from 'echonova';
+import EchoNova from '@echonova/ai';
 
 const [voiceId] = process.argv.slice(2);
 if (!voiceId) {
