@@ -52,7 +52,7 @@ console.log(result.outcome, result.creditsConsumed, result.charged);
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -162,7 +162,7 @@ await speaking; // speakStream() ends after interrupt()
 ```dart
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Stream<String> llmReply() async* {
   // stands in for your model's streamed reply
@@ -250,7 +250,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from voices.list()
@@ -414,7 +414,7 @@ if (summary.savedStatus === 'saved' && summary.jobId) {
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 final wav = parseWav(await File('call.wav').readAsBytes()); // a 16-bit mono PCM WAV file
@@ -511,7 +511,7 @@ for await (const event of events) {
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 final wav = parseWav(await File('broadcast.wav').readAsBytes()); // 16-bit mono PCM, of any length

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:echonova/src/core/envelope.dart';
-import 'package:echonova/src/core/rate_limit.dart';
+import 'package:echonova_ai/src/core/envelope.dart';
+import 'package:echonova_ai/src/core/rate_limit.dart';
 import 'package:test/test.dart';
 
 class FakeClock {

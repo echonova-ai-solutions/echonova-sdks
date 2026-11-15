@@ -1,12 +1,12 @@
-name: echonova
+name: echonova_ai
 description: >-
   Official Dart and Flutter SDK for the EchoNova speech API: Text to Speech,
   Speech to Text and Sound Cleaning, over REST and WebSocket streaming.
-version: 0.1.0-dev.1
+version: 0.0.1
 repository: https://github.com/echonova-ai-solutions/echonova-sdks/tree/main/dart
 issue_tracker: https://github.com/echonova-ai-solutions/echonova-sdks/issues
-homepage: https://echonova.ai/docs/developers
-publish_to: none
+homepage: https://echonova.ai
+documentation: https://echonova.ai/docs/developers
 topics:
   - speech
   - text-to-speech

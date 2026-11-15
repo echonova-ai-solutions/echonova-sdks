@@ -7,7 +7,7 @@
 //     ECHONOVA_API_KEY=... dart run example/echonova_example.dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main() async {
   final client = EchoNova(); // reads ECHONOVA_API_KEY

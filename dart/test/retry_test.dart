@@ -1,5 +1,5 @@
-import 'package:echonova/src/core/retry.dart';
-import 'package:echonova/src/core/rules.dart';
+import 'package:echonova_ai/src/core/retry.dart';
+import 'package:echonova_ai/src/core/rules.dart';
 import 'package:test/test.dart';
 
 RetryPolicy policy({int? maxRetries}) =>

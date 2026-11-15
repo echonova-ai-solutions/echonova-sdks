@@ -10,7 +10,7 @@ environment:
   flutter: ">=3.44.0"
 
 dependencies:
-  echonova:
+  echonova_ai:
     path: ../../dart
   flutter:
     sdk: flutter

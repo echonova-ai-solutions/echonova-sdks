@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-dev.1 (unreleased)
+## 0.0.1
 
 - `EchoNova(apiKey:)` for server-side Dart and `EchoNova.proxy(baseUrl:, auth:)` for Flutter apps, which call your own backend so the API key never ships in the app.
 - Text to Speech: `generate`, `voices.list`, and `jobs.create`, `get`, `list`, `listAll`, `delete`, `wait`, `download`, `downloadTo` and `findCandidates`.

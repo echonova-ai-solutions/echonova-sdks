@@ -11,7 +11,7 @@
 //     ECHONOVA_API_KEY=... dart run example/stt_stream.dart speech.wav [ar|en]
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {

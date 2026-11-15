@@ -6,8 +6,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/rules.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/rules.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

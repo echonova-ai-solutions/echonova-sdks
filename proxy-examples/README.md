@@ -64,7 +64,7 @@ In a browser that authenticates with a cookie instead, pass `auth: () => ({})` (
 **Dart / Flutter**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<String> accessToken() async => '...'; // your user's access token
 

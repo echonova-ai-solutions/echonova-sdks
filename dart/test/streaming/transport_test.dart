@@ -6,12 +6,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/streaming/link.dart' show pingFrame;
-import 'package:echonova/src/streaming/options.dart';
-import 'package:echonova/src/streaming/socket.dart';
-import 'package:echonova/src/streaming/stream_errors.dart';
-import 'package:echonova/src/transport/ws_io.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/streaming/link.dart' show pingFrame;
+import 'package:echonova_ai/src/streaming/options.dart';
+import 'package:echonova_ai/src/streaming/socket.dart';
+import 'package:echonova_ai/src/streaming/stream_errors.dart';
+import 'package:echonova_ai/src/transport/ws_io.dart';
 import 'package:test/test.dart';
 
 import 'mock_server.dart';

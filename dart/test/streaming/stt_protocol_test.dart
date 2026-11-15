@@ -3,10 +3,10 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/pcm_framer.dart' show maxFrameBytes;
-import 'package:echonova/src/streaming/stream_errors.dart';
-import 'package:echonova/src/streaming/stt_protocol.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/pcm_framer.dart' show maxFrameBytes;
+import 'package:echonova_ai/src/streaming/stream_errors.dart';
+import 'package:echonova_ai/src/streaming/stt_protocol.dart';
 import 'package:test/test.dart';
 
 const Map<String, Object?> startedFrame = {

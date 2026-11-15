@@ -1,8 +1,8 @@
 // The client: proxy mode through the resources, raw responses, withOptions,
 // close, and the members the streaming layer uses.
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/client.dart' show transportOf;
-import 'package:echonova/src/runtime.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/client.dart' show transportOf;
+import 'package:echonova_ai/src/runtime.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';

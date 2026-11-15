@@ -36,7 +36,7 @@ await client.download(job.outputUrl, { to: 'clean.wav' });
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -131,7 +131,7 @@ await client.soundCleaning.jobs.delete(jobId); // removes the original and the c
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 

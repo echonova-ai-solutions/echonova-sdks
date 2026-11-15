@@ -13,7 +13,7 @@ library;
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:test/test.dart';
 
 import 'live_support.dart';

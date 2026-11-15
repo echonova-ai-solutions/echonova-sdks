@@ -58,7 +58,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // from client.speechToText.jobs.create()
@@ -129,7 +129,7 @@ for await (const job of client.textToSpeech.jobs.list({ limit: 100 })) {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -178,7 +178,7 @@ console.log(result.deleted, result.alreadyDeleted);
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // a finished Speech to Text job
@@ -228,7 +228,7 @@ if (session.audioUrl) await client.download(session.audioUrl, { to: 'recordings/
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -286,7 +286,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()

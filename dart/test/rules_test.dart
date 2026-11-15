@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:echonova/src/core/rules.dart';
+import 'package:echonova_ai/src/core/rules.dart';
 import 'package:test/test.dart';
 
 import 'support/spec.dart';

@@ -417,7 +417,7 @@ def check_dart(blocks: list[Block], work: Path) -> None:
         "publish_to: none\n"
         "environment:\n  sdk: ^3.5.0\n"
         "dependencies:\n"
-        f"  echonova:\n    path: {json.dumps(str(ROOT / 'dart'))}\n"
+        f"  echonova_ai:\n    path: {json.dumps(str(ROOT / 'dart'))}\n"
         "  http: any\n"
         "  shelf: any\n"
         "dev_dependencies:\n  lints: any\n",

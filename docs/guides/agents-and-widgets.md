@@ -61,7 +61,7 @@ async function widgetTicket(userId: string, userName: string): Promise<{ ticket:
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova(); // a key with access to Agents
 const widgetId = 'wdg_a1B2c3D4e5F6g7H8i9J0'; // from the widget's settings
@@ -125,7 +125,7 @@ await client.agents.sessions.end(agentId, session.id); // when the user is done
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova(); // a key with the agents:talk scope
 const agentId = '...'; // the agent's ID
@@ -192,7 +192,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const agentId = '...'; // the agent's ID

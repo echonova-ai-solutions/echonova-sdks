@@ -59,7 +59,7 @@ result = await client.speechToText.transcribe({
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -135,7 +135,7 @@ for (const speaker of result.speakers) console.log(speaker.id, speaker.talkTime)
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -218,7 +218,7 @@ if (result.terminology) {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -301,7 +301,7 @@ for (const segment of data.segments ?? []) console.log(segment.speakerLabel, seg
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 

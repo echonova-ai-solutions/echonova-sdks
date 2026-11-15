@@ -2,7 +2,7 @@
 // their content types.
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:test/test.dart';
 
 import '../support/rest.dart';

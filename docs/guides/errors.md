@@ -47,7 +47,7 @@ Two choices in this tree matter when you write handlers:
 - **`SpendingLimitError` is not a `RateLimitError`.** A rate limit clears by waiting; a spending limit doesn't. Code that catches `RateLimitError` and retries later can never retry a spending limit by accident.
 - **Unknown messages fall back to the generic class for their status.** A new `404` message raises `NotFoundError`, never a more specific class.
 
-Import them from the package: `from echonova import RateLimitError` in Python, `import { RateLimitError } from '@echonova/ai'` (or `EchoNova.RateLimitError`) in TypeScript, and `package:echonova/echonova.dart` in Dart. In TypeScript, `instanceof` works across the ESM and CommonJS builds. In Dart, `EchoNovaException` is `sealed`, so a `switch` over it is exhaustive.
+Import them from the package: `from echonova import RateLimitError` in Python, `import { RateLimitError } from '@echonova/ai'` (or `EchoNova.RateLimitError`) in TypeScript, and `package:echonova_ai/echonova_ai.dart` in Dart. In TypeScript, `instanceof` works across the ESM and CommonJS builds. In Dart, `EchoNovaException` is `sealed`, so a `switch` over it is exhaustive.
 
 ## What an error tells you
 
@@ -128,7 +128,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -256,7 +256,7 @@ const done = await client.textToSpeech.jobs.wait(await createOnce());
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const text = 'أهلاً بك في إيكونوفا';

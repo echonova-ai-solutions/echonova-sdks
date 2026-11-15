@@ -6,7 +6,7 @@ Official client libraries for the [EchoNova API](https://echonova.ai/docs/develo
 | --- | --- | --- |
 | Python | `echonova-ai` on PyPI (import `echonova`) | REST and streaming, sync and async: feature complete |
 | JavaScript / TypeScript | `@echonova/ai` on npm | REST and streaming (Node, Bun, Deno, Cloudflare Workers; browsers through a proxy): feature complete |
-| Dart / Flutter | `echonova` on pub.dev | REST and streaming (mobile, desktop, server; Flutter web through a proxy): feature complete |
+| Dart / Flutter | `echonova_ai` on pub.dev | REST and streaming (mobile, desktop, server; Flutter web through a proxy): feature complete |
 
 Every SDK covers Text to Speech, Speech to Text, Sound Cleaning, widget tickets and agent sessions, plus webhook verification. None is published yet: the first release of each is `0.0.1` (see [Releasing](#releasing)).
 

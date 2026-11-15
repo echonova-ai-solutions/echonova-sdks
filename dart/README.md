@@ -15,18 +15,18 @@ Until the package is on pub.dev, depend on a checkout of this repository:
 
 ```yaml
 dependencies:
-  echonova:
+  echonova_ai:
     path: ../echonova-sdks/dart # where you cloned the repository
 ```
 
-Then `dart pub get` (or `flutter pub get`). Once it is published: `dart pub add echonova`.
+Then `dart pub get` (or `flutter pub get`). Once it is published: `dart pub add echonova_ai`.
 
 Requires Dart 3.5 or later (Flutter 3.24 or later).
 
 ## Quick start: server-side Dart
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main() async {
   final client = EchoNova(); // reads ECHONOVA_API_KEY
@@ -56,7 +56,7 @@ Point the app at your proxy, with your app's own credentials:
 ```dart
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<String> sessionToken() async => '...'; // your app's own credentials
 final recording = Uint8List(0); // audio your app recorded
@@ -98,7 +98,7 @@ print(done.transcription);
 Every API method also takes `options` for one call:
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // a job ID from jobs.create()
@@ -123,7 +123,7 @@ Default time limits per attempt (`package:http` has one deadline per request, so
 ## Text to Speech
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const text = 'أهلاً بك في إيكونوفا';
@@ -148,7 +148,7 @@ Uploads are `AudioFile`s:
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final bytes = await File('call.mp3').readAsBytes();
 final file = File('recording.ogg');
@@ -162,7 +162,7 @@ AudioFile.fromBytes(bytes, 'clip', contentType: 'audio/webm');
 The SDK names the audio type from the file extension (mp3, wav, flac, ogg, opus, m4a, aac, webm, amr) or, failing that, from the file's first bytes. If it can't tell, it throws `UsageException` before sending anything. It never sends `application/octet-stream`, which the API rejects.
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -192,7 +192,7 @@ final data = await client.speechToText.jobs.exportJson(done.id); // TranscriptEx
 ## Sound Cleaning
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -212,7 +212,7 @@ await client.soundCleaning.jobs.delete(job.id);
 Call these from your server.
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 void sendToYourClient(String? wsUrl, String token) {} // your app's own channel
 
@@ -245,7 +245,7 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 Every error the SDK throws is an `EchoNovaException`, a sealed class, so a `switch` over it is exhaustive. An error thrown by your own `auth` or `streamQuery` hook reaches you unchanged, as in the Python and TypeScript SDKs, so you can tell it from an API error:
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const text = 'أهلاً بك في إيكونوفا';
@@ -278,7 +278,7 @@ After a `429` with `Retry-After`, the client holds further calls to that endpoin
 Every method has a `…WithResponse` twin that returns a `RawResponse`:
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // a job ID from jobs.create()
@@ -299,7 +299,7 @@ Keep one Text to Speech socket open and send a synthesis per sentence or reply. 
 ```dart
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 // Your app's audio output, voice activity detection and LLM text:
 void play(Uint8List pcm) {}
@@ -331,7 +331,7 @@ Speech to Text takes live PCM16LE mono audio and sends transcripts as each segme
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final microphone = Stream<List<int>>.empty(); // your audio: PCM16LE mono at 16 kHz
 final chunks = File('meeting.pcm').openRead(); // the same format, from a file
@@ -366,7 +366,7 @@ Sessions never reconnect on their own; `transcribeStream` does, replaying only a
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 /// Call it with the request's body and headers, from any server framework.
 void onWebhook(List<int> rawBody, Map<String, String> headers) {

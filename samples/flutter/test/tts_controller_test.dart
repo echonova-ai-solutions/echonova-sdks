@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:echonova_sample/src/tts/tts_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 

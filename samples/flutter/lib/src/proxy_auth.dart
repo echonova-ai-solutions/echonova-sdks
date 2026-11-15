@@ -7,7 +7,7 @@ library;
 
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 

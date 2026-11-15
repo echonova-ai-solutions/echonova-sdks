@@ -8,7 +8,7 @@
 @TestOn('vm')
 library;
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:test/test.dart';
 
 import 'live_support.dart';

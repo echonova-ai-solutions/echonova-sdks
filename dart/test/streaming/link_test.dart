@@ -4,12 +4,12 @@ library;
 
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/classifier.dart';
-import 'package:echonova/src/core/retry.dart';
-import 'package:echonova/src/streaming/link.dart';
-import 'package:echonova/src/streaming/options.dart';
-import 'package:echonova/src/streaming/stream_errors.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/classifier.dart';
+import 'package:echonova_ai/src/core/retry.dart';
+import 'package:echonova_ai/src/streaming/link.dart';
+import 'package:echonova_ai/src/streaming/options.dart';
+import 'package:echonova_ai/src/streaming/stream_errors.dart';
 import 'package:test/test.dart';
 
 Duration s(num seconds) =>

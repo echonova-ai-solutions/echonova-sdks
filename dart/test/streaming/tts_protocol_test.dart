@@ -4,9 +4,9 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/streaming/stream_errors.dart';
-import 'package:echonova/src/streaming/tts_protocol.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/streaming/stream_errors.dart';
+import 'package:echonova_ai/src/streaming/tts_protocol.dart';
 import 'package:test/test.dart';
 
 const Duration t0 = Duration(seconds: 100);

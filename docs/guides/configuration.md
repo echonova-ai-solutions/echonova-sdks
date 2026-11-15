@@ -67,7 +67,7 @@ const voices = await client.textToSpeech.voices.list({ timeout: 10_000, maxRetri
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova(timeout: const Duration(seconds: 60)); // per attempt
 
@@ -114,7 +114,7 @@ const voices = await client.textToSpeech.voices.list({ deadline: 5_000 }); // or
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova(deadline: const Duration(seconds: 30)); // for every call
 
@@ -159,7 +159,7 @@ const voices = await client.textToSpeech.voices.list({ headers: { 'X-Trace-Id': 
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova(defaultHeaders: {'X-App-Version': '4.2.0'});
 final voices = await client.textToSpeech.voices.list(
@@ -224,7 +224,7 @@ Pass any `package:http` client. `close()` leaves a client you passed open, so cl
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
@@ -389,7 +389,7 @@ console.log(client.rateLimits['textToSpeech.voices.list']); // limit, remaining,
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -432,7 +432,7 @@ await client.close(); // closes the copies too; closing a copy does nothing
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 final patient = client.withOptions(timeout: const Duration(minutes: 5), maxRetries: 4);

@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/client.dart' show redactApiKey, transportOf;
-import 'package:echonova/src/transport/http_transport.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/client.dart' show redactApiKey, transportOf;
+import 'package:echonova_ai/src/transport/http_transport.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';

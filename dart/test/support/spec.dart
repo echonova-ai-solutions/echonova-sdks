@@ -5,7 +5,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 /// The repository's `spec/` folder (the shared contract).
 final Directory specDir = () {

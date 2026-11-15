@@ -7,7 +7,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 /// Voices, and the Text to Speech and Speech to Text streams.
 abstract interface class SpeechService {

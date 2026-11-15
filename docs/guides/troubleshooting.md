@@ -104,7 +104,7 @@ for await (const event of client.speechToText.transcribeStream(audio.pcm, { samp
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -163,7 +163,7 @@ const result = await client.speechToText.transcribe({
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -224,7 +224,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // a Text to Speech job ID you stored
@@ -278,7 +278,7 @@ for await (const pcm of tts.synthesize('أهلاً بك')) console.log(pcm.byteL
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -322,7 +322,7 @@ To route only EchoNova's traffic, pass the client a `fetch` option that does the
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:http/io_client.dart';
 
 IOClient proxied() {

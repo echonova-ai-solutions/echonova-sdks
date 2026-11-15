@@ -4,7 +4,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:echonova_sample/src/audio/microphone.dart';
 import 'package:echonova_sample/src/audio/pcm_player.dart';
 import 'package:echonova_sample/src/speech_service.dart';

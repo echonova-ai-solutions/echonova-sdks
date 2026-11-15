@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:echonova/src/core/pcm_framer.dart';
+import 'package:echonova_ai/src/core/pcm_framer.dart';
 import 'package:test/test.dart';
 
 Uint8List bytes(int length, Random random) =>

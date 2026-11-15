@@ -1,7 +1,7 @@
 // Response models: every documented field is modelled and parses the
 // examples synthesised from openapi.json; parsing is lenient.
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/models/base.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/models/base.dart';
 import 'package:test/test.dart';
 
 import '../support/rest.dart';

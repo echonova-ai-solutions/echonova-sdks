@@ -2,7 +2,7 @@
 
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:echonova_sample/src/audio/pcm.dart';
 import 'package:echonova_sample/src/audio/pcm_player.dart';
 import 'package:echonova_sample/src/config.dart';

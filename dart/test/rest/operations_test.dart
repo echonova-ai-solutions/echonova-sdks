@@ -2,8 +2,8 @@
 // every parameter, and goes to the documented method and path.
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/operations.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/operations.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

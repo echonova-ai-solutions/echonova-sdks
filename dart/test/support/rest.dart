@@ -7,9 +7,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/client.dart' show clientWithRuntime;
-import 'package:echonova/src/runtime.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/client.dart' show clientWithRuntime;
+import 'package:echonova_ai/src/runtime.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

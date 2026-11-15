@@ -1,6 +1,6 @@
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/classifier.dart';
-import 'package:echonova/src/core/rules.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/classifier.dart';
+import 'package:echonova_ai/src/core/rules.dart';
 import 'package:test/test.dart';
 
 import 'support/spec.dart';

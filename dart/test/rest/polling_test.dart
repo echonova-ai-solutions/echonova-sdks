@@ -1,7 +1,7 @@
 // jobs.wait with a fake clock, the shared polling budget, and
 // findCandidates.
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/polling.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/polling.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

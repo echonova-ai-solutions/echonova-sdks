@@ -4,9 +4,9 @@ library;
 
 import 'dart:async';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/pcm_framer.dart' show maxFrameBytes;
-import 'package:echonova/src/streaming/streaming.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/pcm_framer.dart' show maxFrameBytes;
+import 'package:echonova_ai/src/streaming/streaming.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';

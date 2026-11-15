@@ -3,7 +3,7 @@ library;
 
 import 'dart:async';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:flutter/foundation.dart';
 
 import '../audio/pcm_player.dart';

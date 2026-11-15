@@ -43,7 +43,7 @@ const client = new EchoNova({ apiKey }); // the trailing newline is removed
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final apiKey = await File('/run/secrets/echonova_api_key').readAsString();
 final client = EchoNova(apiKey: apiKey); // the trailing newline is removed
@@ -132,7 +132,7 @@ const client = new EchoNova({
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 // Your app's own sign-in: the signed-in user's access token for your backend.
 Future<String> accessToken() async => 'token from your sign-in flow';
@@ -168,7 +168,7 @@ const client = new EchoNova({
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:http/browser_client.dart';
 
 final client = EchoNova.proxy(
@@ -224,7 +224,7 @@ const client = new EchoNova({
 ```dart
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:http/http.dart' as http;
 
 final proxy = Uri.parse('https://api.example.com/echonova');

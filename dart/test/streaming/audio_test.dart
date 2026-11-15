@@ -3,7 +3,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:echonova/src/audio.dart';
+import 'package:echonova_ai/src/audio.dart';
 import 'package:test/test.dart';
 
 Uint8List ramp(int length) =>

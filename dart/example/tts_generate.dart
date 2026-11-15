@@ -5,7 +5,7 @@
 //     ECHONOVA_API_KEY=... dart run example/tts_generate.dart "أهلاً بك في إيكونوفا" speech.wav
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main(List<String> args) async {
   final text = args.isNotEmpty ? args[0] : 'أهلاً بك في إيكونوفا';

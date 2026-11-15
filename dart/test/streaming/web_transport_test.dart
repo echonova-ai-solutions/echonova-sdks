@@ -11,8 +11,8 @@ library;
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/streaming/streaming.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/streaming/streaming.dart';
 import 'package:test/test.dart';
 
 void main() {

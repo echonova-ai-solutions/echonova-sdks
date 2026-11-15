@@ -81,7 +81,7 @@ console.log(speech.jobId, speech.audioUrl, speech.creditsConsumed, speech.reques
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -164,7 +164,7 @@ console.log(result.transcription);
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -228,7 +228,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()

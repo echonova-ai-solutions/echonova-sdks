@@ -1,7 +1,7 @@
 /// The Speech to Text screen.
 library;
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:flutter/material.dart';
 
 import '../format.dart';

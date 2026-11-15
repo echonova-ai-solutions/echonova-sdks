@@ -10,7 +10,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {

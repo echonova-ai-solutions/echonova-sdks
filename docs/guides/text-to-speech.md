@@ -58,7 +58,7 @@ try {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -117,7 +117,7 @@ await client.download(speech.audioUrl, { to: 'weather.wav' });
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -187,7 +187,7 @@ await client.textToSpeech.jobs.download(done, { to: 'welcome.wav' }); // gets a 
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
@@ -298,7 +298,7 @@ await writeFile('chapter.wav', pcmToWav(Buffer.concat(audio.map((a) => a.pcm)), 
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 /// Whole sentences, packed into pieces of at most [limit] characters.
 List<String> splitText(String text, {int limit = 500}) {
@@ -392,7 +392,7 @@ try {
 ```dart
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const jobId = '...'; // a Text to Speech job ID

@@ -8,7 +8,7 @@ Install an EchoNova SDK, put your API key in the environment, and turn text into
 | --- | --- | --- | --- |
 | Python | `echonova-ai` on PyPI (import `echonova`) | CPython 3.11 or later | Any OS. A blocking client (`EchoNova`) and an asyncio client (`AsyncEchoNova`) with the same methods. |
 | JavaScript / TypeScript | `@echonova/ai` on npm | Node.js 22 or later, Bun, or Deno 2 | ESM and CommonJS, with type definitions. Cloudflare Workers runs REST and streaming (file paths only with `nodejs_compat`); Vercel Edge runs REST only, without file paths. Browsers use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps) only. |
-| Dart / Flutter | `echonova` on pub.dev | Dart 3.5 or later (Flutter 3.24 or later) | Server-side Dart with an API key. Flutter apps on Android, iOS, desktop and the web use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps). |
+| Dart / Flutter | `echonova_ai` on pub.dev | Dart 3.5 or later (Flutter 3.24 or later) | Server-side Dart with an API key. Flutter apps on Android, iOS, desktop and the web use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps). |
 
 Each SDK supports every language version that is still maintained upstream. A version that reaches end of life is dropped in a minor release, announced one release ahead in the changelog.
 
@@ -30,7 +30,7 @@ deno add npm:@echonova/ai         # Deno
 **Dart**
 
 ```bash
-dart pub add echonova         # Flutter: flutter pub add echonova
+dart pub add echonova_ai      # Flutter: flutter pub add echonova_ai
 ```
 
 > The packages are not on the registries yet. Until the first beta, install from a clone of this repository: `pip install ./python`; `cd js && npm ci && npm pack`, then `npm install` the `.tgz` it creates; for Dart, a `path:` dependency on `dart/` (see the [Dart README](../../dart/README.md#install)).
@@ -98,7 +98,7 @@ Save it as `quickstart.ts` and run it with `bun quickstart.ts`, `npx tsx quickst
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main() async {
   final client = EchoNova(); // reads ECHONOVA_API_KEY
@@ -118,7 +118,7 @@ Future<void> main() async {
 }
 ```
 
-Save it as `bin/quickstart.dart` in a package that depends on `echonova`, and run `dart run bin/quickstart.dart`.
+Save it as `bin/quickstart.dart` in a package that depends on `echonova_ai`, and run `dart run bin/quickstart.dart`.
 
 ### What just happened
 

@@ -87,7 +87,7 @@ async function onDelivery(rawBody: Uint8Array, headers: Headers): Promise<number
 ```dart
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final secrets = Platform.environment['ECHONOVA_WEBHOOK_SECRETS']!
     .split(',')
@@ -214,7 +214,7 @@ async function processEvent(event: WebhookEvent): Promise<void> {
 **Dart**
 
 ```dart
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 
@@ -383,7 +383,7 @@ export async function POST(request: Request): Promise<Response> {
 import 'dart:async';
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 

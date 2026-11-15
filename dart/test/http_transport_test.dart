@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/core/rate_limit.dart';
-import 'package:echonova/src/core/rules.dart';
-import 'package:echonova/src/platform/platform.dart' as platform;
-import 'package:echonova/src/transport/http_transport.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/core/rate_limit.dart';
+import 'package:echonova_ai/src/core/rules.dart';
+import 'package:echonova_ai/src/platform/platform.dart' as platform;
+import 'package:echonova_ai/src/transport/http_transport.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';

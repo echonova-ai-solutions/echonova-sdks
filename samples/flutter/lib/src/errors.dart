@@ -1,7 +1,7 @@
 /// Turns the SDK's exceptions into messages for the user.
 library;
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:flutter/foundation.dart';
 
 import 'proxy_auth.dart';

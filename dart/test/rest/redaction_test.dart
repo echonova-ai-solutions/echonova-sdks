@@ -2,7 +2,7 @@
 // signatures of download links stay out of toString and errors.
 import 'dart:convert';
 
-import 'package:echonova/echonova.dart';
+import 'package:echonova_ai/echonova_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:test/test.dart';
 

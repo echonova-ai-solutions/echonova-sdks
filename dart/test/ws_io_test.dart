@@ -6,9 +6,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:echonova/echonova.dart';
-import 'package:echonova/src/transport/ws.dart' as ws;
-import 'package:echonova/src/transport/ws_io.dart';
+import 'package:echonova_ai/echonova_ai.dart';
+import 'package:echonova_ai/src/transport/ws.dart' as ws;
+import 'package:echonova_ai/src/transport/ws_io.dart';
 import 'package:test/test.dart';
 
 import 'support/spec.dart';
