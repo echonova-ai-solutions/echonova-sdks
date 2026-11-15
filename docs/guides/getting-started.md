@@ -17,7 +17,7 @@ Each SDK supports every language version that is still maintained upstream. A ve
 **Python**
 
 ```bash
-pip install echonova          # or: uv add echonova
+pip install echonova-ai       # or: uv add echonova-ai (import it as echonova)
 ```
 
 **TypeScript**
