@@ -21,6 +21,29 @@ export interface RequestOptions {
   headers?: HeaderValues | undefined;
 }
 
+/**
+ * Per-call options for the synchronous calls that make a job: `textToSpeech.generate`,
+ * `speechToText.transcribe` and `soundCleaning.clean`.
+ */
+export interface SyncRequestOptions extends RequestOptions {
+  /**
+   * The `Idempotency-Key` to send. By default the SDK makes a new random key for
+   * each call and sends it on every retry of that call. Pass your own to send the
+   * same request again later, from any process: within 24 hours the API answers
+   * with the first result and doesn't charge twice.
+   */
+  idempotencyKey?: string | undefined;
+  /**
+   * Milliseconds the SDK waits for a call that is still running: when the first request
+   * with this key is still running (it sends it again every 5 s, then throws
+   * `RequestInProgressError`), or when the job is still processing after 220 s (the API
+   * answers `202`; the SDK polls the job, then throws `JobWaitTimeoutError` with its
+   * `jobId`). One budget per call, from the first such answer, within any `deadline`.
+   * Default 20 minutes, as for `jobs.wait()`.
+   */
+  waitTimeout?: number | undefined;
+}
+
 // --- Text to Speech -------------------------------------------------------------------------
 
 export interface SpeechParams {
@@ -63,8 +86,11 @@ export interface Terminology {
 export interface TranscribeParams {
   /** The audio: a file path (Node.js, Bun, Deno), a `Blob`/`File`, bytes, a byte stream, or `toFile(...)`. */
   file: Uploadable;
-  /** `ar` for Arabic and mixed Arabic/English; `en` only for wholly English speech. */
-  language: Language;
+  /**
+   * `auto` (the API's default when left out) detects Arabic or English; `ar` for
+   * Arabic and mixed Arabic/English; `en` only for wholly English speech.
+   */
+  language?: Language | undefined;
   numbersAsDigits?: boolean | undefined;
   identifySpeakers?: boolean | undefined;
   /** Your terms. The SDK sends them as the JSON string the API expects; a string is sent as is. */

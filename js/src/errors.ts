@@ -104,6 +104,13 @@ export class APIConnectionError extends EchoNovaError {
   readonly mayHaveExecuted: boolean | null;
   readonly sentAt: Date | null;
   readonly retryDisabledReason: string | null;
+  /**
+   * The `Idempotency-Key` the call sent, on errors from `textToSpeech.generate`,
+   * `speechToText.transcribe` and `soundCleaning.clean`; `undefined` elsewhere.
+   * Send the request again with it (`idempotencyKey` in the request options) to
+   * get the first result without a second charge.
+   */
+  declare readonly idempotencyKey?: string | undefined;
 
   constructor(message: string, init: APIConnectionErrorInit = {}) {
     super(message, { cause: init.cause });
@@ -208,6 +215,13 @@ export class APIStatusError extends EchoNovaError {
   readonly fromProxy: boolean;
   /** Why the SDK did not retry, when retrying was otherwise allowed (e.g. `"body_not_replayable"`). */
   readonly retryDisabledReason: string | null;
+  /**
+   * The `Idempotency-Key` the call sent, on errors from `textToSpeech.generate`,
+   * `speechToText.transcribe` and `soundCleaning.clean`; `undefined` elsewhere.
+   * Send the request again with it (`idempotencyKey` in the request options) to
+   * get the first result without a second charge.
+   */
+  declare readonly idempotencyKey?: string | undefined;
 
   constructor(init: APIStatusErrorInit = {}) {
     const statusCode = init.statusCode ?? null;
@@ -346,6 +360,18 @@ export class RateLimitError extends APIStatusError {
 export class ConcurrencyLimitError extends APIStatusError {
   static {
     register(this, 'ConcurrencyLimitError');
+  }
+}
+
+/**
+ * 409: a request with the same `Idempotency-Key` (or, without a key, the same
+ * request) is still running. The SDK keeps sending it again, every 5 s, for up to
+ * `waitTimeout`; this is raised when it is still running after that. Send it again
+ * later with the same `idempotencyKey` to get its result.
+ */
+export class RequestInProgressError extends APIStatusError {
+  static {
+    register(this, 'RequestInProgressError');
   }
 }
 
@@ -509,6 +535,7 @@ export const ERROR_CLASSES = {
   SpendingLimitError,
   RateLimitError,
   ConcurrencyLimitError,
+  RequestInProgressError,
   ServerError,
   ServiceUnavailableError,
   GatewayError,

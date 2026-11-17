@@ -6,9 +6,10 @@ import type { DownloadOptions } from '../core/download.js';
 import { prepareUpload } from '../core/files.js';
 import { OPS } from '../core/operations.js';
 import type { PagePromise } from '../core/pagination.js';
+import { CLEAN_POLL_INTERVAL_MS } from '../core/polling.js';
 import type { CleanJob, DeleteResult } from '../types/models.js';
-import type { CleanParams, ListParams, RequestOptions } from '../types/params.js';
-import { APIResource, model, parseDelete, type ClientContext, type JobRef } from './resource.js';
+import type { CleanParams, ListParams, RequestOptions, SyncRequestOptions } from '../types/params.js';
+import { APIResource, model, parseDelete, type ClientContext, type JobRef, type SyncJob } from './resource.js';
 
 /** The form fields, camelCase as the API names them. */
 const OPTION_NAMES = [
@@ -25,6 +26,9 @@ const OPTION_NAMES = [
 ] as const;
 
 const parseJob = model<CleanJob>('CleanJob', ['id', 'status']);
+
+/** After a `202 Processing`, `clean()` polls the job every 5 s and returns it (plus `jobId`). */
+const CLEAN_JOB: SyncJob<CleanJob> = { get: OPS.cleanJobsGet, parseJob, interval: CLEAN_POLL_INTERVAL_MS };
 
 export class CleanJobs extends APIResource {
   /** Get a job, with a freshly signed `outputUrl`. */
@@ -61,13 +65,24 @@ export class SoundCleaning extends APIResource {
     this.jobs = new CleanJobs(client);
   }
 
-  /** Clean an audio file and wait for the result. `outputUrl` links to the cleaned WAV. */
-  clean(params: CleanParams, options?: RequestOptions): APIPromise<CleanJob> {
+  /**
+   * Clean an audio file and wait for the result. `outputUrl` links to the cleaned WAV.
+   *
+   * Every attempt sends the same `Idempotency-Key` (pass `idempotencyKey` to choose it),
+   * so retries never clean twice. If the job is still running after 220 s, the SDK
+   * polls it every 5 s, for up to `waitTimeout`, instead of uploading again.
+   */
+  clean(params: CleanParams, options?: SyncRequestOptions): APIPromise<CleanJob> {
     const fields: Array<[string, string]> = [];
     for (const name of OPTION_NAMES) {
       const value = params[name];
       if (value != null) fields.push([name, String(value)]);
     }
-    return this._request(OPS.clean, { upload: () => prepareUpload(params.file, fields), parse: parseJob }, options);
+    return this._sync<CleanJob, CleanJob>(
+      OPS.clean,
+      { upload: () => prepareUpload(params.file, fields), parse: parseJob },
+      CLEAN_JOB,
+      options,
+    );
   }
 }

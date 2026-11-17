@@ -158,7 +158,20 @@ describe('SttSession', () => {
   it('checks arguments before connecting', async () => {
     expect(await rejects(open({ sampleRate: 16_000.5 }))).toBeInstanceOf(UsageError);
     expect(await rejects(open({ language: '' }))).toBeInstanceOf(UsageError);
+    expect(await rejects(open({ language: 5 as unknown as string }))).toBeInstanceOf(UsageError);
     expect(server.attempts).toEqual([]);
+  });
+
+  it.each([
+    [undefined, { sample_rate: '16000', encoding: 'pcm_s16le' }],
+    ['auto', { sample_rate: '16000', language: 'auto', encoding: 'pcm_s16le' }],
+  ] as const)('language %s: the server default applies when it is left out', async (language, query) => {
+    const stt = await open({ language });
+    try {
+      expect(server.sttConns[0]!.query).toEqual(query);
+    } finally {
+      await stt.stop();
+    }
   });
 
   it.each([

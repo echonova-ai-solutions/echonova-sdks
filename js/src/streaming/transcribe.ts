@@ -41,13 +41,15 @@ import {
 import { SegmentPlan, type Piece } from './stt-protocol.js';
 import { SttSession, audioChunks, sttQuery, type AudioSource } from './stt-session.js';
 import type { AudioDropped, Reconnected, SegmentMark, SttEvent, StreamTerminology, TranscribeEvent } from './types.js';
+import type { Language } from '../types/models.js';
 
 /** Audio held while a session is being replaced, before the source is paused. */
 const MAX_BUFFER_SECONDS = 60;
 
 export interface TranscribeStreamOptions {
   sampleRate: number;
-  language: string;
+  /** `auto` (the API's default when left out), `ar` or `en`. Every session it opens uses the same. */
+  language?: Language | undefined;
   terminology?: StreamTerminology | null | undefined;
   encoding?: string | undefined;
   /** Cut a segment every this many seconds of audio. Default 14, just under the server's 15 s cut. */
@@ -86,7 +88,7 @@ class Transcriber {
   readonly #options: ResolvedStreamOptions;
   readonly #source: AudioSource;
   readonly #sampleRate: number;
-  readonly #language: string;
+  readonly #language: Language | undefined;
   readonly #terminology: StreamTerminology | null;
   readonly #encoding: string;
   readonly #waitForSlot: number | null;

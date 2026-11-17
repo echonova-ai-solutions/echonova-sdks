@@ -61,7 +61,7 @@ Create one client and reuse it: it keeps the rate-limit state that all calls sha
 | `logLevel`, `logger` | `ECHONOVA_LOG`, else off; `console` | See [Logging](#logging). |
 | `dangerouslyAllowBrowser` | `false` | See [Proxy mode and browsers](#proxy-mode-and-browsers). |
 
-Every API method takes per-call options as its last argument: `signal`, `timeout`, `maxRetries`, `deadline` and `headers`.
+Every API method takes per-call options as its last argument: `signal`, `timeout`, `maxRetries`, `deadline` and `headers`. `textToSpeech.generate`, `speechToText.transcribe` and `soundCleaning.clean` also take `idempotencyKey` and `waitTimeout` (see [Errors and retries](#errors-and-retries)).
 
 ```ts
 import EchoNova from '@echonova/ai';
@@ -81,7 +81,7 @@ const fast = client.withOptions({ timeout: 10_000 }); // a copy that shares the 
 | Get, list, delete; `agents.sessions.*`, `widgets.createTicket` | 10 | 30 | 50 s |
 | `speechToText.jobs.export` | 10 | 60 | 80 s |
 | `textToSpeech.jobs.create` | 10 | 30 | 50 s |
-| `textToSpeech.generate` | 10 | 120 | 140 s |
+| `textToSpeech.generate` | 10 | 240 | 260 s |
 | `speechToText.jobs.create` | 60 to 300 | 120 | 190 s or more |
 | `speechToText.transcribe`, `soundCleaning.clean` | 60 to 300 | 600 | 670 s or more |
 
@@ -148,7 +148,7 @@ const bytes = await readFile('meeting.wav');
 
 const result = await client.speechToText.transcribe({
   file: 'call.mp3',
-  language: 'ar',
+  language: 'ar', // optional: left out, the API detects Arabic or English ('auto')
   identifySpeakers: true,
   terminology: { keywords: ['KYC', { term: 'Emirates NBD', variants: ['امريتس ان بي دي'] }] },
 });
@@ -163,6 +163,8 @@ const data = await client.speechToText.jobs.export(done, { format: 'json' }); //
 ```
 
 The SDK names the audio type from the file name (mp3, wav, flac, ogg, opus, m4a, aac, webm, amr), then from a `Blob`'s own type, then from the file's first bytes. If it can't tell, it throws `UsageError` before sending anything; set the type with `toFile(content, name, { type: 'audio/mpeg' })`.
+
+`language` is optional everywhere, streams included: `auto` (the API's default when you leave it out) detects Arabic or English, `ar` is for Arabic and mixed Arabic/English, `en` only for wholly English speech. Results report the language as the API returns it, which can be `auto`.
 
 Uploads are never read into memory: a path is streamed from disk (`fs.openAsBlob`) and a stream is piped through. A path, `Blob` or bytes can be sent again on a retry; a stream only while none of it has been read.
 
@@ -259,17 +261,35 @@ try {
   if (err instanceof EchoNova.InvalidRequestError) console.error(err.errorMessage, err.requestId);
   else if (err instanceof EchoNova.SpendingLimitError) alertOps(); // the key reached its Credit Limit: never retried
   else if (err instanceof EchoNova.RateLimitError) retryLater(err.retryAfter); // still limited after automatic retries
-  else if (err instanceof EchoNova.APIConnectionError && err.mayHaveExecuted !== false) {
-    // true or null (unknown): the response was lost, and the request may have run and been charged
+  else if (err instanceof EchoNova.JobWaitTimeoutError) await client.textToSpeech.jobs.wait(err.jobId); // still running
+  else if (err instanceof EchoNova.APIStatusError || err instanceof EchoNova.APIConnectionError) {
+    // Still failing after the automatic retries (RequestInProgressError: the first request is still running).
+    // The same key gets the first result, without a second charge:
+    await client.textToSpeech.generate({ text, voiceId }, { idempotencyKey: err.idempotencyKey });
+  } else throw err;
+}
+
+try {
+  await client.textToSpeech.jobs.create({ text, voiceId });
+} catch (err) {
+  if (err instanceof EchoNova.APIConnectionError && err.mayHaveExecuted !== false) {
+    // true or null (unknown): the response was lost, and the job may have been created and charged
     const candidates = await client.textToSpeech.jobs.findCandidates(err.sentAt!, { text });
-  } else if (err instanceof EchoNova.APIStatusError) console.error(err.statusCode, err.errorMessage, err.requestId);
-  else throw err;
+  } else throw err;
 }
 ```
 
 Every error class is also exported by name (`import { RateLimitError } from '@echonova/ai'`), and `instanceof` works across the ESM and CommonJS builds.
 
-The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors carry `mayHaveExecuted: true` and `sentAt`; `findCandidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
+The SDK retries connection failures, rate limits and temporary outages, with backoff, and **never runs a paid request twice**:
+
+- `textToSpeech.generate`, `speechToText.transcribe` and `soundCleaning.clean` send an `Idempotency-Key`: a new random one per call, the same on every retry. The API runs a key's request once and answers repeats with the first result, so these calls are also retried after a lost response or a 500, 502, 503 or 504. Pass `idempotencyKey` to choose the key, for example to retry from another process: within 24 hours the same key gets the first result without a second charge. Their API status and connection errors carry the key as `idempotencyKey`. A key reused for a different request is an `InvalidRequestError`.
+- The other requests that may have run, such as `jobs.create()` and `agents.sessions.start()`, are never sent again: the API takes no key for them. Such errors carry `mayHaveExecuted: true` and `sentAt`; `findCandidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
+
+`generate`, `transcribe` and `clean` also wait for a request that is still running, for up to `waitTimeout` milliseconds per call (default 20 minutes, within any `deadline`), counted from the first time they have to wait:
+
+- When the first request with the key is still running (a 409), the SDK sends it again every 5 s, or after `Retry-After` when that is longer, without using up `maxRetries`. Past `waitTimeout` it throws `RequestInProgressError`, with the key.
+- When the job is still processing after 220 s, the API answers `202`. The SDK then polls the job (every 3 s for Text to Speech, 5 s otherwise, with your extra headers, sharing the polling budget of `jobs.wait()`) and returns the job as the usual result, with `jobId`, without uploading again. Past `waitTimeout` it throws `JobWaitTimeoutError` with the `jobId`; a failed job throws `JobFailedError`.
 
 After a `429` with `Retry-After`, the client holds further calls to that endpoint until the wait is over, instead of sending more.
 

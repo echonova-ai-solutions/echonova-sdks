@@ -64,7 +64,10 @@ export interface ClientOptions {
   auth?: AuthHook | undefined;
   /** Timeout for one attempt, in milliseconds. Defaults to a per-operation value. */
   timeout?: number | undefined;
-  /** Retries for failures that are safe to retry. Default 2. A POST that may have run is never retried. */
+  /**
+   * Retries for failures that are safe to retry. Default 2. A POST that may have run is
+   * retried only when it carries an `Idempotency-Key` (`generate`, `transcribe`, `clean`).
+   */
   maxRetries?: number | undefined;
   /** Total milliseconds for one call, retries and rate-limit waits included. Default: none. */
   deadline?: number | undefined;
@@ -194,6 +197,7 @@ export class EchoNova {
   static readonly SpendingLimitError = Errors.SpendingLimitError;
   static readonly RateLimitError = Errors.RateLimitError;
   static readonly ConcurrencyLimitError = Errors.ConcurrencyLimitError;
+  static readonly RequestInProgressError = Errors.RequestInProgressError;
   static readonly ServerError = Errors.ServerError;
   static readonly ServiceUnavailableError = Errors.ServiceUnavailableError;
   static readonly GatewayError = Errors.GatewayError;

@@ -5,6 +5,7 @@ import { inspect } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import * as errors from '../src/errors.js';
 import type * as M from '../src/types/models.js';
+import { loadSpec } from './helpers.js';
 import { dataSchema, exampleFor, JOB_ID, makeClient, OPENAPI, ok, resolve, schemaProperties, WAV } from './rest-support.js';
 
 // --- Compile-time field lists ------------------------------------------------------------------
@@ -34,6 +35,11 @@ interface ModelCase {
 }
 
 const MODELS: Record<string, ModelCase> = {
+  SyncProcessing: {
+    schema: 'V1SyncProcessingResponseDto',
+    fields: fields<M.SyncProcessing>()(['jobId', 'status', 'resultUrl']),
+    required: required<M.SyncProcessing>()(['jobId', 'status', 'resultUrl']),
+  },
   JobInitiated: {
     schema: 'V1JobInitiatedResponseDto',
     fields: fields<M.JobInitiated>()(['jobId', 'status']),
@@ -161,6 +167,35 @@ const MODELS: Record<string, ModelCase> = {
 
 const LIST_FIELDS = fields<M.VoiceList>()(['items', 'total']);
 
+/** Schemas only the operations spec/mapping.json leaves out (`excluded`, e.g. agent management) use. */
+function excludedOnlySchemas(): Set<string> {
+  const operations = loadSpec<{ operations: Record<string, { method: string; path: string; excluded?: string }> }>('mapping.json');
+  const excluded = new Set(Object.values(operations.operations).filter((o) => o.excluded).map((o) => `${o.method} ${o.path}`));
+  const reach = (value: unknown, into: Set<string>): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) reach(item, into);
+    } else if (value !== null && typeof value === 'object') {
+      for (const [key, item] of Object.entries(value)) {
+        const name = key === '$ref' && typeof item === 'string' ? item.split('/').pop()! : null;
+        if (name === null) {
+          reach(item, into);
+        } else if (!into.has(name)) {
+          into.add(name);
+          reach(OPENAPI.components.schemas[name], into);
+        }
+      }
+    }
+  };
+  const used = new Set<string>();
+  const onlyExcluded = new Set<string>();
+  for (const [path, item] of Object.entries(OPENAPI.paths)) {
+    for (const [method, operation] of Object.entries(item)) {
+      reach(operation, excluded.has(`${method.toUpperCase()} ${path}`) ? onlyExcluded : used);
+    }
+  }
+  return new Set([...onlyExcluded].filter((name) => !used.has(name)));
+}
+
 describe('every response schema has a matching interface', () => {
   it.each(Object.entries(MODELS))('%s', (_name, model) => {
     const schema = OPENAPI.components.schemas[model.schema]!;
@@ -168,8 +203,8 @@ describe('every response schema has a matching interface', () => {
     expect([...model.required].sort()).toEqual([...(schema['required'] ?? [])].sort());
   });
 
-  it('covers every schema in the spec except requests, envelopes and errors', () => {
-    const covered = new Set(Object.values(MODELS).map((m) => m.schema));
+  it('covers every schema in the spec except requests, envelopes, errors and excluded operations', () => {
+    const covered = new Set([...Object.values(MODELS).map((m) => m.schema), ...excludedOnlySchemas()]);
     const requests = /^(V1GenerateSpeech|V1GenerateSpeechSync|MintWidgetTicket|MintWidgetTicketUser|V1StartSession)Dto$/;
     const missing = Object.keys(OPENAPI.components.schemas).filter(
       (name) => !covered.has(name) && !requests.test(name) && !/^(GlobalResponseSwagger|V1ErrorResponse)Dto$/.test(name),

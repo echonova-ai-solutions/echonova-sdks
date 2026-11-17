@@ -4,7 +4,7 @@
 // sendAudio, endSegment, setTerminology, stop, close, and pings through its keepalive. Each test
 // then checks what the caller sees against spec/fixtures/expected.json.
 import { describe, expect, it } from 'vitest';
-import { ERROR_CLASSES, ProtocolError, SessionEndedError, UsageError, type ErrorClassName } from '../../src/errors.js';
+import { ERROR_CLASSES, ProtocolError, SessionEndedError, type ErrorClassName } from '../../src/errors.js';
 import {
   connectStt,
   connectTts,
@@ -277,15 +277,12 @@ async function replayStt(plan: ReplayPlan, expected: WsExpectation, transport: R
   const connect = plan.steps[0]!.data;
   const query = new URL(connect.path, 'wss://api.echonova.ai').searchParams;
   const sampleRate = Number(query.get('sample_rate') ?? 16_000);
-  // The SDK requires a language; a recording without one (handshake_missing_language) replays the server's answer only.
-  const language = query.get('language') ?? 'ar';
+  // Without a language (handshake_missing_language), the SDK sends none either, exactly as recorded.
+  const language = query.get('language') ?? undefined;
   const options = optionsFor(transport, clock, connect.authorization === 'set');
   const connecting = connectStt(options, { sampleRate, language });
   if (expected.handshake_error !== undefined) {
     await checkHandshake(connecting, plan, transport, expected.handshake_error);
-    if (!query.has('language')) {
-      await expect(connectStt(options, { sampleRate, language: '' })).rejects.toThrow(UsageError);
-    }
     return;
   }
 

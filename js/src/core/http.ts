@@ -2,11 +2,12 @@
  * HTTP transport over `fetch`, wired to the retry table, the rate-limit
  * tracker and the error classifier.
  *
- * Retry safety: a POST that may have run on the server is never sent again.
- * Fetch can't tell "connection refused" apart from "sent but no answer" in
- * every runtime, so any failure the SDK can't positively identify as a
- * connection failure is treated as "sent, no response" (rule R3): GET and
- * DELETE are retried, POST is not and its error carries `mayHaveExecuted: true`.
+ * Retry safety: a POST that may have run on the server is never sent again,
+ * unless it carries an `Idempotency-Key` (ADR 0014). Fetch can't tell
+ * "connection refused" apart from "sent but no answer" in every runtime, so any
+ * failure the SDK can't positively identify as a connection failure is treated
+ * as "sent, no response" (rule R3): GET and DELETE are retried, POST is not and
+ * its error carries `mayHaveExecuted: true`.
  */
 
 import {
@@ -20,9 +21,10 @@ import {
 import { classifyResponse, buildStatusError, executedFlag } from './classifier.js';
 import { header, headersToRecord, MalformedEnvelopeError, parseErrorBody, unwrapSuccess } from './envelope.js';
 import type { Logger } from './logger.js';
+import type { WaitBudget } from './polling.js';
 import type { RateLimitInfo, RateLimitTracker } from './ratelimit.js';
 import { RetryPolicy, type RetryDecision } from './retry.js';
-import type { Phase } from './rules.js';
+import { POST_IDEMPOTENT, type Phase } from './rules.js';
 import { defaultSleep } from './runtime.js';
 import { isWorkerd } from '../runtime/detect.js';
 
@@ -74,6 +76,18 @@ export interface RequestSpec<T = any> {
    */
   upload?: UploadBody | undefined;
   headers?: HeaderValues | undefined;
+  /**
+   * The call's `Idempotency-Key`, for an operation that accepts one. It is sent on
+   * every attempt, and an attempt that carried it is retried by the `POST_IDEMPOTENT`
+   * column: the server runs the request at most once per key.
+   */
+  idempotencyKey?: string | undefined;
+  /**
+   * With `idempotencyKey`: the call's wait budget. While the API answers that the first
+   * request with the key is still running (an in-progress 409), the request is sent again
+   * every 5 s (or after `Retry-After` when longer) within it, outside `maxRetries`.
+   */
+  waitBudget?: WaitBudget | undefined;
   /** Per-call timeout in milliseconds (one attempt). */
   timeout?: number | undefined;
   /** The operation's default timeout in milliseconds, used when neither the call nor the client sets one. */
@@ -159,6 +173,8 @@ export interface TransportOptions {
 }
 
 export const FALLBACK_TIMEOUT_MS = 60_000;
+/** How often a request whose first attempt is still running is sent again (ADR 0014). */
+export const IN_PROGRESS_RESEND_MS = 5000;
 
 const PHASE_MESSAGES: Readonly<Record<Phase, string>> = {
   connect: 'Could not connect to {target}',
@@ -285,6 +301,8 @@ export class HttpTransport {
   readonly baseURL: string;
   readonly maxRetries: number;
   readonly timeout: number | null;
+  /** The client-wide total deadline per call, in milliseconds. */
+  readonly deadline: number | null;
   readonly tracker: RateLimitTracker;
   readonly policy: RetryPolicy;
   readonly #options: TransportOptions;
@@ -297,6 +315,7 @@ export class HttpTransport {
     this.baseURL = options.baseURL;
     this.maxRetries = options.maxRetries;
     this.timeout = options.timeout;
+    this.deadline = options.deadline ?? null;
     this.tracker = options.tracker;
     this.policy = options.policy;
     this.#sleep = options.sleep ?? defaultSleep;
@@ -330,6 +349,7 @@ export class HttpTransport {
     apply(await this.#options.authHeaders({ method: spec.method.toUpperCase(), url }));
     if (spec.json !== undefined) headers.set('Content-Type', 'application/json');
     apply(spec.headers);
+    if (spec.idempotencyKey !== undefined) headers.set('Idempotency-Key', spec.idempotencyKey);
     return headers;
   }
 
@@ -377,8 +397,9 @@ export class HttpTransport {
     const replayable = (): boolean =>
       upload ? upload.replayable() : (spec.bodyReplayable ?? !isStream(spec.body));
     const timeoutMs = spec.timeout ?? this.timeout ?? spec.defaultTimeout ?? FALLBACK_TIMEOUT_MS;
-    const deadlineMs = spec.deadline ?? this.#options.deadline ?? null;
+    const deadlineMs = spec.deadline ?? this.deadline;
     const deadlineAt = deadlineMs === null ? null : this.#now() + deadlineMs;
+    if (spec.waitBudget) spec.waitBudget.deadlineAt = deadlineAt;
     const closeSignal = this.#options.closeSignal;
     const log = this.#options.logger;
     this.#checkOpen(what);
@@ -428,6 +449,10 @@ export class HttpTransport {
       }
       const details: RequestDetails = { operation: spec.bucket, method, url, headers, attempt, timeout: attemptTimeout };
       await this.#options.onRequest?.(details);
+      // The retry column: a POST that carried the call's key can't run twice (ADR 0014).
+      const key = spec.idempotencyKey;
+      const retryMethod =
+        method === 'POST' && key !== undefined && headers.get('idempotency-key') === key ? POST_IDEMPOTENT : method;
 
       const deadline = attemptSignal([spec.signal, closeSignal], attemptTimeout);
       init.signal = deadline.signal;
@@ -463,9 +488,15 @@ export class HttpTransport {
         const phase: Phase = timedOut ? 'no_response' : failurePhase(error);
         anAttemptWentUnanswered ||= phase === 'no_response';
         log.debug(`${what} failed: ${timedOut ? 'timeout' : phase} (attempt ${attempt})`);
-        const decision = policy.decideTransport(method, phase, { retriesDone, bodyReplayable: replayable() });
+        const decision = policy.decideTransport(retryMethod, phase, { retriesDone, bodyReplayable: replayable() });
         if (await retryAfterDelay(decision, decision.row)) continue;
-        throw this.#connectionError(what, phase, decision, { timedOut, timeoutMs: attemptTimeout, sentAt: firstSentAt, cause: error });
+        throw this.#connectionError(what, phase, decision, {
+          timedOut,
+          timeoutMs: attemptTimeout,
+          sentAt: firstSentAt,
+          withKey: retryMethod !== method,
+          cause: error,
+        });
       }
       deadline.done();
 
@@ -486,7 +517,7 @@ export class HttpTransport {
           return finish(spec.responseType === 'bytes' ? bytes : unwrapSuccess(bytes), false);
         } catch (error) {
           if (!(error instanceof MalformedEnvelopeError)) throw error;
-          const decision = policy.decideTransport(method, 'malformed_success', { retriesDone, bodyReplayable: replayable() });
+          const decision = policy.decideTransport(retryMethod, 'malformed_success', { retriesDone, bodyReplayable: replayable() });
           if (await retryAfterDelay(decision, decision.row)) continue;
           throw new ProtocolError({
             statusCode: status,
@@ -521,15 +552,29 @@ export class HttpTransport {
         return finish({ deleted: true }, true);
       }
       if (rule.blocksBucket && retryAfter !== null) this.tracker.block(spec.bucket, retryAfter);
-      const decision = policy.decideStatus(method, rule, { retriesDone, retryAfter, bodyReplayable: replayable() });
+      const statusError = (notReplayable: boolean) =>
+        buildStatusError(status, response.headers, bytes, {
+          method,
+          sentAt: firstSentAt,
+          reasonPhrase: response.statusText || null,
+          retryDisabledReason: notReplayable ? 'body_not_replayable' : null,
+          rules: policy.rules,
+        });
+      if (spec.waitBudget && retryMethod === POST_IDEMPOTENT && rule.error === 'RequestInProgressError') {
+        // The first request with this key is still running, and will answer a resend once it ends:
+        // send it again every 5 s (or after Retry-After) within the wait budget, outside maxRetries.
+        // The first other answer decides the call (ADR 0014).
+        const endsAt = spec.waitBudget.endsAt(this.#now());
+        const wait = Math.max(IN_PROGRESS_RESEND_MS, (retryAfter ?? 0) * 1000);
+        if (!replayable()) throw statusError(true);
+        if (this.#now() + wait >= endsAt) throw statusError(false);
+        log.info(`${what}: the request with this Idempotency-Key is still running; sending it again in ${wait / 1000} s`);
+        await this.#sleep(wait, spec.signal);
+        continue;
+      }
+      const decision = policy.decideStatus(retryMethod, rule, { retriesDone, retryAfter, bodyReplayable: replayable() });
       if (await retryAfterDelay(decision, decision.row)) continue;
-      throw buildStatusError(status, response.headers, bytes, {
-        method,
-        sentAt: firstSentAt,
-        reasonPhrase: response.statusText || null,
-        retryDisabledReason: decision.reason === 'body_not_replayable' ? 'body_not_replayable' : null,
-        rules: policy.rules,
-      });
+      throw statusError(decision.reason === 'body_not_replayable');
     }
   }
 
@@ -537,7 +582,7 @@ export class HttpTransport {
     what: string,
     phase: Phase,
     decision: RetryDecision,
-    ctx: { timedOut: boolean; timeoutMs: number; sentAt: Date | null; cause: unknown },
+    ctx: { timedOut: boolean; timeoutMs: number; sentAt: Date | null; withKey: boolean; cause: unknown },
   ): APIConnectionError {
     const mayHaveExecuted = executedFlag(decision.mayHaveExecuted, method(what));
     const cause = ctx.cause;
@@ -547,7 +592,11 @@ export class HttpTransport {
         ? `${cause.name}: ${cause.message}`
         : String(cause);
     let message = `${phaseMessage(phase, what)}: ${detail}`;
-    if (mayHaveExecuted) message += '. It may have run and been charged: check recent jobs before sending it again.';
+    if (mayHaveExecuted) {
+      message += ctx.withKey
+        ? '. It may have run: send it again with the same idempotencyKey to get its result without a second charge.'
+        : '. It may have run and been charged: check recent jobs before sending it again.';
+    }
     const init = {
       mayHaveExecuted,
       sentAt: ctx.sentAt,

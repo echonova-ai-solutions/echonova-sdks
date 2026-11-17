@@ -16,6 +16,7 @@ import type { Runtime } from './runtime.js';
 
 export const TTS_POLL_INTERVAL_MS = 3000;
 export const STT_POLL_INTERVAL_MS = 5000;
+export const CLEAN_POLL_INTERVAL_MS = 5000;
 export const MIN_POLL_INTERVAL_MS = 1000;
 export const DEFAULT_WAIT_TIMEOUT_MS = 20 * 60 * 1000;
 /** Polls per minute per job-get endpoint, below the API's 100 per minute per key. */
@@ -23,6 +24,26 @@ export const POLL_RATE = 80;
 export const CANDIDATE_WINDOW_MS = 5000;
 export const CANDIDATE_PAGE_SIZE = 100;
 export const CANDIDATE_MAX_PAGES = 10;
+
+/**
+ * The one wait budget of a synchronous call (ADR 0014), shared by its two waits: resending
+ * while the first request with its key is still running (an in-progress 409), and polling
+ * the job after a `202 Processing`. It starts at the first of them and never runs past the
+ * call's deadline. Times are monotonic milliseconds.
+ */
+export class WaitBudget {
+  /** When the call's deadline passes, if it has one. The transport sets it. */
+  deadlineAt: number | null = null;
+  #endsAt: number | null = null;
+
+  constructor(readonly ms: number) {}
+
+  /** When the budget ends, starting it at `now` if nothing has started it yet. */
+  endsAt(now: number): number {
+    this.#endsAt ??= Math.min(now + this.ms, this.deadlineAt ?? Infinity);
+    return this.#endsAt;
+  }
+}
 
 /** A sliding-window limit shared by every `wait()` on one client, so many waiters can't exhaust a key. */
 export class PollLimiter {

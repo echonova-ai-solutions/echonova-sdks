@@ -13,7 +13,8 @@
 
 /** pending, processing, completed or failed. Any other value means the job is not finished. */
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | (string & {});
-export type Language = 'ar' | 'en' | (string & {});
+/** `auto` detects Arabic or English; `ar` is Arabic and mixed Arabic/English; `en` is wholly English speech. */
+export type Language = 'auto' | 'ar' | 'en' | (string & {});
 
 /** Added by the SDK to every result. */
 export interface APIResult {
@@ -27,6 +28,17 @@ export interface APIResult {
 export interface JobInitiated extends APIResult {
   jobId: string;
   status: JobStatus;
+}
+
+/**
+ * The `202` answer of a synchronous call whose job was still processing after 220 s.
+ * The SDK doesn't return it: it waits for the job and returns the call's usual result.
+ */
+export interface SyncProcessing {
+  jobId: string;
+  status: JobStatus;
+  /** The job's `get` route, e.g. `/v1/text-to-speech/jobs/{jobId}`. */
+  resultUrl: string;
 }
 
 export interface DeleteResult extends APIResult {

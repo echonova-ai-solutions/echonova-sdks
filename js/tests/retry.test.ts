@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RetryPolicy } from '../src/core/retry.js';
-import { loadRules, type Phase, type Rule } from '../src/core/rules.js';
+import { RULES_DATA } from '../src/core/rules.generated.js';
+import { loadRules, POST_IDEMPOTENT, RetryColumns, type Phase, type RetryColumnsData, type Rule } from '../src/core/rules.js';
 
 const RULES = loadRules();
 const policy = (options: { maxRetries?: number } = {}) => new RetryPolicy({ random: () => 0.5, ...options });
@@ -144,6 +145,73 @@ describe('transport phases', () => {
 
   it('rejects an unknown phase', () => {
     expect(() => policy().decideTransport('GET', 'bogus' as Phase, { retriesDone: 0 })).toThrow(RangeError);
+  });
+});
+
+describe('POST_IDEMPOTENT: a POST sent with an Idempotency-Key (ADR 0014)', () => {
+  it.each([
+    ['internal_error', true],
+    ['bad_gateway', true],
+    ['gateway_timeout', true],
+    ['ingress_timeout', true],
+    ['unavailable_other', true],
+    ['ingress_unavailable', true],
+    ['unavailable_refunded', true],
+    ['throttled', true],
+    ['request_timeout', true],
+    ['idempotency_in_progress', true],
+    ['same_request_starting', true],
+    ['idempotency_key_reused', false],
+    ['invalid_request', false],
+    ['unauthorized', false],
+    ['insufficient_balance', false],
+    ['spending_limit', false],
+    ['forbidden', false],
+    ['server_error_other', false],
+    ['storage_delete_failed', false],
+  ] as const)('%s -> %s', (id, retry) => {
+    expect(policy().decideStatus(POST_IDEMPOTENT, rule(id), { retriesDone: 0, retryAfter: 5 }).retry).toBe(retry);
+  });
+
+  it('keeps POST unchanged: the in-progress 409s and 5xx are not retried without a key', () => {
+    for (const id of ['idempotency_in_progress', 'same_request_starting', 'internal_error', 'bad_gateway', 'gateway_timeout']) {
+      expect(policy().decideStatus('POST', rule(id), { retriesDone: 0, retryAfter: null }).retry).toBe(false);
+    }
+  });
+
+  it('uses the column for every rule and transport row', () => {
+    for (const r of RULES.rules) expect(r.retry.forMethod(POST_IDEMPOTENT)).toBe(r.retry.postIdempotent);
+    expect(RULES.rules.find((r) => r.id === 'idempotency_in_progress')!.retry.postIdempotent).toBe(true);
+  });
+
+  it.each([
+    ['connect', true],
+    ['send_incomplete', true],
+    ['no_response', true],
+    ['malformed_success', true],
+  ] as const)('retries after %s', (phase: Phase, retry) => {
+    expect(policy().decideTransport(POST_IDEMPOTENT, phase, { retriesDone: 0 }).retry).toBe(retry);
+  });
+
+  it('retries a malformed success only once', () => {
+    expect(policy({ maxRetries: 5 }).decideTransport(POST_IDEMPOTENT, 'malformed_success', { retriesDone: 1 }).retry).toBe(false);
+  });
+
+  it('waits Retry-After for an in-progress 409 when sent, else backs off', () => {
+    const r = rule('idempotency_in_progress');
+    expect(policy().decideStatus(POST_IDEMPOTENT, r, { retriesDone: 0, retryAfter: 3 }).delay).toBeCloseTo(3.5);
+    expect(policy().decideStatus(POST_IDEMPOTENT, r, { retriesDone: 1, retryAfter: null }).delay).toBeCloseTo(0.75);
+    expect(policy().decideStatus(POST_IDEMPOTENT, r, { retriesDone: 0, retryAfter: null }).mayHaveExecuted).toBe('yes');
+  });
+
+  it('still needs a replayable body', () => {
+    const decision = policy().decideTransport(POST_IDEMPOTENT, 'no_response', { retriesDone: 0, bodyReplayable: false });
+    expect(decision).toMatchObject({ retry: false, reason: 'body_not_replayable' });
+  });
+
+  it('rejects rules data without the column', () => {
+    const { POST_IDEMPOTENT: _, ...columns } = RULES_DATA.rules[0]!.retry;
+    expect(() => RetryColumns.parse(columns as RetryColumnsData)).toThrow(/POST_IDEMPOTENT/);
   });
 });
 

@@ -19,6 +19,8 @@ export interface Operation {
   readonly upload?: boolean;
   /** The response body holds a secret (a ticket or token): never copy it into an error. */
   readonly sensitive?: boolean;
+  /** The operation accepts an `Idempotency-Key` (ADR 0014): every call sends one. */
+  readonly idempotencyKey?: boolean;
 }
 
 const op = (
@@ -27,7 +29,7 @@ const op = (
   path: string,
   write = 10,
   read = 30,
-  flags: { upload?: boolean; sensitive?: boolean } = {},
+  flags: { upload?: boolean; sensitive?: boolean; idempotencyKey?: boolean } = {},
 ): Operation => ({ name, method, path, write, read, ...flags });
 
 const TTS = '/v1/text-to-speech';
@@ -36,23 +38,25 @@ const CLEAN = '/v1/sound-cleaning';
 const AGENT_SESSIONS = '/v1/agents/{agentId}/sessions';
 const upload = { upload: true };
 const sensitive = { sensitive: true };
+const idempotencyKey = { idempotencyKey: true };
 
 export const OPS = {
-  ttsGenerate: op('textToSpeech.generate', 'POST', `${TTS}/sync`, 10, 120),
+  // 240 s to answer: above the 220 s after which the API answers 202 Processing (ADR 0014).
+  ttsGenerate: op('textToSpeech.generate', 'POST', `${TTS}/sync`, 10, 240, idempotencyKey),
   ttsJobsCreate: op('textToSpeech.jobs.create', 'POST', TTS),
   ttsVoicesList: op('textToSpeech.voices.list', 'GET', `${TTS}/voices`),
   ttsJobsList: op('textToSpeech.jobs.list', 'GET', `${TTS}/jobs`),
   ttsJobsGet: op('textToSpeech.jobs.get', 'GET', `${TTS}/jobs/{jobId}`),
   ttsJobsDelete: op('textToSpeech.jobs.delete', 'DELETE', `${TTS}/jobs/{jobId}`),
 
-  sttTranscribe: op('speechToText.transcribe', 'POST', `${STT}/sync`, 60, 600, upload),
+  sttTranscribe: op('speechToText.transcribe', 'POST', `${STT}/sync`, 60, 600, { ...upload, ...idempotencyKey }),
   sttJobsCreate: op('speechToText.jobs.create', 'POST', STT, 60, 120, upload),
   sttJobsList: op('speechToText.jobs.list', 'GET', `${STT}/jobs`),
   sttJobsGet: op('speechToText.jobs.get', 'GET', `${STT}/jobs/{jobId}`),
   sttJobsDelete: op('speechToText.jobs.delete', 'DELETE', `${STT}/jobs/{jobId}`),
   sttJobsExport: op('speechToText.jobs.export', 'GET', `${STT}/jobs/{jobId}/export`, 10, 60),
 
-  clean: op('soundCleaning.clean', 'POST', CLEAN, 60, 600, upload),
+  clean: op('soundCleaning.clean', 'POST', CLEAN, 60, 600, { ...upload, ...idempotencyKey }),
   cleanJobsList: op('soundCleaning.jobs.list', 'GET', `${CLEAN}/jobs`),
   cleanJobsGet: op('soundCleaning.jobs.get', 'GET', `${CLEAN}/jobs/{jobId}`),
   cleanJobsDelete: op('soundCleaning.jobs.delete', 'DELETE', `${CLEAN}/jobs/{jobId}`),

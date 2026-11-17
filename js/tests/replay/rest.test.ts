@@ -66,10 +66,14 @@ const OPERATIONS = Object.values(loadSpec<{ operations: Record<string, MappedOpe
  * recorded response is replayed in full (only the response handling is tested for that part).
  * The test fails if the SDK can't send something a recording not listed here sent.
  *
- * Other recordings send values the TypeScript types rule out or the API rejects: no `language`
- * (stt/sync_missing_language), `format: 'vtt'`, `limit: 101`, `targetLufs: 0`, 501 characters of
- * text, the job ID `not-an-id`, terminology `{"keywords": 5}`. The SDK leaves validation to the
- * API, so these go out exactly as recorded and their requests are checked like any other.
+ * Other recordings send values the TypeScript types rule out or the API rejects: `format: 'vtt'`,
+ * `limit: 101`, `targetLufs: 0`, 501 characters of text, the job ID `not-an-id`, terminology
+ * `{"keywords": 5}`. The SDK leaves validation to the API, so these go out exactly as recorded and
+ * their requests are checked like any other. stt/sync_missing_language sends no `language`, as the
+ * SDK does when it is left out (it was recorded when the API still required one).
+ *
+ * The SDK adds an `Idempotency-Key` to the calls that accept one (ADR 0014); the recordings, made
+ * before the API took one, have none. Headers other than Authorization aren't compared.
  */
 const CANNOT_SEND: Readonly<Record<string, string>> = {
   'tts/sync_unknown_field': 'the unknown JSON field `foo`: REST methods send documented parameters only',

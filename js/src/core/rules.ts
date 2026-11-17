@@ -14,12 +14,19 @@ export type Delay = 'none' | 'backoff' | 'retry_after' | 'retry_after_or_backoff
 export type Executed = 'no' | 'yes' | 'unknown';
 export type Phase = 'connect' | 'send_incomplete' | 'no_response' | 'malformed_success';
 
+/**
+ * The retry column for a POST sent with an `Idempotency-Key` to an operation that
+ * accepts one (ADR 0014): sending it again can't run it twice.
+ */
+export const POST_IDEMPOTENT = 'POST_IDEMPOTENT';
+
 // --- Shape of the JSON data -----------------------------------------------------------------
 
 export interface RetryColumnsData {
   GET: RetryFlag;
   DELETE: RetryFlag;
   POST: RetryFlag;
+  POST_IDEMPOTENT: RetryFlag;
   WS: RetryFlag;
   delay: Delay;
 }
@@ -74,30 +81,34 @@ export class RetryColumns {
   readonly get: RetryFlag;
   readonly delete: RetryFlag;
   readonly post: RetryFlag;
+  /** A POST that carries an `Idempotency-Key` (see `POST_IDEMPOTENT`). */
+  readonly postIdempotent: RetryFlag;
   readonly ws: RetryFlag;
   readonly delay: Delay;
 
-  constructor(get: RetryFlag, del: RetryFlag, post: RetryFlag, ws: RetryFlag, delay: Delay) {
+  constructor(get: RetryFlag, del: RetryFlag, post: RetryFlag, postIdempotent: RetryFlag, ws: RetryFlag, delay: Delay) {
     this.get = get;
     this.delete = del;
     this.post = post;
+    this.postIdempotent = postIdempotent;
     this.ws = ws;
     this.delay = delay;
   }
 
-  /** The retry flag for a REST method, or `"WS"` for a WebSocket handshake. */
+  /** The retry flag for a REST method, `"POST_IDEMPOTENT"`, or `"WS"` for a WebSocket handshake. */
   forMethod(method: string): RetryFlag {
     const upper = method.toUpperCase();
     if (upper === 'GET' || upper === 'HEAD') return this.get;
     if (upper === 'DELETE') return this.delete;
     if (upper === 'WS') return this.ws;
+    if (upper === POST_IDEMPOTENT) return this.postIdempotent;
     return this.post; // POST, and any other method, is treated as non-idempotent
   }
 
   static parse(data: RetryColumnsData): RetryColumns {
-    const missing = (['GET', 'DELETE', 'POST', 'WS', 'delay'] as const).filter((c) => !(c in data));
+    const missing = (['GET', 'DELETE', 'POST', POST_IDEMPOTENT, 'WS', 'delay'] as const).filter((c) => !(c in data));
     if (missing.length > 0) throw new Error(`retry columns missing ${missing.join(', ')}`);
-    return new RetryColumns(data.GET, data.DELETE, data.POST, data.WS, data.delay);
+    return new RetryColumns(data.GET, data.DELETE, data.POST, data.POST_IDEMPOTENT, data.WS, data.delay);
   }
 }
 

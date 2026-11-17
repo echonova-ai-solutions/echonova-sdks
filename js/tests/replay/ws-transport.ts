@@ -42,8 +42,11 @@ export interface ReplayPlan {
   adaptations: string[];
 }
 
-/** Query parameters the SDK always sends on the Speech to Text stream (`encoding` defaults to pcm_s16le). */
-const SDK_QUERY = new Set(['sample_rate', 'language', 'encoding']);
+/**
+ * Query parameters the SDK always sends on the Speech to Text stream (`encoding` defaults to
+ * pcm_s16le). `language` is sent only when given, so it must match the recording.
+ */
+const SDK_QUERY = new Set(['sample_rate', 'encoding']);
 const BASE = 'wss://api.echonova.ai';
 
 export function describeStep(step: Step | undefined): string {

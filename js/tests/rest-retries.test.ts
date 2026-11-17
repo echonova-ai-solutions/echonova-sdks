@@ -23,13 +23,12 @@ function sequence(...replies: Array<Response | Error>): Handler {
   return () => replies.shift() ?? ok(JOB);
 }
 
-describe('a POST that may have run is never sent again', () => {
+// textToSpeech.generate, speechToText.transcribe and soundCleaning.clean send an Idempotency-Key,
+// so they are retried: see idempotency.test.ts.
+describe('a POST without an Idempotency-Key that may have run is never sent again', () => {
   it.each([
-    ['textToSpeech.generate', (c: any) => c.textToSpeech.generate({ text: 'hi', voiceId: 'v' })],
     ['textToSpeech.jobs.create', (c: any) => c.textToSpeech.jobs.create({ text: 'hi', voiceId: 'v' })],
-    ['speechToText.transcribe', (c: any) => c.speechToText.transcribe({ file: WAV, language: 'en' })],
     ['speechToText.jobs.create', (c: any) => c.speechToText.jobs.create({ file: WAV, language: 'en' })],
-    ['soundCleaning.clean', (c: any) => c.soundCleaning.clean({ file: WAV })],
     ['widgets.createTicket', (c: any) => c.widgets.createTicket('wdg_1')],
     ['agents.sessions.start', (c: any) => c.agents.sessions.start('agent-1', { channel: 'voice' })],
   ])('%s after a lost response', async (_name, call) => {

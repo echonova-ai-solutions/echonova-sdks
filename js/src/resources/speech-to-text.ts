@@ -7,7 +7,14 @@ import { OPS } from '../core/operations.js';
 import type { PagePromise } from '../core/pagination.js';
 import { findCandidates, STT_POLL_INTERVAL_MS, waitForJob, type WaitOptions } from '../core/polling.js';
 import type { DeleteResult, JobInitiated, SttJob, SttResult, TranscriptExport } from '../types/models.js';
-import type { ExportFormat, ExportParams, ListParams, RequestOptions, TranscribeParams } from '../types/params.js';
+import type {
+  ExportFormat,
+  ExportParams,
+  ListParams,
+  RequestOptions,
+  SyncRequestOptions,
+  TranscribeParams,
+} from '../types/params.js';
 import type {
   AudioSource,
   ConnectSttOptions,
@@ -15,9 +22,9 @@ import type {
   TranscribeEvent,
   TranscribeStreamOptions,
 } from '../streaming/index.js';
-import { APIResource, jobIdOf, model, parseDelete, type ClientContext, type JobRef } from './resource.js';
+import { APIResource, jobIdOf, model, parseDelete, type ClientContext, type JobRef, type SyncJob } from './resource.js';
 
-/** Multipart fields. Their names are snake_case, and `terminology` travels as a JSON string. */
+/** Multipart fields. Their names are snake_case, and `terminology` travels as a JSON string. A field left out is not sent. */
 function fields(p: TranscribeParams): Array<[string, string]> {
   const out: Array<[string, string]> = [];
   if (p.language != null) out.push(['language', p.language]);
@@ -31,6 +38,9 @@ function fields(p: TranscribeParams): Array<[string, string]> {
 
 const parseJob = model<SttJob>('SttJob', ['id', 'status']);
 const parseExport = model<TranscriptExport>('TranscriptExport');
+
+/** After a `202 Processing`, `transcribe()` polls the job every 5 s and returns it as an `SttResult`. */
+const TRANSCRIBE_JOB: SyncJob<SttJob> = { get: OPS.sttJobsGet, parseJob, interval: STT_POLL_INTERVAL_MS };
 const decoder = new TextDecoder();
 
 export class SttJobs extends APIResource {
@@ -143,11 +153,19 @@ export class SpeechToText extends APIResource {
     yield* streaming.transcribeStream(this._client.streamOptions(), source, init);
   }
 
-  /** Transcribe an audio file and wait for the result. */
-  transcribe(params: TranscribeParams, options?: RequestOptions): APIPromise<SttResult> {
-    return this._request(
+  /**
+   * Transcribe an audio file and wait for the result. Without `language`, the API
+   * detects Arabic or English (`auto`).
+   *
+   * Every attempt sends the same `Idempotency-Key` (pass `idempotencyKey` to choose it),
+   * so retries never transcribe twice. If the job is still running after 220 s, the
+   * SDK polls it every 5 s, for up to `waitTimeout`, instead of uploading again.
+   */
+  transcribe(params: TranscribeParams, options?: SyncRequestOptions): APIPromise<SttResult> {
+    return this._sync<SttResult, SttJob>(
       OPS.sttTranscribe,
       { upload: () => prepareUpload(params.file, fields(params)), parse: model<SttResult>('SttResult', ['jobId', 'status']) },
+      TRANSCRIBE_JOB,
       options,
     );
   }

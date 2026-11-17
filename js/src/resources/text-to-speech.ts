@@ -7,9 +7,19 @@ import { OPS } from '../core/operations.js';
 import type { PagePromise } from '../core/pagination.js';
 import { findCandidates, TTS_POLL_INTERVAL_MS, waitForJob, type WaitOptions } from '../core/polling.js';
 import type { DeleteResult, JobInitiated, TtsJob, TtsResult, Voice, VoiceList } from '../types/models.js';
-import type { ListParams, RequestOptions, SpeechParams } from '../types/params.js';
+import type { ListParams, RequestOptions, SpeechParams, SyncRequestOptions } from '../types/params.js';
 import type { Audio, ConnectTtsOptions, SpeakOptions, TtsSession } from '../streaming/index.js';
-import { APIResource, compact, itemsOf, jobIdOf, model, parseDelete, type ClientContext, type JobRef } from './resource.js';
+import {
+  APIResource,
+  compact,
+  itemsOf,
+  jobIdOf,
+  model,
+  parseDelete,
+  type ClientContext,
+  type JobRef,
+  type SyncJob,
+} from './resource.js';
 
 const speechBody = (p: SpeechParams) => ({
   text: p.text,
@@ -19,6 +29,9 @@ const speechBody = (p: SpeechParams) => ({
 
 const parseJob = model<TtsJob>('TtsJob', ['id', 'status']);
 const parseVoice = model<Voice>('Voice', ['id'], false);
+
+/** After a `202 Processing`, `generate()` polls the job every 3 s and returns it as a `TtsResult`. */
+const GENERATE_JOB: SyncJob<TtsJob> = { get: OPS.ttsJobsGet, parseJob, interval: TTS_POLL_INTERVAL_MS };
 
 export class Voices extends APIResource {
   /** Every voice you can use. The list changes rarely: cache it. */
@@ -127,11 +140,18 @@ export class TextToSpeech extends APIResource {
     return streaming.speak(this._client.streamOptions(), text, init);
   }
 
-  /** Synthesize speech and wait for it. `audioUrl` is a signed WAV link that expires. */
-  generate(params: SpeechParams, options?: RequestOptions): APIPromise<TtsResult> {
-    return this._request(
+  /**
+   * Synthesize speech and wait for it. `audioUrl` is a signed WAV link that expires.
+   *
+   * Every attempt sends the same `Idempotency-Key` (pass `idempotencyKey` to choose it),
+   * so retries never synthesize twice. If the job is still running after 220 s, the
+   * SDK polls it every 3 s, for up to `waitTimeout`.
+   */
+  generate(params: SpeechParams, options?: SyncRequestOptions): APIPromise<TtsResult> {
+    return this._sync<TtsResult, TtsJob>(
       OPS.ttsGenerate,
       { json: speechBody(params), parse: model<TtsResult>('TtsResult', ['jobId', 'status']) },
+      GENERATE_JOB,
       options,
     );
   }

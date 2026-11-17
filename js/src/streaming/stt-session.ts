@@ -22,6 +22,7 @@ import { STT_PATH, resolveStreamOptions, type ResolvedStreamOptions, type Stream
 import type { CloseInfo } from './stream-errors.js';
 import { SttProtocol, type SttState } from './stt-protocol.js';
 import type { SegmentMark, SessionSummary, SttEvent, TerminologySet, StreamTerminology, Transcript } from './types.js';
+import type { Language } from '../types/models.js';
 
 const END_SEGMENT_FRAME = '{"type":"end_segment"}';
 const STOP_FRAME = '{"type":"stop"}';
@@ -37,8 +38,11 @@ export type AudioSource =
 export interface SttSessionInit {
   /** Sample rate of the audio you send, in Hz (8000 to 48000). Required: a mismatch gives wrong transcripts silently. */
   sampleRate: number;
-  /** `ar` (Arabic and mixed Arabic/English) or `en` (wholly English speech). */
-  language: string;
+  /**
+   * `auto` (the API's default when left out) detects Arabic or English; `ar` for
+   * Arabic and mixed Arabic/English; `en` for wholly English speech.
+   */
+  language?: Language | undefined;
   terminology?: StreamTerminology | null | undefined;
   encoding?: string | undefined;
   /** Keep retrying "Too many concurrent streams" for up to this many ms. */
@@ -49,9 +53,12 @@ export function sttQuery(sampleRate: unknown, language: unknown, encoding: unkno
   if (typeof sampleRate !== 'number' || !Number.isInteger(sampleRate) || sampleRate <= 0) {
     throw new UsageError('sampleRate must be a positive whole number (the Hz of the audio you send)');
   }
-  if (typeof language !== 'string' || language.trim() === '') throw new UsageError('language is required (ar or en)');
+  // Left out, the server's default (auto) applies.
+  if (language != null && (typeof language !== 'string' || language.trim() === '')) {
+    throw new UsageError('language must be auto, ar or en, or left out');
+  }
   if (typeof encoding !== 'string' || encoding === '') throw new UsageError('encoding must be a string');
-  return { sample_rate: sampleRate, language, encoding };
+  return language == null ? { sample_rate: sampleRate, encoding } : { sample_rate: sampleRate, language, encoding };
 }
 
 /** @internal Options `transcribeStream` passes to the sessions it opens. */

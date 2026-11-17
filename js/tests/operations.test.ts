@@ -1,13 +1,15 @@
 // Every operation in spec/mapping.json is reachable under its TypeScript name, accepts every
-// documented parameter, and sends the documented request: method, path, query, JSON or multipart.
+// documented parameter, and sends the documented request: method, path, query, headers, JSON or
+// multipart. Operations the mapping marks `excluded` are not part of this SDK yet.
 import { describe, expect, it } from 'vitest';
 import { OPS, attemptTimeout } from '../src/core/operations.js';
+import type { Language } from '../src/types/models.js';
 import { loadSpec } from './helpers.js';
 import { dataSchema, exampleFor, JOB_ID, makeClient, ok, partsOf, WAV, type Captured } from './rest-support.js';
 
 interface MappedParam {
   api: string;
-  in: 'path' | 'query' | 'json' | 'form';
+  in: 'path' | 'query' | 'json' | 'form' | 'header';
   required: boolean;
   ts: string;
 }
@@ -16,8 +18,12 @@ interface MappedOperation {
   path: string;
   sdk: { ts: string };
   params: MappedParam[];
+  idempotency_key: boolean;
+  excluded?: string;
 }
-const mapping = loadSpec<{ operations: Record<string, MappedOperation> }>('mapping.json').operations;
+const mapping = Object.fromEntries(
+  Object.entries(loadSpec<{ operations: Record<string, MappedOperation> }>('mapping.json').operations).filter(([, o]) => !o.excluded),
+);
 
 const TERMS = { keywords: ['KYC', { term: 'Emirates NBD', variants: ['امريتس ان بي دي'] }] };
 
@@ -56,6 +62,7 @@ const VALUES: Record<string, unknown> = {
   ttlSeconds: 300,
   agentId: 'agent-1',
   sessionId: 'session/1',
+  'Idempotency-Key': 'key-0f8b5c',
 };
 
 /** How a value travels in a multipart field. */
@@ -72,7 +79,10 @@ function respond(operation: MappedOperation) {
   };
 }
 
-/** Call `client.<ts path>` with path parameters first, then one object with every other parameter. */
+/**
+ * Call `client.<ts path>` with path parameters first, then one object with every other parameter,
+ * then the request options, which carry the header parameters (`idempotencyKey`).
+ */
 async function invoke(client: any, operation: MappedOperation) {
   const names = operation.sdk.ts.split('.');
   let target = client;
@@ -80,8 +90,10 @@ async function invoke(client: any, operation: MappedOperation) {
   const method = target[names.at(-1)!];
   expect(typeof method, operation.sdk.ts).toBe('function');
   const args: unknown[] = operation.params.filter((p) => p.in === 'path').map((p) => VALUES[p.api]);
-  const rest = operation.params.filter((p) => p.in !== 'path');
+  const rest = operation.params.filter((p) => p.in !== 'path' && p.in !== 'header');
+  const headers = operation.params.filter((p) => p.in === 'header');
   if (rest.length > 0) args.push(Object.fromEntries(rest.map((p) => [p.ts, VALUES[p.api]])));
+  if (headers.length > 0) args.push(Object.fromEntries(headers.map((p) => [p.ts, VALUES[p.api]])));
   return method.apply(target, args);
 }
 
@@ -105,6 +117,10 @@ describe.each(Object.entries(mapping))('%s', (operationId, operation) => {
       operation.params.filter((p) => p.in === 'query').map((p) => [p.api, String(VALUES[p.api])]),
     );
     expect(query).toEqual(expectedQuery);
+    for (const p of operation.params.filter((q) => q.in === 'header')) {
+      expect(request.headers.get(p.api), p.api).toBe(VALUES[p.api]);
+    }
+    expect(request.headers.has('idempotency-key')).toBe(operation.idempotency_key);
 
     const json = operation.params.filter((p) => p.in === 'json');
     const form = operation.params.filter((p) => p.in === 'form');
@@ -135,6 +151,13 @@ describe('the operation table', () => {
     expect(fromTable).toEqual(fromMapping);
   });
 
+  it('marks the operations that accept an Idempotency-Key', () => {
+    const fromMapping = Object.values(mapping).filter((o) => o.idempotency_key).map((o) => o.sdk.ts).sort();
+    const fromTable = Object.values(OPS).filter((o) => 'idempotencyKey' in o && o.idempotencyKey).map((o) => o.name).sort();
+    expect(fromTable).toEqual(fromMapping);
+    expect(fromTable).toEqual(['soundCleaning.clean', 'speechToText.transcribe', 'textToSpeech.generate']);
+  });
+
   it('sends only the parameters that are set', async () => {
     const { client, requests } = makeClient((request) =>
       request.method === 'GET'
@@ -142,17 +165,31 @@ describe('the operation table', () => {
         : ok({ jobId: JOB_ID, status: 'completed', id: JOB_ID, ticket: 't', token: 'x' }),
     );
     await client.textToSpeech.generate({ text: 'hi', voiceId: 'v1', speed: undefined });
-    await client.speechToText.transcribe({ file: WAV, language: 'en' });
+    await client.speechToText.transcribe({ file: WAV });
     await client.soundCleaning.clean({ file: WAV, targetLufs: undefined });
     await client.widgets.createTicket('wdg_1');
     await client.agents.sessions.start('a1');
     await client.textToSpeech.jobs.list();
     expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ text: 'hi', voiceId: 'v1' });
-    expect((await partsOf(requests[1]!)).fields).toEqual({ language: 'en' });
+    expect((await partsOf(requests[1]!)).fields).toEqual({}); // no language: the API's default (auto) applies
     expect((await partsOf(requests[2]!)).fields).toEqual({});
     expect(JSON.parse(String(requests[3]!.init.body))).toEqual({});
     expect(JSON.parse(String(requests[4]!.init.body))).toEqual({});
     expect(requests[5]!.url.search).toBe('');
+  });
+
+  it('language is optional: left out, no field is sent and the API detects it (auto)', async () => {
+    const { client, requests } = makeClient(() =>
+      ok({ jobId: JOB_ID, status: 'completed', transcription: 'hi', language: 'auto', segments: [], speakers: [] }),
+    );
+    const result = await client.speechToText.transcribe({ file: WAV });
+    await client.speechToText.jobs.create({ file: WAV, numbersAsDigits: false });
+    await client.speechToText.transcribe({ file: WAV, language: 'auto' });
+    await client.speechToText.jobs.create({ file: WAV, language: 'auto' });
+    const fields = await Promise.all(requests.map(async (r) => (await partsOf(r)).fields));
+    expect(fields).toEqual([{}, { numbers_as_digits: 'false' }, { language: 'auto' }, { language: 'auto' }]);
+    const language: Language = result.language!; // results may report 'auto'
+    expect(language).toBe('auto');
   });
 
   it('sends terminology given as a string unchanged', async () => {
@@ -177,7 +214,7 @@ describe('the operation table', () => {
     [OPS.ttsJobsGet, null, 50_000],
     [OPS.sttJobsExport, null, 80_000],
     [OPS.ttsJobsCreate, null, 50_000],
-    [OPS.ttsGenerate, null, 140_000],
+    [OPS.ttsGenerate, null, 260_000], // 240 s to answer: above the 220 s after which the API answers 202
     [OPS.sttJobsCreate, 1000, 190_000],
     [OPS.sttTranscribe, 1000, 670_000],
     [OPS.clean, 100 * 1024 * 1024, 810_000],

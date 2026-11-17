@@ -1,12 +1,15 @@
 // Live, paid: one small call per endpoint and stream. The tests run in order and share
 // the audio made by test (9). Every job they create is deleted, in the test or in afterAll.
 //
-// Text to Speech is charged per character, so the texts are short: 174 characters spoken in
-// full, plus a 163-character text cancelled after its first audio (charged only for the share
-// sent). Speech to Text and Sound Cleaning process the same ~3 s clip: five passes in all.
+// Text to Speech is charged per character, so the texts are short: 195 characters spoken in
+// full (the idempotency test sends its text twice with one key, and is charged once; the same
+// key with another text is refused, uncharged), plus a 163-character text cancelled after its
+// first audio (charged only for the share sent).
+// Speech to Text and Sound Cleaning process the same ~3 s clip: six passes in all.
+import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect } from 'vitest';
 import type EchoNova from '../../src/index.js';
-import { JobNotFoundError, toFile, type TranscriptExport, type Voice } from '../../src/index.js';
+import { InvalidRequestError, JobNotFoundError, toFile, type TranscriptExport, type Voice } from '../../src/index.js';
 import { parseWav, type Transcript } from '../../src/streaming/index.js';
 import {
   clientFor,
@@ -27,6 +30,8 @@ import {
 /** The shared test audio, in English so every check can use language "en". */
 const SPEECH = 'Welcome to EchoNova. This is a live test.';
 const JOB_SPEECH = 'This is an async job test.';
+const KEY_SPEECH = 'Idempotency key test.';
+const OTHER_SPEECH = 'Another text, same key.';
 const STREAM_SPEECH = 'Streaming speech arrives in chunks.';
 /** Cancelled after its first audio, so only the share of audio sent is charged (at least 1 credit). */
 const LONG_SPEECH =
@@ -42,6 +47,8 @@ const api = (): EchoNova => (client ??= clientFor(required('ECHONOVA_API_KEY')))
 const jobs = new JobCleanup();
 
 let voice: Voice | null = null;
+/** The idempotencyKey test (9b) synthesized KEY_SPEECH with. */
+let usedKey: string | null = null;
 /** The WAV from test (9): the input of every Speech to Text and Sound Cleaning test. */
 let wav: Uint8Array | null = null;
 
@@ -89,6 +96,39 @@ describe('REST (paid)', () => {
     wav = bytes;
   });
 
+  liveTest('(9b) textToSpeech.generate twice with one idempotencyKey returns the same job', KEY, async (ctx) => {
+    const { id: voiceId } = from(ctx, voice, 'the voice from test (9)');
+    const idempotencyKey = `live-${randomUUID()}`;
+    const first = await api().textToSpeech.generate({ text: KEY_SPEECH, voiceId }, { idempotencyKey });
+    jobs.track('textToSpeech', first.jobId);
+    usedKey = idempotencyKey;
+    const again = await api().textToSpeech.generate({ text: KEY_SPEECH, voiceId }, { idempotencyKey });
+    jobs.track('textToSpeech', again.jobId);
+    note(`textToSpeech.generate twice with one key: ${first.creditsConsumed} and ${again.creditsConsumed} credits, requests ${first.requestId}, ${again.requestId}`);
+    expect(first.status).toBe('completed');
+    expect(again.jobId).toBe(first.jobId);
+  });
+
+  liveTest('(9c) the same idempotencyKey with another text is refused (409), uncharged', KEY, async (ctx) => {
+    const { id: voiceId } = from(ctx, voice, 'the voice from test (9)');
+    const idempotencyKey = from(ctx, usedKey, 'the key from test (9b)');
+    const outcome: unknown = await api()
+      .textToSpeech.generate({ text: OTHER_SPEECH, voiceId }, { idempotencyKey })
+      .then(
+        (result) => {
+          jobs.track('textToSpeech', result.jobId); // not expected: clean it up anyway
+          return result;
+        },
+        (error: unknown) => error,
+      );
+    note(`textToSpeech.generate with a reused key: ${summarize(outcome)}`);
+    expect(outcome instanceof InvalidRequestError).toBe(true); // a boolean: a result would hold a signed link
+    const error = outcome as InvalidRequestError;
+    expect(error.statusCode).toBe(409);
+    expect(error.rule).toBe('idempotency_key_reused');
+    expect(error.idempotencyKey === idempotencyKey).toBe(true);
+  });
+
   liveTest('(10) textToSpeech.jobs: create, wait, download, delete', KEY, async (ctx) => {
     const { id: voiceId } = from(ctx, voice, 'the voice from test (9)');
     const tts = api().textToSpeech;
@@ -125,6 +165,15 @@ describe('REST (paid)', () => {
     for (const segment of result.segments) expect(segment.end).toBeGreaterThanOrEqual(segment.start);
     expect(Number.isInteger(result.creditsConsumed)).toBe(true);
     expect(result.creditsConsumed).toBeGreaterThanOrEqual(0);
+  });
+
+  liveTest('(11b) speechToText.transcribe without a language detects it', KEY, async (ctx) => {
+    const audio = from(ctx, wav, 'the test audio from test (9)');
+    const result = await api().speechToText.transcribe({ file: toFile(audio, 'live-test.wav') });
+    jobs.track('speechToText', result.jobId);
+    note(`speechToText.transcribe without a language: reported ${result.language}, request ${result.requestId}`);
+    expect(result.status).toBe('completed');
+    expect(['auto', 'ar', 'en']).toContain(result.language);
   });
 
   liveTest('(12) speechToText.jobs: create, wait, export txt, srt and json, delete', KEY, async (ctx) => {

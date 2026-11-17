@@ -121,6 +121,17 @@ describe('transcribeStream', () => {
     expect(transcripts(events).reduce((n, t) => n + t.durationSeconds, 0)).toBeCloseTo(3);
   });
 
+  it.each([
+    [undefined, { sample_rate: '16000', encoding: 'pcm_s16le' }],
+    ['en', { sample_rate: '16000', language: 'en', encoding: 'pcm_s16le' }],
+  ] as const)('reconnects with the same language (%s), or none', async (language, query) => {
+    server.stt.actions.push({ kind: 'abort', after: SEGMENT + 16_000 });
+    const { error } = await run(source(pcm(3), 3_200, 5), { language, segmentSeconds: 1, reconnect: FAST });
+    expect(error).toBeNull();
+    expect(server.sttConns.length).toBeGreaterThan(1);
+    for (const conn of server.sttConns) expect(conn.query).toEqual(query);
+  });
+
   it('reports cut segments that got no result as dropped', async () => {
     server.stt.actions.push({ kind: 'abort_on_cut', after: 2 });
     const audio = pcm(3);

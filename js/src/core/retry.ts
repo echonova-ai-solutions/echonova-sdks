@@ -2,8 +2,9 @@
  * Decide whether a failed attempt may be retried, and after how long.
  *
  * Pure logic over the shared retry table in `spec/error-rules.json`. The table
- * never retries a POST that may already have run, because the API has no
- * idempotency key and would charge again.
+ * never retries a POST that may already have run, because it would run and be
+ * charged again; the exception is a POST that carries an `Idempotency-Key`
+ * (method `POST_IDEMPOTENT`, ADR 0014), which the server runs at most once.
  */
 
 import { loadRules, type Delay, type Executed, type Phase, type RetryFlag, type Rule, type RuleSet } from './rules.js';
@@ -74,7 +75,7 @@ export class RetryPolicy {
     return retryAfter + low + (high - low) * this.#random();
   }
 
-  /** Decide for an HTTP error status (`method` is GET/DELETE/POST, or WS for a handshake). */
+  /** Decide for an HTTP error status (`method` is GET/DELETE/POST/POST_IDEMPOTENT, or WS for a handshake). */
   decideStatus(method: string, rule: Rule, options: DecideStatusOptions): RetryDecision {
     const flag = rule.retry.forMethod(method);
     const maxRetryAfter = method.toUpperCase() === 'WS' ? this.rules.defaults.wsMaxRetryAfter : this.maxRetryAfter;
