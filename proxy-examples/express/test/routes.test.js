@@ -31,8 +31,16 @@ test('the REST allow-list is exactly the speech routes of the spec', { skip }, (
   const speech = operations.filter((op) => SPEECH_PREFIXES.some((p) => op.split(' ')[1].startsWith(p)));
   assert.deepEqual(new Set(REST_ROUTES.map(([m, p]) => `${m} ${p}`)), new Set(speech));
   assert.equal(REST_ROUTES.length, 16);
-  // Everything else in the spec (widget tickets, agent sessions) stays server-side only.
-  assert.deepEqual(new Set(operations.filter((op) => !speech.includes(op))), new Set(SERVER_SIDE_ONLY));
+  // Everything else in the spec stays server-side only: widget tickets and agent sessions, which your
+  // backend calls for the app, and the agent-management API, which only your backend uses.
+  const MANAGEMENT = ['/v1/agents', '/v1/agent-voices', '/v1/tools', '/v1/secrets', '/v1/auth-connections', '/v1/llm/'];
+  const others = operations.filter((op) => !speech.includes(op));
+  for (const op of SERVER_SIDE_ONLY) assert.ok(others.includes(op), op);
+  const rest = others.filter((op) => !SERVER_SIDE_ONLY.includes(op));
+  assert.deepEqual(
+    rest.filter((op) => !MANAGEMENT.some((p) => op.split(' ')[1].startsWith(p))),
+    [],
+  );
 });
 
 test('the stream allow-list matches the asyncapi channels and their query', { skip }, () => {

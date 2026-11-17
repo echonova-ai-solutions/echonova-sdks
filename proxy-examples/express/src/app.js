@@ -162,7 +162,7 @@ function browserPolicy(settings, log) {
     res.setHeader('vary', 'Origin');
     if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] !== undefined) {
       res.setHeader('access-control-allow-methods', 'GET, POST, DELETE');
-      res.setHeader('access-control-allow-headers', 'Authorization, Content-Type, X-Request-Id');
+      res.setHeader('access-control-allow-headers', 'Authorization, Content-Type, Idempotency-Key, X-Request-Id');
       res.setHeader('access-control-max-age', '600');
       return res.status(204).end();
     }

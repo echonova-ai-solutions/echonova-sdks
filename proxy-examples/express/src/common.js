@@ -7,7 +7,9 @@ export const PROXY_USER_AGENT = 'echonova-proxy/0.1 (express)';
 // Request headers copied from the app's request. Everything else is dropped, including
 // Authorization, Cookie, hop-by-hop headers and X-Forwarded-*. The proxy sets its own
 // Authorization (the API key) and X-Request-Id.
-export const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type'];
+// Idempotency-Key makes a retried synthesis, transcription or cleaning return the first result
+// instead of running (and charging) twice.
+export const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type', 'idempotency-key'];
 
 // Response headers copied from EchoNova's response. Everything else is dropped
 // (Set-Cookie, Server, upstream CORS headers, ...).

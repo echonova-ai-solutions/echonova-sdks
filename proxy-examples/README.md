@@ -99,7 +99,7 @@ Apps that can set headers (server-side, mobile, desktop) just send their `Author
 
 **Handles the key.**
 - The key comes only from `ECHONOVA_API_KEY`. It is never accepted from the app, never returned and never logged.
-- Request headers are copied from an allow-list (`Accept`, `Content-Type`, `Content-Length`, the app's `User-Agent`). The app's `Authorization`, `Cookie`, hop-by-hop and any other headers are dropped.
+- Request headers are copied from an allow-list (`Accept`, `Content-Type`, `Content-Length`, `Idempotency-Key`, the app's `User-Agent`). `Idempotency-Key` lets the SDKs retry a synthesis, transcription or cleaning safely through the proxy. The app's `Authorization`, `Cookie`, hop-by-hop and any other headers are dropped.
 - Response headers are copied from an allow-list: `Content-Type`, `Content-Disposition`, `Retry-After`, `X-RateLimit-*` and `X-Request-Id`. The proxy adds `Cache-Control: no-store`.
 - The proxy refuses to start if `ECHONOVA_UPSTREAM_URL` isn't `https://` (local test servers excepted), so the key never travels in clear text. It never follows redirects.
 

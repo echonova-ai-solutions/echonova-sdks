@@ -28,14 +28,18 @@ def test_rest_allow_list_is_exactly_the_speech_routes_of_the_spec() -> None:
     speech = {op for op in operations if op[1].startswith(SPEECH_PREFIXES)}
     assert set(REST_ROUTES) == speech
     assert len(REST_ROUTES) == 16
-    # Everything else in the spec (the widget ticket route) stays server-side only.
-    # Everything else in the spec (widget tickets, agent sessions) stays server-side only.
-    assert {path for _, path in operations - speech} == {
+    # Everything else in the spec stays server-side only: widget tickets and agent sessions, which
+    # your backend calls for the app, and the agent-management API, which only your backend uses.
+    server_side = {
         "/v1/widgets/{publicId}/tickets",
         "/v1/agents/{agentId}/sessions",
         "/v1/agents/{agentId}/sessions/{sessionId}",
         "/v1/agents/{agentId}/sessions/{sessionId}/end",
     }
+    management = ("/v1/agents", "/v1/agent-voices", "/v1/tools", "/v1/secrets", "/v1/auth-connections", "/v1/llm/")
+    others = {path for _, path in operations - speech}
+    assert server_side <= others
+    assert all(path.startswith(management) for path in others - server_side), others - server_side
 
 
 @needs_spec

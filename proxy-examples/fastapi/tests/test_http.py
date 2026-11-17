@@ -90,10 +90,12 @@ async def test_key_is_injected_and_app_credentials_are_stripped(harness: Harness
             "x-api-key": "ek_REDACTED_from_the_app",
             "x-request-id": "app-req-7",
             "user-agent": "echonova-python/0.1.0",
+            "idempotency-key": "4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a",
         },
     )
     assert response.status_code == 200
     seen = harness.fake.requests[-1]
+    assert seen.headers["idempotency-key"] == "4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a"
     assert [v for k, v in seen.raw_headers if k == "authorization"] == [f"Bearer {API_KEY}"]
     for name in ("cookie", "x-forwarded-for", "proxy-authorization", "x-custom-hop", "te", "x-api-key"):
         assert name not in seen.headers, name
@@ -364,6 +366,7 @@ async def test_cors_for_listed_origins_only(harness: Harness) -> None:
     assert preflight.headers["access-control-allow-credentials"] == "true"
     assert "POST" in preflight.headers["access-control-allow-methods"]
     assert "Authorization" in preflight.headers["access-control-allow-headers"]
+    assert "Idempotency-Key" in preflight.headers["access-control-allow-headers"]
 
     allowed = await harness.client.post(url, json={"text": "x"}, headers={"origin": ORIGIN})
     assert allowed.status_code == 200

@@ -155,7 +155,7 @@ class BrowserPolicy:
             preflight = [
                 *cors,
                 (b"access-control-allow-methods", b"GET, POST, DELETE"),
-                (b"access-control-allow-headers", b"Authorization, Content-Type, X-Request-Id"),
+                (b"access-control-allow-headers", b"Authorization, Content-Type, Idempotency-Key, X-Request-Id"),
                 (b"access-control-max-age", b"600"),
             ]
             await send({"type": "http.response.start", "status": 204, "headers": preflight})

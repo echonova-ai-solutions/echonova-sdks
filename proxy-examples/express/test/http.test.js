@@ -151,12 +151,14 @@ describe('REST relay', () => {
         'x-api-key': 'ek_REDACTED_from_the_app',
         'x-request-id': 'app-req-7',
         'user-agent': 'echonova-js/0.1.0',
+        'idempotency-key': '4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a',
       },
     });
     assert.equal(response.status, 200);
     const text = await response.text();
     const seen = h.fake.requests.at(-1);
     assert.ok(seen);
+    assert.equal(seen.headers['idempotency-key'], '4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a');
     assert.equal(seen.headers.authorization, `Bearer ${API_KEY}`);
     assert.equal(seen.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === 'authorization').length, 1);
     for (const name of ['cookie', 'x-forwarded-for', 'proxy-authorization', 'x-custom-hop', 'x-api-key']) {
@@ -349,6 +351,7 @@ describe('REST relay', () => {
     assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
     assert.match(String(preflight.headers.get('access-control-allow-methods')), /POST/);
     assert.match(String(preflight.headers.get('access-control-allow-headers')), /Authorization/);
+    assert.match(String(preflight.headers.get('access-control-allow-headers')), /Idempotency-Key/);
 
     const allowed = await call(url, { method: 'POST', body: '{}', headers: { origin: ORIGIN } });
     assert.equal(allowed.status, 200);
