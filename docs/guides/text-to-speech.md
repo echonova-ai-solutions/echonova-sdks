@@ -132,7 +132,7 @@ await client.downloadTo(speech.audioUrl!, 'weather.wav');
 client.close();
 ```
 
-`generate()` is a paid POST, so the SDK never resends it once it may have reached the server. If the response is lost, the error says so (`may_have_executed`); see [Errors](errors.md).
+`generate()` sends an idempotency key, so the SDK can retry it after a lost response or a server error without a second charge: the API answers a repeated key with the first result. If the synthesis is still running after 220 seconds, the SDK waits for it and returns the same result. See [Errors](errors.md#idempotency-keys).
 
 ## Options
 

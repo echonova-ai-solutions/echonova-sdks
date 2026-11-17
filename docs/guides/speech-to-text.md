@@ -89,12 +89,14 @@ A few things the API docs say about files:
 
 | Python | TypeScript and Dart | What it does |
 |---|---|---|
-| `language` | `language` | Required. `ar` for Arabic and for mixed Arabic and English; `en` only for speech that is all English (Arabic sent as `en` comes back garbled). |
+| `language` | `language` | Optional. Leave it out (or pass `auto`) and the API detects Arabic or English. `ar` for Arabic and for mixed Arabic and English; `en` only for speech that is all English (Arabic sent as `en` comes back garbled). |
 | `numbers_as_digits` | `numbersAsDigits` | Spoken Arabic numbers are written as digits by default (a phone number, a price). Pass `false` to keep them as they were said. English transcripts are never converted. |
 | `identify_speakers` | `identifySpeakers` | Also return the transcript as timed segments, each with its speaker. It doesn't change the price. |
 | `terminology` | `terminology` | Your names, products and acronyms, applied to a corrected copy of the transcript. Free. |
 
 Options you leave out aren't sent, so the API's defaults apply.
+
+`transcribe()` sends an idempotency key, so the SDK can retry it after a lost response or a server error without a second charge. A long file still processing after 220 seconds is waited for, and you get the transcript as usual. See [Errors](errors.md#idempotency-keys).
 
 ### Speakers
 

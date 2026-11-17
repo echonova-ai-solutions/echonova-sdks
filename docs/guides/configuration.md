@@ -81,7 +81,7 @@ A timeout raises `APITimeoutError` (`APITimeoutException` in Dart), whose `kind`
 
 ## Retries
 
-The SDK retries failures that are safe to retry: a connection that failed before anything was sent, a rate limit with `Retry-After`, a service the API reports as temporarily unavailable, and for `GET` and `DELETE`, most server errors and lost responses. It never resends a `POST` that may already have run. [Errors](errors.md#what-the-sdk-retries) has the full list and the reasons.
+The SDK retries failures that are safe to retry: a connection that failed before anything was sent, a rate limit with `Retry-After`, a service the API reports as temporarily unavailable, and for `GET`, `DELETE` and the synchronous calls that carry an idempotency key (`generate`, `transcribe`, `clean`), most server errors and lost responses. It never resends another `POST` that may already have run. [Errors](errors.md#what-the-sdk-retries) has the full list and the reasons.
 
 - `max_retries` / `maxRetries` (default 2) caps the retries per call. Retries after a `429` count toward it. `0` turns retries off.
 - The delay before retry *n* is `min(8, 0.5 × 2^(n−1))` seconds, multiplied by a random factor between 0.5 and 1.

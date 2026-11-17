@@ -28,6 +28,7 @@ EchoNovaError
 │  │  └─ SpendingLimitError         429: the key reached its Credit Limit
 │  ├─ RateLimitError                429: throttled (.retry_after)
 │  ├─ ConcurrencyLimitError         no free stream slot, or an agent at its limit
+│  ├─ RequestInProgressError        409: the same request is still running
 │  ├─ ServerError                   5xx
 │  │  ├─ ServiceUnavailableError    503
 │  │  ├─ GatewayError               502, 504
@@ -36,8 +37,8 @@ EchoNovaError
 ├─ StreamClosedError                a stream closed for another reason
 │  ├─ ServerRestartingError
 │  └─ SessionExpiredError           idle timeout or maximum session length
-├─ JobFailedError                   wait(): the job failed (.job)
-├─ JobWaitTimeoutError              wait() gave up; calling it again is safe
+├─ JobFailedError                   wait(), or a long synchronous call: the job failed (.job)
+├─ JobWaitTimeoutError              the wait gave up; waiting again is safe
 ├─ DownloadExpiredError             a signed link expired; get the job again
 └─ WebhookVerificationError         a webhook failed verification (.reason)
 ```
@@ -153,37 +154,87 @@ try {
 
 ## What the SDK retries
 
-Most EchoNova `POST` requests are paid: they synthesize, transcribe or clean audio. The API has no idempotency key, so it can't tell a retry from a new request:
+Most EchoNova `POST` requests are paid: they synthesize, transcribe or clean audio. What the SDK may retry depends on whether the API can recognise a repeat:
 
-> A `POST` that is sent twice is charged twice.
-> — [Retry requests safely](https://echonova.ai/docs/developers/retries-and-idempotency)
+- **Synchronous calls carry an idempotency key.** `generate` (Text to Speech), `transcribe` (Speech to Text) and `clean` (Sound Cleaning) send an `Idempotency-Key` header, the same one on every retry of the call. The API answers a repeated key with the first result and charges once, so the SDK can retry these calls safely.
+- **Other `POST` requests don't.** Creating a job (`jobs.create`) and starting an agent session have no key. Sent twice, they may run twice and be charged twice, so the SDK retries them only when a second attempt can't cost you twice.
 
-So the SDK retries a request only when a second attempt can't cost you twice:
-
-| Failure | `GET`, `DELETE` | `POST` |
-| --- | --- | --- |
-| Connecting failed, so nothing was sent (DNS, TCP, TLS) | retried | retried |
-| The body was not fully sent, and the SDK can tell | retried | retried, if the body can be sent again |
-| `429` with `Retry-After` (throttled) | retried after `Retry-After` | retried after `Retry-After` |
-| `408` | retried | retried |
-| `503` with a message the API documents as temporary, such as "…temporarily unavailable…" (the API refunds the charge) | retried | retried |
-| `503` that isn't from the API (not its JSON error) | retried | retried |
-| Sent, but no response arrived (read timeout, connection reset) | retried | **not retried**, `may_have_executed` true |
-| `500`, `502`, another `503`, `504` | retried | **not retried**, `may_have_executed` unknown or true |
-| A `2xx` whose body isn't valid | `GET` retried once, `DELETE` not retried | **not retried**, `may_have_executed` true |
-| `400`, `401`, `402`, `403`, `404`, `405`, `409`, `413`, `415`, `422` | not retried | not retried |
-| `429` "Monthly spending limit exhausted", or `429` without `Retry-After` | not retried | not retried |
+| Failure | `GET`, `DELETE` | `generate`, `transcribe`, `clean` | Other `POST` |
+| --- | --- | --- | --- |
+| Connecting failed, so nothing was sent (DNS, TCP, TLS) | retried | retried | retried |
+| The body was not fully sent, and the SDK can tell | retried | retried, if the body can be sent again | retried, if the body can be sent again |
+| `429` with `Retry-After` (throttled) | retried after `Retry-After` | retried after `Retry-After` | retried after `Retry-After` |
+| `408` | retried | retried | retried |
+| `503` with a message the API documents as temporary, such as "…temporarily unavailable…", or a `503` that isn't from the API | retried | retried | retried |
+| Sent, but no response arrived (read timeout, connection reset) | retried | retried with the same key | **not retried**, `may_have_executed` true |
+| `500`, `502`, another `503`, `504` | retried | retried with the same key | **not retried**, `may_have_executed` unknown or true |
+| A `2xx` whose body isn't valid | `GET` retried once, `DELETE` not retried | retried once | **not retried**, `may_have_executed` true |
+| `409` "…is still running." or "…still being started…" | | waited for (below) | not retried |
+| `400`, `401`, `402`, `403`, `404`, `405`, other `409`, `413`, `415`, `422` | not retried | not retried | not retried |
+| `429` "Monthly spending limit exhausted", or `429` without `Retry-After` | not retried | not retried | not retried |
 
 Some details:
 
-- **The `503` rule for `POST` is an allow-list** of messages the API documents as temporary. A new `503` message is not retried for a `POST` until the SDK learns it, so a change on the server can never quietly start double charges.
+- **The `503` rule for `POST` is an allow-list** of messages the API documents as temporary. A new `503` message is not retried for a `POST` without a key until the SDK learns it, so a change on the server can never quietly start double charges.
+- **A request that is still running is waited for.** If the first attempt is still running when a retry arrives, the API answers `409` "A request with this Idempotency-Key is still running." The SDK sends the request again with the same key every 5 seconds until it gets the answer, within the call's wait budget (below). Past it, it raises `RequestInProgressError`.
+- **A key used for different input** gets `409` "This Idempotency-Key was already used for a different request.", an `InvalidRequestError`.
 - **A retried `DELETE` that then gets `404`** reports success with `already_deleted` / `alreadyDeleted` set: the first attempt removed the job.
 - **Uploads are retried only when they can be sent again.** A file path is reopened, bytes are reused and a seekable file is rewound. A stream that was already partly read is not retried; its error has `retry_disabled_reason` / `retryDisabledReason` set to `body_not_replayable`.
 - The number of retries, the backoff and the `Retry-After` cap are in [Configuration](configuration.md#retries).
 
-The API docs suggest retrying `5xx` responses in general. The SDK is stricter for `POST` because a `5xx` can arrive after the work already started: it raises instead, with `may_have_executed` set, so you can check before you send the request again.
+**Don't wrap SDK calls in a generic retry layer** (tenacity, p-retry, a job queue's automatic retries) for `POST` requests without a key. It would resend exactly the requests the SDK held back. If you need one, retry only errors whose `may_have_executed` is false. For `generate`, `transcribe` and `clean`, pass the same key on every attempt (next section).
 
-**Don't wrap SDK calls in a generic retry layer** (tenacity, p-retry, a job queue's automatic retries) for `POST` requests. It would resend exactly the requests the SDK held back. If you need one, retry only errors whose `may_have_executed` is false.
+## Idempotency keys
+
+The SDK makes a new key for each call. To retry safely across calls, processes or restarts (a job queue, a crashed worker), pass your own: the same key returns the first result, charged once, for 24 hours. Errors from these calls carry the key they used (`idempotency_key` / `idempotencyKey`), so you can also retry with the error's key.
+
+**Python**
+
+```python
+import uuid
+
+from echonova import EchoNova
+
+client = EchoNova()
+voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+key = str(uuid.uuid4())  # store it with the work item, and reuse it on every attempt
+
+speech = client.text_to_speech.generate("أهلاً بك في إيكونوفا", voice_id=voice_id, idempotency_key=key)
+```
+
+**TypeScript**
+
+```ts
+import EchoNova from '@echonova/ai';
+
+const client = new EchoNova();
+const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
+const key = crypto.randomUUID(); // store it with the work item, and reuse it on every attempt
+
+const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوفا', voiceId }, { idempotencyKey: key });
+```
+
+**Dart**
+
+```dart
+import 'package:echonova_ai/echonova_ai.dart';
+
+Future<void> synthesize(EchoNova client, String voiceId, String key) async {
+  // Store the key with the work item, and reuse it on every attempt.
+  final speech = await client.textToSpeech.generate(
+    'أهلاً بك في إيكونوفا',
+    voiceId: voiceId,
+    options: RequestOptions(idempotencyKey: key),
+  );
+  print(speech.audioUrl);
+}
+```
+
+## Long synchronous calls
+
+If a synchronous call is still processing after 220 seconds, the API answers `202` with the job it started instead of the result. The SDK then waits for that job, polling it every 3 seconds (Text to Speech) or 5 seconds (Speech to Text, Sound Cleaning), and returns the same result the call returns normally. You don't need to handle the `202` yourself.
+
+The wait lasts up to 20 minutes, or less if the call has a `deadline`. Change it with `wait_timeout` (Python, seconds) or `waitTimeout` (TypeScript, milliseconds; Dart, a `Duration`). If the job fails, the call raises `JobFailedError`. If it outlasts the wait, it raises `JobWaitTimeoutError` with the job's ID, and waiting for the job again (`jobs.wait`) is safe.
 
 ## `may_have_executed`
 
@@ -192,12 +243,14 @@ The API docs suggest retrying `5xx` responses in general. The SDK is stricter fo
 | Value | Meaning | What to do |
 | --- | --- | --- |
 | `False` / `false` | The request did not run. | Handle the error; sending it again is safe. |
-| `True` / `true` | The request was fully sent and the response was lost. It may have run and been charged. | Look for the job before you send it again. |
-| `None` / `null` | Unknown: the server failed after receiving it. | Look for the job before you send it again. |
+| `True` / `true` | The request was fully sent and the response was lost. It may have run and been charged. | For `generate`, `transcribe` and `clean`, send it again with the error's key. Otherwise look for the job first. |
+| `None` / `null` | Unknown: the server failed after receiving it. | As for `True`. |
 
 It is always false for `GET` and `DELETE`, which are safe to repeat. `sent_at` / `sentAt` records when the request finished sending, so you know where to look.
 
 ## Recovering from a POST that may have run
+
+This is for requests without a key: creating a job, and starting an agent session. For `generate`, `transcribe` and `clean`, send the request again with the same idempotency key instead.
 
 The API docs' advice is: **don't send the `POST` again until you have looked**. Jobs are listed newest first. A Text to Speech job can be matched on its text and creation time; a Speech to Text job, which keeps no reference to the uploaded file, only on its creation time.
 

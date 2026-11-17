@@ -9,7 +9,7 @@ If you call the EchoNova API directly, with `requests`, `fetch`, `package:http` 
 | remember which endpoint uses camelCase JSON and which uses snake_case form fields | one naming convention per language; the SDK sends the API's spelling |
 | build `multipart/form-data` with an `audio/…` content type | pass a path, bytes or a file |
 | poll `GET …/jobs/{jobId}` in a loop | `jobs.wait(job)` |
-| write retry logic, and hope it never resends a paid `POST` | retries are built in and never send a paid request twice |
+| write retry logic, and hope it never resends a paid `POST` | retries are built in: synchronous calls retry with an idempotency key, and other paid requests are never sent twice |
 | `GET` the signed `audioUrl` without the auth header | `client.download(url)`, or `jobs.download(job)` for a fresh link |
 | compute an HMAC over the webhook body | `webhooks.verify()` / `verifyWebhook()` |
 

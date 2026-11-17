@@ -292,7 +292,7 @@ In the SDK, `result.credits_consumed` (`creditsConsumed`) is the final cost the 
 `speech_to_text.connect()` opens a session and returns once the server has started it (and confirmed your terminology, when you give one), so setup errors are raised right there.
 
 - `sample_rate` (`sampleRate`) is required, and has no default: it must be the rate of the audio you send. A wrong rate raises no error; it produces wrong transcripts. The stream accepts a range of rates (see the [reference](https://echonova.ai/docs/reference/stt-stream)); 16 kHz is enough for speech, and 8 kHz suits telephone audio.
-- `language` is `ar` (Arabic, and mixed Arabic and English) or `en` (speech that is all English).
+- `language` is optional: leave it out (or pass `auto`) and the server detects Arabic or English. Pass `ar` (Arabic, and mixed Arabic and English) or `en` (speech that is all English) when you know it.
 - The session's `session_id` (`sessionId`) identifies it if you contact support, and `job_id` (`jobId`) is the ID of the Speech to Text job it is saved as.
 
 ### Send audio

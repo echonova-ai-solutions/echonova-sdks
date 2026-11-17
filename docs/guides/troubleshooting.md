@@ -6,6 +6,7 @@ Answers to the problems developers hit most often. Error class names are given a
 - [402: InsufficientBalanceError](#402-insufficientbalanceerror)
 - [403: PermissionDeniedError](#403-permissiondeniederror)
 - [429: three different errors](#429-three-different-errors)
+- [409: a request is still running, or its key was used for something else](#409-a-request-is-still-running-or-its-key-was-used-for-something-else)
 - [Garbled or empty transcripts from the Speech to Text stream](#garbled-or-empty-transcripts-from-the-speech-to-text-stream)
 - ["Unsupported file type" and other content-type errors](#unsupported-file-type-and-other-content-type-errors)
 - [Expired download links](#expired-download-links)
@@ -53,6 +54,15 @@ A `429` can mean three things, and the SDK raises a different class for each:
 | `ConcurrencyLimitError` | `Too many concurrent streams` | The workspace has no free stream slot. | See [Too many concurrent streams](#too-many-concurrent-streams). |
 
 `SpendingLimitError` is deliberately not a subclass of `RateLimitError`, so a handler that retries rate limits never retries a spending limit. The reference proxies also answer `429 Too many requests` when a user exceeds the proxy's own per-user quota; the SDK treats it like any other throttle. See [Rate limits](https://echonova.ai/docs/developers/rate-limits) for the limits themselves.
+
+## 409: a request is still running, or its key was used for something else
+
+`generate`, `transcribe` and `clean` send an idempotency key (see [Errors](errors.md#idempotency-keys)). Two `409`s are about that key:
+
+| Class | Server message | What it means | What to do |
+| --- | --- | --- | --- |
+| `RequestInProgressError` | `A request with this Idempotency-Key is still running.` or `The same request is still being started. …` | An earlier attempt with the same key, or the same request, is still running. The SDK already resent it every 5 seconds until its wait budget ran out. | Send it again later with the error's key, which returns the first result. For long files, raise `wait_timeout` / `waitTimeout`. |
+| `InvalidRequestError` | `This Idempotency-Key was already used for a different request.` | You reused a key for different text, a different file or other options. | Use a new key for each different request. |
 
 ## Garbled or empty transcripts from the Speech to Text stream
 

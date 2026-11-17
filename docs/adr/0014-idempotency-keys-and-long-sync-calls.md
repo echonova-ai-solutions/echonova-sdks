@@ -58,6 +58,24 @@ When one of these calls answers `202`, the SDK doesn't return a half result. It 
 
 Polling is used rather than sending the request again, so that a large upload is never sent twice.
 
+Details every SDK follows:
+
+- **Deadline.** If the caller set a total `deadline` for the call, the wait budget is the smaller of `wait_timeout` and what is left of it.
+- **Polls.** Polls send the caller's extra headers, except `Idempotency-Key`.
+- **Errors.** API status and connection errors raised while waiting carry the call's key. `JobFailedError` and `JobWaitTimeoutError` carry the job instead.
+- **Result.** The returned result keeps the job's JSON, plus `jobId`, as its raw data.
+- **Synchronous Text to Speech read timeout: 240 seconds,** above the API's 220. With a shorter one the client would give up before the `202` could arrive.
+
+### A request that is still running is waited for
+
+The in-progress 409s mean the first request with this key is still running. On an idempotent call the SDK doesn't give up after its normal retries:
+
+- **Resending.** It sends the request again with the same key every 5 seconds, or after `Retry-After` when that is longer.
+- **Budget.** It uses the same wait budget as a `202`, and these resends don't count against `max_retries`.
+- **The outcome.** The first answer that isn't an in-progress 409 decides the call. Once the budget runs out, the SDK raises `RequestInProgressError` with the key.
+- **One budget.** A call has one wait budget, which starts at its first in-progress 409 or `202` and is shared by both waits. No resend is made that would land past it.
+- **Uploads that can't be sent again.** If the upload can't be read again (a partly read stream), the SDK raises `RequestInProgressError` at once, with `retry_disabled_reason` `body_not_replayable`.
+
 ### `language` is optional
 
 Speech to Text `language`, on REST and on the stream, becomes optional and accepts `auto`, `ar` and `en`, along with any value a future API adds. When it's left out, the SDK doesn't send it, and the server uses its default, `auto`. Results report the language as the API returns it, which can be `auto`.

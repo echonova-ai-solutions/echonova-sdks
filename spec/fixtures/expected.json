@@ -183,7 +183,7 @@
     },
     "stt/handshake_missing_language": {
       "handshake_error": "InvalidRequestError",
-      "note": "the SDKs always send a language; a replay sends an empty one and expects the server's 400"
+      "note": "recorded on 2026-11-13, before language became optional: a replay connects without a language, as recorded, and expects the 400 the server answered then"
     },
     "stt/handshake_no_key": {
       "handshake_error": "AuthenticationError"

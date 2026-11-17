@@ -98,7 +98,7 @@ The [getting-started guide](docs/guides/getting-started.md) continues with Speec
 
 - **Every service.** Text to Speech (one call, background jobs, live streaming), Speech to Text (files, jobs with TXT/SRT/JSON export, live streaming with terminology), Sound Cleaning, agent sessions and website widget tickets, plus webhook verification.
 - **Real-time streaming.** Low-latency speech as PCM chunks, with cancel and barge-in for voice agents, and live transcription that keeps long sessions going past the server's limit.
-- **Never charged twice.** The API has no idempotency key, so the SDKs never resend a request that may already have run. Errors say whether it did (`may_have_executed`) and help you find the job it created.
+- **Never charged twice.** Synchronous calls carry an idempotency key, so they are retried safely and long ones are waited for; other paid requests are never resent blindly. Errors say whether a request may have run (`may_have_executed`), and carry the key to retry it with.
 - **Keys stay on your server.** Browsers and Flutter apps use proxy mode: they call your backend, which adds the key. Reference proxies for [FastAPI and Express](proxy-examples/README.md) are included, and a [Flutter sample app](samples/flutter/README.md) streams through them.
 - **Typed and transparent.** Typed results that keep the API's JSON, a request ID on every result and error, rate-limit awareness, and logs that never contain keys, audio or transcripts.
 - **One behaviour in three languages.** The same error classes, retry rules and test vectors everywhere, and every SDK replays the same 73 recordings of real API traffic in CI.

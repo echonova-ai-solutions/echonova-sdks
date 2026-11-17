@@ -149,7 +149,8 @@ client.close();
 
 - **Unsupported format** (for example an M4A file renamed to `.mp3`), a file that is too long, or an option out of range: `InvalidRequestError`, with the API's message. Nothing is charged. Convert the audio rather than renaming it.
 - **The cleaner is temporarily unavailable:** the API refunds the charge, so the SDK retries the call by itself, and raises `ServiceUnavailableError` if it keeps failing.
-- **The response is lost** after the upload was sent: the cleaning may have run and been charged, so the SDK doesn't send it again. The error has `may_have_executed` set; check `jobs.list()` for a new job before you upload again. See [Errors](errors.md).
+- **The response is lost** after the upload was sent: the SDK sends it again with the same idempotency key, and the API answers with the first result, charged once. If it still fails, the error carries the key (`idempotency_key` / `idempotencyKey`); send the request again with it. See [Errors](errors.md#idempotency-keys).
+- **A long file** still processing after 220 seconds: the SDK waits for the cleaning to finish and returns the same result.
 
 ## See also
 
