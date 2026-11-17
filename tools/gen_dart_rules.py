@@ -113,11 +113,12 @@ class Writer:
 
 
 def write_retry(out: Writer, retry: dict[str, Any]) -> None:
-    unknown = set(retry) - {"GET", "DELETE", "POST", "WS", "delay"}
+    unknown = set(retry) - {"GET", "DELETE", "POST", "POST_IDEMPOTENT", "WS", "delay"}
     if unknown:
         raise ValueError(f"unknown retry columns {sorted(unknown)}")
     out.open("retry: RetryColumns(")
-    for column, name in (("GET", "get"), ("DELETE", "delete"), ("POST", "post"), ("WS", "ws")):
+    columns = (("GET", "get"), ("DELETE", "delete"), ("POST", "post"), ("POST_IDEMPOTENT", "postIdempotent"), ("WS", "ws"))
+    for column, name in columns:
         out.field(name, lookup(RETRY_FLAGS, retry[column], f"{column} retry flag"))
     out.field("delay", lookup(DELAYS, retry["delay"], "retry delay"))
     out.close("),")

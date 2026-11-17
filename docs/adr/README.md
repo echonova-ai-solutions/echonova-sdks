@@ -7,7 +7,7 @@ These records explain the main design decisions behind the EchoNova SDKs, and wh
 | [0001](0001-monorepo-with-shared-spec.md) | One repository for every SDK, with a shared `spec/` contract | Accepted |
 | [0002](0002-hand-written-sdks-from-published-specs.md) | Hand-written SDKs driven by the published API specs | Accepted |
 | [0003](0003-sans-io-core.md) | A sans-IO core with thin I/O drivers | Accepted |
-| [0004](0004-retries-and-idempotency.md) | Retries and idempotency: never resend a POST that may have run | Accepted |
+| [0004](0004-retries-and-idempotency.md) | Retries and idempotency: never resend a POST that may have run | Accepted, amended by 0014 |
 | [0005](0005-error-taxonomy.md) | An error taxonomy grouped by meaning | Accepted |
 | [0006](0006-naming-and-response-models.md) | Naming across languages, faithful responses and lenient parsing | Accepted |
 | [0007](0007-streaming-design.md) | Streaming: charge-aware Text to Speech, Speech to Text sessions that never reconnect on their own | Accepted |
@@ -17,6 +17,7 @@ These records explain the main design decisions behind the EchoNova SDKs, and wh
 | [0011](0011-testing-strategy.md) | Testing: shared vectors, conformance fixtures, a nightly live suite and spec drift checks | Accepted |
 | [0012](0012-public-repo-confidentiality.md) | Confidentiality rules for a public repository | Accepted |
 | [0013](0013-dart-flutter-parallel-track.md) | The Dart/Flutter SDK is built in parallel with the TypeScript SDK | Accepted |
+| [0014](0014-idempotency-keys-and-long-sync-calls.md) | Idempotency keys, safe retries and long synchronous calls | Accepted |
 
 ## Format
 

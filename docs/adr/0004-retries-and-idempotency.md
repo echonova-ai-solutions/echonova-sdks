@@ -4,7 +4,7 @@ Date: 2026-11-09
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR 0014](0014-idempotency-keys-and-long-sync-calls.md): operations that accept an `Idempotency-Key` send one and use the `POST_IDEMPOTENT` retry column.
 
 ## Context
 
