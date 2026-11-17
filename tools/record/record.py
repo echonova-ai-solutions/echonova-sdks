@@ -36,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,6 +128,8 @@ class RestRecorder:
             name, (filename, blob, content_type) = next(iter(files.items()))
             request["file"] = {"field": name, "filename": filename, "content_type": content_type, "bytes": len(blob)}
         request["authorization"] = "none" if not token else ("test key" if key == "default" else "other key")
+        if "Idempotency-Key" in headers:
+            request["idempotency_key"] = s.text(headers["Idempotency-Key"])  # a UUID: becomes a placeholder
 
         content_type = response.headers.get("content-type", "")
         body: dict[str, Any]
@@ -221,6 +224,14 @@ def cmd_rest(_: argparse.Namespace) -> None:
 
     print("Text to Speech")
     rec.call("tts/sync_ok", "POST", f"{tts}/sync", json={"text": ARABIC_TEXT, "voiceId": ar}, expect=200)
+    # ADR 0014: the same Idempotency-Key returns the first result without a second charge; reused for
+    # different text, it is refused.
+    key = str(uuid.uuid4())
+    for fixture in ("tts/sync_idempotent_first", "tts/sync_idempotent_repeat"):
+        rec.call(fixture, "POST", f"{tts}/sync", json={"text": "مرحبا", "voiceId": ar},
+                 headers={"Idempotency-Key": key}, expect=200)
+    rec.call("tts/sync_idempotency_key_reused", "POST", f"{tts}/sync", json={"text": "أهلاً", "voiceId": ar},
+             headers={"Idempotency-Key": key}, expect=409)
     rec.call("tts/sync_text_too_long", "POST", f"{tts}/sync", json={"text": "ا" * 501, "voiceId": ar}, expect=400)
     rec.call("tts/sync_voice_not_found", "POST", f"{tts}/sync",
              json={"text": "مرحبا", "voiceId": "000000000000000000000000"}, expect=404)
@@ -252,7 +263,8 @@ def cmd_rest(_: argparse.Namespace) -> None:
     name, blob, _ = audio_file("mp3")
     rec.call("stt/sync_octet_stream_mp3", "POST", f"{stt}/sync",
              files={"file": (name, blob, "application/octet-stream")}, data={"language": "ar"}, expect=400)
-    rec.call("stt/sync_missing_language", "POST", f"{stt}/sync", files={"file": audio_file("wav")}, expect=400)
+    # Since 2026-11-15 language is optional: without it the API detects Arabic or English (auto).
+    rec.call("stt/sync_auto_language", "POST", f"{stt}/sync", files={"file": audio_file("wav")}, expect=200)
     rec.call("stt/sync_bad_terminology", "POST", f"{stt}/sync", files={"file": audio_file("wav")},
              data={"language": "ar", "terminology": "{\"keywords\": 5}"}, expect=400)
     created = rec.call("stt/job_create", "POST", stt, files={"file": audio_file("wav")},
@@ -614,7 +626,7 @@ async def run_stt(args: argparse.Namespace) -> None:
     if args.slow:
         await scenario("idle_timeout", idle_timeout)
     await scenario("handshake_bad_query", normal, path="/v1/speech-to-text/stream?sample_rate=7000&language=ar")
-    await scenario("handshake_missing_language", normal, path="/v1/speech-to-text/stream?sample_rate=16000")
+    await scenario("auto_language", normal, path="/v1/speech-to-text/stream?sample_rate=16000")  # language: auto
     await scenario("handshake_no_key", normal, key_override=None)
     if tts_only := require_key("ECHONOVA_TTS_ONLY_KEY", optional=True):
         await scenario("handshake_key_without_service", normal, key_override=tts_only)
