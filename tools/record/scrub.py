@@ -126,7 +126,7 @@ def find_leaks(text: str, *, fixture: bool = False) -> list[str]:
         problems.append("API key")
     if re.search(r"(?<![A-Za-z0-9_])whsec_(?!REDACTED|TEST)[A-Za-z0-9_\-]{8,}", text):
         problems.append("webhook secret")
-    if re.search(r"(?i)[?&](sig|signature|se|sv|sp|skoid|X-Amz-Signature)=(?!REDACTED)[^&\"\s]+", text):
+    if re.search(r"(?i)[?&](sig|signature|se|sv|sp|skoid|X-Amz-Signature)=(?!REDACTED|\.\.\.|…)[^&\"\s]+", text):
         problems.append("signed URL query")
     if re.search(r"\.blob\.core\.windows\.net|\.s3[.-][a-z0-9-]*\.?amazonaws\.com", text):
         problems.append("storage hostname")

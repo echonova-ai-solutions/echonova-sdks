@@ -99,3 +99,10 @@ def test_find_leaks_catches_a_storage_path() -> None:
 def test_rescrubbing_with_a_new_scrubber_keeps_placeholders() -> None:
     once = Scrubber().value({"ids": ["66e5f0c2a1b2c3d4e5f60719", "66e5f0c2a1b2c3d4e5f60718"], "url": SAS})
     assert Scrubber().value(once) == once  # a fresh scrubber, as when promote re-scrubs an older recording
+
+
+def test_placeholder_signatures_in_documentation_are_not_leaks() -> None:
+    # The published API spec shows example links such as ...?sig=... (2026-11-15).
+    assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=..."') == []
+    assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=…"') == []
+    assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=aB3dE5"') == ["signed URL query"]
