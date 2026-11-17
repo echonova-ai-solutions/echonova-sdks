@@ -45,8 +45,7 @@
           "query": {
             "type": "object",
             "required": [
-              "sample_rate",
-              "language"
+              "sample_rate"
             ],
             "properties": {
               "sample_rate": {
@@ -59,11 +58,13 @@
               "language": {
                 "type": "string",
                 "enum": [
+                  "auto",
                   "ar",
                   "en"
                 ],
-                "description": "Spoken language. Required. ar for Arabic and mixed Arabic/English; en only for wholly English speech.",
-                "example": "ar"
+                "default": "auto",
+                "description": "Spoken language. auto (default) detects Arabic or English; ar for Arabic and mixed Arabic/English; en only for wholly English speech.",
+                "example": "auto"
               },
               "encoding": {
                 "type": "string",
@@ -512,6 +513,7 @@
             "language": {
               "type": "string",
               "enum": [
+                "auto",
                 "ar",
                 "en"
               ],
@@ -536,7 +538,7 @@
             "payload": {
               "type": "session.started",
               "sessionId": "c8a1f2e4-5b6d-4e7f-9a0b-1c2d3e4f5a6b",
-              "language": "ar",
+              "language": "auto",
               "sampleRate": 16000,
               "maxSessionSeconds": 1500,
               "jobId": "66e3f2a1c9d4b8a1f0e12347"
@@ -574,7 +576,7 @@
             },
             "language": {
               "type": "string",
-              "description": "The detected language, ar or en."
+              "description": "The detected language, ar or en; auto for a segment with no speech when the stream was opened with auto."
             },
             "durationSeconds": {
               "type": "number",
@@ -1163,20 +1165,20 @@
     {
       "status": 401,
       "message": "Unauthorized",
-      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled or its account is closed.",
+      "when": "The Authorization header is missing or is not Bearer ek_..., no key matches the token, or the key is deleted, disabled, expired or its account is closed.",
       "fix": "Send Authorization: Bearer ek_... with an enabled key from this environment."
     },
     {
       "status": 403,
       "message": "This API key does not have access to Speech-to-Text services",
-      "when": "Speech to Text stream: the key is restricted and Speech to Text is not among its services.",
-      "fix": "Edit the key and grant Speech to Text, or use another key."
+      "when": "Speech to Text stream: the key has Speech to Text on No access.",
+      "fix": "Edit the key and set Speech to Text to Access, or use another key."
     },
     {
       "status": 403,
       "message": "This API key does not have access to Text-to-Speech services",
-      "when": "Text to Speech stream: the key is restricted and Text to Speech is not among its services.",
-      "fix": "Edit the key and grant Text to Speech, or use another key."
+      "when": "Text to Speech stream: the key has Text to Speech on No access.",
+      "fix": "Edit the key and set Text to Speech to Access, or use another key."
     },
     {
       "status": 403,
@@ -1198,9 +1200,9 @@
     },
     {
       "status": 400,
-      "message": "language must be one of ar, en",
-      "when": "Speech to Text stream: language is missing or not ar or en.",
-      "fix": "Connect with ?language= set to ar or en."
+      "message": "language must be one of auto, ar, en",
+      "when": "Speech to Text stream: language is not auto, ar or en. A missing language means auto.",
+      "fix": "Connect with ?language= set to auto, ar or en, or leave it out for auto."
     },
     {
       "status": 400,
@@ -1243,7 +1245,7 @@
     {
       "code": 1000,
       "name": "Normal",
-      "when": "You sent stop, or you closed the socket."
+      "when": "You closed the socket. On Speech to Text, also after you sent stop; Text to Speech has no stop message."
     },
     {
       "code": 1001,
@@ -1253,7 +1255,7 @@
     {
       "code": 1008,
       "name": "Policy violation",
-      "when": "A frame was not valid JSON, was an unknown type, or was larger than 64 KiB."
+      "when": "A frame was not valid JSON, was an unknown type, or was larger than 64 KiB. On Text to Speech, also any binary frame."
     },
     {
       "code": 1009,

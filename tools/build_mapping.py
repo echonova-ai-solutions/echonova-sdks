@@ -46,7 +46,43 @@ SDK_METHODS: dict[str, tuple[str, str]] = {
 }
 
 # Operations deliberately not exposed, with the reason (shown by the coverage gate).
-EXCLUDED: dict[str, str] = {}
+# The agent-management API (agents, conversations, knowledge, tools, test runs, LLM models,
+# secrets) was added to the published spec on 2026-11-15 and is planned for the 0.1.0 releases.
+AGENTS_MANAGEMENT = "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+EXCLUDED: dict[str, str] = {
+    "V1AgentsController_listAgents": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_createAgent": AGENTS_MANAGEMENT,
+    "V1AgentsController_compareAgents": AGENTS_MANAGEMENT,
+    "V1AgentsController_getAgent": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_updateAgent": AGENTS_MANAGEMENT,
+    "V1AgentsController_listConversations": AGENTS_MANAGEMENT,
+    "V1AgentsController_getConversation": AGENTS_MANAGEMENT,
+    "V1AgentsController_getTranscript": AGENTS_MANAGEMENT,
+    "V1AgentsController_getRecordingLink": AGENTS_MANAGEMENT,
+    "V1AgentsController_listKnowledge": AGENTS_MANAGEMENT,
+    "V1AgentsController_getAgentTools": AGENTS_MANAGEMENT,
+    "V1AgentsController_listTestRuns": AGENTS_MANAGEMENT,
+    "V1AgentsController_getTestRun": AGENTS_MANAGEMENT,
+    "V1AgentsController_getWidget": AGENTS_MANAGEMENT,
+    "V1AgentsController_estimateLlm": AGENTS_MANAGEMENT,
+    "V1AgentsController_listAgentVoices": AGENTS_MANAGEMENT,
+    "V1AgentsController_listLlmModels": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_duplicateAgent": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_archiveAgent": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_restoreAgent": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_attachTools": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_detachTools": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_addTextKnowledge": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_addWebKnowledge": AGENTS_MANAGEMENT,
+    "V1AgentsWriteController_setRag": AGENTS_MANAGEMENT,
+    "V1ToolsController_createWebhookTool": AGENTS_MANAGEMENT,
+    "V1ToolsController_previewOpenApiTool": AGENTS_MANAGEMENT,
+    "V1ToolsController_createOpenApiTool": AGENTS_MANAGEMENT,
+    "V1ToolsController_listTools": AGENTS_MANAGEMENT,
+    "V1ToolsController_getTool": AGENTS_MANAGEMENT,
+    "V1ToolsController_listSecrets": AGENTS_MANAGEMENT,
+    "V1ToolsController_listAuthConnections": AGENTS_MANAGEMENT,
+}
 
 # AsyncAPI message -> (python, typescript/dart) SDK surface
 STREAM_MESSAGES: dict[str, tuple[str, str]] = {
@@ -74,6 +110,7 @@ STREAM_MESSAGES: dict[str, tuple[str, str]] = {
 RENAMES: dict[str, dict[str, str]] = {
     "jobId": {"python": "job_id", "ts": "jobId"},
     "format": {"python": "format", "ts": "format"},
+    "Idempotency-Key": {"python": "idempotency_key", "ts": "idempotencyKey"},
 }
 
 
@@ -138,6 +175,8 @@ def main() -> int:
                 "path": path,
                 "sdk": {"python": python_method, "ts": ts_method, "dart": ts_method},
                 "params": params,
+                # ADR 0014: the SDK sends a key on every call and may retry with it.
+                "idempotency_key": any(p["api"] == "Idempotency-Key" and p["in"] == "header" for p in params),
             }
 
     for op_id in SDK_METHODS:

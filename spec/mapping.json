@@ -66,7 +66,8 @@
           "ts": "normalize",
           "dart": "normalize"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1TtsController_generateSync": {
       "method": "POST",
@@ -77,6 +78,14 @@
         "dart": "textToSpeech.generate"
       },
       "params": [
+        {
+          "api": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "python": "idempotency_key",
+          "ts": "idempotencyKey",
+          "dart": "idempotencyKey"
+        },
         {
           "api": "text",
           "in": "json",
@@ -133,7 +142,8 @@
           "ts": "normalize",
           "dart": "normalize"
         }
-      ]
+      ],
+      "idempotency_key": true
     },
     "V1TtsController_listVoices": {
       "method": "GET",
@@ -143,7 +153,8 @@
         "ts": "textToSpeech.voices.list",
         "dart": "textToSpeech.voices.list"
       },
-      "params": []
+      "params": [],
+      "idempotency_key": false
     },
     "V1TtsController_listJobs": {
       "method": "GET",
@@ -170,7 +181,8 @@
           "ts": "limit",
           "dart": "limit"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1TtsController_getJob": {
       "method": "GET",
@@ -189,7 +201,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1TtsController_deleteJob": {
       "method": "DELETE",
@@ -208,7 +221,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1SttController_transcribe": {
       "method": "POST",
@@ -230,7 +244,7 @@
         {
           "api": "language",
           "in": "form",
-          "required": true,
+          "required": false,
           "python": "language",
           "ts": "language",
           "dart": "language"
@@ -259,7 +273,8 @@
           "ts": "terminology",
           "dart": "terminology"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1SttController_transcribeSync": {
       "method": "POST",
@@ -271,6 +286,14 @@
       },
       "params": [
         {
+          "api": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "python": "idempotency_key",
+          "ts": "idempotencyKey",
+          "dart": "idempotencyKey"
+        },
+        {
           "api": "file",
           "in": "form",
           "required": true,
@@ -281,7 +304,7 @@
         {
           "api": "language",
           "in": "form",
-          "required": true,
+          "required": false,
           "python": "language",
           "ts": "language",
           "dart": "language"
@@ -310,7 +333,8 @@
           "ts": "terminology",
           "dart": "terminology"
         }
-      ]
+      ],
+      "idempotency_key": true
     },
     "V1SttController_listJobs": {
       "method": "GET",
@@ -337,7 +361,8 @@
           "ts": "limit",
           "dart": "limit"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1SttController_getJob": {
       "method": "GET",
@@ -356,7 +381,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1SttController_deleteJob": {
       "method": "DELETE",
@@ -375,7 +401,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1SttController_exportJob": {
       "method": "GET",
@@ -410,7 +437,8 @@
           "ts": "lang",
           "dart": "lang"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1CleanController_clean": {
       "method": "POST",
@@ -421,6 +449,14 @@
         "dart": "soundCleaning.clean"
       },
       "params": [
+        {
+          "api": "Idempotency-Key",
+          "in": "header",
+          "required": false,
+          "python": "idempotency_key",
+          "ts": "idempotencyKey",
+          "dart": "idempotencyKey"
+        },
         {
           "api": "file",
           "in": "form",
@@ -509,7 +545,8 @@
           "ts": "bitDepth",
           "dart": "bitDepth"
         }
-      ]
+      ],
+      "idempotency_key": true
     },
     "V1CleanController_listJobs": {
       "method": "GET",
@@ -536,7 +573,8 @@
           "ts": "limit",
           "dart": "limit"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1CleanController_getJob": {
       "method": "GET",
@@ -555,7 +593,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1CleanController_deleteJob": {
       "method": "DELETE",
@@ -574,7 +613,8 @@
           "ts": "jobId",
           "dart": "jobId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1WidgetsController_mint": {
       "method": "POST",
@@ -617,7 +657,133 @@
           "ts": "ttlSeconds",
           "dart": "ttlSeconds"
         }
-      ]
+      ],
+      "idempotency_key": false
+    },
+    "V1AgentsController_listAgents": {
+      "method": "GET",
+      "path": "/v1/agents",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_createAgent": {
+      "method": "POST",
+      "path": "/v1/agents",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_compareAgents": {
+      "method": "GET",
+      "path": "/v1/agents/compare",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getAgent": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_updateAgent": {
+      "method": "PATCH",
+      "path": "/v1/agents/{agentId}",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_listConversations": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/conversations",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getConversation": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/conversations/{sessionId}",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getTranscript": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/conversations/{sessionId}/transcript",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getRecordingLink": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/conversations/{sessionId}/recording",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_listKnowledge": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/knowledge",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getAgentTools": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/tools",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_listTestRuns": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/test-runs",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getTestRun": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/test-runs/{testRunId}",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_getWidget": {
+      "method": "GET",
+      "path": "/v1/agents/{agentId}/widget",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_estimateLlm": {
+      "method": "GET",
+      "path": "/v1/llm/estimate",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_listAgentVoices": {
+      "method": "GET",
+      "path": "/v1/agent-voices",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsController_listLlmModels": {
+      "method": "GET",
+      "path": "/v1/llm/models",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_duplicateAgent": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/duplicate",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_archiveAgent": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/archive",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_restoreAgent": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/restore",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_attachTools": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/tools/attach",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_detachTools": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/tools/detach",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_addTextKnowledge": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/knowledge/text",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_addWebKnowledge": {
+      "method": "POST",
+      "path": "/v1/agents/{agentId}/knowledge/web",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1AgentsWriteController_setRag": {
+      "method": "PATCH",
+      "path": "/v1/agents/{agentId}/rag",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
     },
     "V1AgentSessionsController_startSession": {
       "method": "POST",
@@ -644,7 +810,8 @@
           "ts": "channel",
           "dart": "channel"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1AgentSessionsController_getSession": {
       "method": "GET",
@@ -671,7 +838,8 @@
           "ts": "sessionId",
           "dart": "sessionId"
         }
-      ]
+      ],
+      "idempotency_key": false
     },
     "V1AgentSessionsController_endSession": {
       "method": "POST",
@@ -698,7 +866,43 @@
           "ts": "sessionId",
           "dart": "sessionId"
         }
-      ]
+      ],
+      "idempotency_key": false
+    },
+    "V1ToolsController_createWebhookTool": {
+      "method": "POST",
+      "path": "/v1/tools/webhook",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_previewOpenApiTool": {
+      "method": "POST",
+      "path": "/v1/tools/openapi/preview",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_createOpenApiTool": {
+      "method": "POST",
+      "path": "/v1/tools/openapi",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_listTools": {
+      "method": "GET",
+      "path": "/v1/tools",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_getTool": {
+      "method": "GET",
+      "path": "/v1/tools/{toolId}",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_listSecrets": {
+      "method": "GET",
+      "path": "/v1/secrets",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
+    },
+    "V1ToolsController_listAuthConnections": {
+      "method": "GET",
+      "path": "/v1/auth-connections",
+      "excluded": "agent-management API: planned for the 0.1.0 releases (ADR 0014)"
     }
   },
   "stream_query": [
@@ -713,7 +917,7 @@
     {
       "channel": "/v1/speech-to-text/stream",
       "api": "language",
-      "required": true,
+      "required": false,
       "python": "language",
       "ts": "language",
       "dart": "language"
