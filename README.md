@@ -4,7 +4,7 @@
 
 <p>
   <a href="https://pypi.org/project/echonova-ai/"><img src="https://img.shields.io/pypi/v/echonova-ai?label=PyPI&color=6E665C&labelColor=171310" alt="PyPI: echonova-ai"></a>
-  <a href="https://www.npmjs.com/package/@echonova/ai"><img src="https://img.shields.io/npm/v/%40echonova%2Fai?label=npm&color=6E665C&labelColor=171310" alt="npm: @echonova/ai"></a>
+  <a href="https://www.npmjs.com/package/@echonova/ai"><img src="https://img.shields.io/npm/v/@echonova/ai?label=npm&color=6E665C&labelColor=171310" alt="npm: @echonova/ai"></a>
   <a href="https://pub.dev/packages/echonova_ai"><img src="https://img.shields.io/pub/v/echonova_ai?label=pub.dev&color=6E665C&labelColor=171310" alt="pub.dev: echonova_ai"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E665C?labelColor=171310" alt="License: MIT"></a>
   <a href="https://github.com/echonova-ai-solutions/echonova-sdks/actions/workflows/ci.yml"><img src="https://github.com/echonova-ai-solutions/echonova-sdks/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
