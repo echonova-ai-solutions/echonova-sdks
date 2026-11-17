@@ -11,15 +11,31 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from typing_extensions import Unpack
 
 from .. import _operations as ops
-from .._base_client import RequestSpec, job_id_of
+from .._base_client import Processing, RequestSpec, job_id_of
 from .._core._envelope import MalformedEnvelopeError
 from .._core._files import FileInput, form_value, prepare_file
 from .._pagination import AsyncPage, AsyncPageRequest, Page
-from .._polling import DEFAULT_WAIT_TIMEOUT, STT_POLL_INTERVAL, candidates_flow, check_interval, wait_flow
+from .._polling import (
+    DEFAULT_WAIT_TIMEOUT,
+    STT_POLL_INTERVAL,
+    candidates_flow,
+    check_interval,
+    check_wait_timeout,
+    wait_flow,
+)
 from .._response import ApiResponse, async_to_raw_response_wrapper, to_raw_response_wrapper
 from ..types.models import DeleteResult, JobInitiated, SttJob, SttResult, TranscriptExport
 from ..types.params import RequestOptions, Terminology
-from ._base import AsyncResource, JobRef, SyncResource, compact, model_parser, page_data, parse_delete
+from ._base import (
+    AsyncResource,
+    JobRef,
+    SyncResource,
+    compact,
+    model_parser,
+    page_data,
+    parse_delete,
+    result_from_job,
+)
 
 if TYPE_CHECKING:
     from .._client import AsyncEchoNova, EchoNova
@@ -27,19 +43,25 @@ if TYPE_CHECKING:
 
 __all__ = ["AsyncSpeechToText", "AsyncSttJobs", "SpeechToText", "SttJobs"]
 
-Language = Literal["ar", "en"] | str
+Language = Literal["auto", "ar", "en"] | str
+"""Arabic, English, or ``auto`` to detect which (the API's default when it is left out)."""
 ExportFormat = Literal["txt", "srt", "json"]
 TerminologyInput = Terminology | Mapping[str, Any] | str
 
 
 def _form(
-    language: str,
+    language: str | None,
     numbers_as_digits: bool | None,
     identify_speakers: bool | None,
     terminology: TerminologyInput | None,
 ) -> dict[str, str]:
-    """Multipart fields. Their names are snake_case, and ``terminology`` travels as a JSON string."""
-    form = {"language": language}
+    """Multipart fields. Their names are snake_case, and ``terminology`` travels as a JSON string.
+
+    Only the fields the caller set are sent: without ``language``, the API detects it (``auto``).
+    """
+    form: dict[str, str] = {}
+    if language is not None:
+        form["language"] = language
     if numbers_as_digits is not None:
         form["numbers_as_digits"] = form_value(numbers_as_digits)
     if identify_speakers is not None:
@@ -49,6 +71,26 @@ def _form(
             terminology if isinstance(terminology, str) else json.dumps(terminology, ensure_ascii=False)
         )
     return form
+
+
+def _transcribe_spec(
+    file: FileInput,
+    form: dict[str, str],
+    idempotency_key: str | None,
+    wait_timeout: float | None,
+    options: RequestOptions,
+) -> RequestSpec:
+    processing = Processing(
+        ops.STT_JOBS_GET, SttJob, STT_POLL_INTERVAL, check_wait_timeout(wait_timeout), result_from_job(SttResult)
+    )
+    return RequestSpec(
+        ops.STT_TRANSCRIBE,
+        form=form,
+        file=prepare_file(file),
+        options=options,
+        idempotency_key=idempotency_key,
+        processing=processing,
+    )
 
 
 def _export_parser(format: str) -> Callable[[ApiResponse], Any]:
@@ -72,13 +114,16 @@ class SttJobs(SyncResource):
         self,
         file: FileInput,
         *,
-        language: Language,
+        language: Language | None = None,
         numbers_as_digits: bool | None = None,
         identify_speakers: bool | None = None,
         terminology: TerminologyInput | None = None,
         **options: Unpack[RequestOptions],
     ) -> JobInitiated:
-        """Upload audio for an async transcription job. Get the result with ``wait()`` or a webhook."""
+        """Upload audio for an async transcription job. Get the result with ``wait()`` or a webhook.
+
+        Without ``language`` the API detects Arabic or English (``auto``).
+        """
         spec = RequestSpec(
             ops.STT_JOBS_CREATE,
             form=_form(language, numbers_as_digits, identify_speakers, terminology),
@@ -202,7 +247,7 @@ class SpeechToText(SyncResource):
         self,
         *,
         sample_rate: int,
-        language: str,
+        language: Language | None = None,
         terminology: Terminology | None = None,
         encoding: str = "pcm_s16le",
         wait_for_slot: float | None = None,
@@ -211,6 +256,7 @@ class SpeechToText(SyncResource):
 
         Returns once the session has started (and ``terminology`` is confirmed, when
         given). Use it as a context manager; sessions never reconnect on their own.
+        Without ``language`` the server detects Arabic or English (``auto``).
         """
         from .._streaming import connect_stt_sync
 
@@ -228,7 +274,7 @@ class SpeechToText(SyncResource):
         source: Iterable[bytes] | bytes,
         *,
         sample_rate: int,
-        language: str,
+        language: Language | None = None,
         terminology: Terminology | None = None,
         segment_seconds: float = 14.0,
         reconnect: ReconnectPolicy | None = None,
@@ -262,22 +308,29 @@ class SpeechToText(SyncResource):
         self,
         file: FileInput,
         *,
-        language: Language,
+        language: Language | None = None,
         numbers_as_digits: bool | None = None,
         identify_speakers: bool | None = None,
         terminology: TerminologyInput | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> SttResult:
         """Transcribe an audio file and wait for the result.
 
         ``file`` is a path, bytes, a binary file object or ``(filename, content[, content_type])``.
+        Without ``language`` the API detects Arabic or English (``auto``).
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 5 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
         """
-        spec = RequestSpec(
-            ops.STT_TRANSCRIBE,
-            form=_form(language, numbers_as_digits, identify_speakers, terminology),
-            file=prepare_file(file),
-            options=options,
-        )
+        form = _form(language, numbers_as_digits, identify_speakers, terminology)
+        spec = _transcribe_spec(file, form, idempotency_key, wait_timeout, options)
         return self._client._request(spec, model_parser(SttResult))
 
 
@@ -289,13 +342,16 @@ class AsyncSttJobs(AsyncResource):
         self,
         file: FileInput,
         *,
-        language: Language,
+        language: Language | None = None,
         numbers_as_digits: bool | None = None,
         identify_speakers: bool | None = None,
         terminology: TerminologyInput | None = None,
         **options: Unpack[RequestOptions],
     ) -> JobInitiated:
-        """Upload audio for an async transcription job. Get the result with ``wait()`` or a webhook."""
+        """Upload audio for an async transcription job. Get the result with ``wait()`` or a webhook.
+
+        Without ``language`` the API detects Arabic or English (``auto``).
+        """
         spec = RequestSpec(
             ops.STT_JOBS_CREATE,
             form=_form(language, numbers_as_digits, identify_speakers, terminology),
@@ -420,7 +476,7 @@ class AsyncSpeechToText(AsyncResource):
         self,
         *,
         sample_rate: int,
-        language: str,
+        language: Language | None = None,
         terminology: Terminology | None = None,
         encoding: str = "pcm_s16le",
         wait_for_slot: float | None = None,
@@ -428,7 +484,8 @@ class AsyncSpeechToText(AsyncResource):
         """Open a live Speech to Text session: ``async with client.speech_to_text.connect(...) as stt``.
 
         Ready once the session has started (and ``terminology`` is confirmed, when
-        given). Sessions never reconnect on their own.
+        given). Sessions never reconnect on their own. Without ``language`` the server
+        detects Arabic or English (``auto``).
         """
         from .._streaming import connect_stt
 
@@ -446,7 +503,7 @@ class AsyncSpeechToText(AsyncResource):
         source: AsyncIterable[bytes] | Iterable[bytes] | bytes,
         *,
         sample_rate: int,
-        language: str,
+        language: Language | None = None,
         terminology: Terminology | None = None,
         segment_seconds: float = 14.0,
         reconnect: ReconnectPolicy | None = None,
@@ -481,22 +538,29 @@ class AsyncSpeechToText(AsyncResource):
         self,
         file: FileInput,
         *,
-        language: Language,
+        language: Language | None = None,
         numbers_as_digits: bool | None = None,
         identify_speakers: bool | None = None,
         terminology: TerminologyInput | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> SttResult:
         """Transcribe an audio file and wait for the result.
 
         ``file`` is a path, bytes, a binary file object or ``(filename, content[, content_type])``.
+        Without ``language`` the API detects Arabic or English (``auto``).
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 5 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
         """
-        spec = RequestSpec(
-            ops.STT_TRANSCRIBE,
-            form=_form(language, numbers_as_digits, identify_speakers, terminology),
-            file=prepare_file(file),
-            options=options,
-        )
+        form = _form(language, numbers_as_digits, identify_speakers, terminology)
+        spec = _transcribe_spec(file, form, idempotency_key, wait_timeout, options)
         return await self._client._request(spec, model_parser(SttResult))
 
 

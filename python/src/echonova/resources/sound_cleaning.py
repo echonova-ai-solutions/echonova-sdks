@@ -9,14 +9,24 @@ from typing import TYPE_CHECKING, Any, overload
 from typing_extensions import Unpack
 
 from .. import _operations as ops
-from .._base_client import RequestSpec, job_id_of
+from .._base_client import Processing, RequestSpec, job_id_of
 from .._core._files import FileInput, form_value, prepare_file
 from .._pagination import AsyncPage, AsyncPageRequest, Page
+from .._polling import STT_POLL_INTERVAL, check_wait_timeout
 from .._response import ApiResponse, async_to_raw_response_wrapper, to_raw_response_wrapper
 from ..errors import JobFailedError, UsageError
 from ..types.models import CleanJob, DeleteResult
 from ..types.params import RequestOptions
-from ._base import AsyncResource, JobRef, SyncResource, compact, model_parser, page_data, parse_delete
+from ._base import (
+    AsyncResource,
+    JobRef,
+    SyncResource,
+    compact,
+    model_parser,
+    page_data,
+    parse_delete,
+    result_from_job,
+)
 
 if TYPE_CHECKING:
     from .._client import AsyncEchoNova, EchoNova
@@ -39,6 +49,29 @@ def _form(**options: Any) -> dict[str, str]:
         "bit_depth": "bitDepth",
     }
     return {names[key]: form_value(value) for key, value in options.items() if value is not None}
+
+
+CLEAN_POLL_INTERVAL = STT_POLL_INTERVAL  # 5 s, as for Speech to Text (ADR 0014)
+
+
+def _clean_spec(
+    file: FileInput,
+    form: dict[str, str],
+    idempotency_key: str | None,
+    wait_timeout: float | None,
+    options: RequestOptions,
+) -> RequestSpec:
+    processing = Processing(
+        ops.CLEAN_JOBS_GET, CleanJob, CLEAN_POLL_INTERVAL, check_wait_timeout(wait_timeout), result_from_job(CleanJob)
+    )
+    return RequestSpec(
+        ops.CLEAN,
+        form=form,
+        file=prepare_file(file),
+        options=options,
+        idempotency_key=idempotency_key,
+        processing=processing,
+    )
 
 
 def _output_url(job: CleanJob) -> str:
@@ -112,9 +145,20 @@ class SoundCleaning(SyncResource):
         comp_release_ms: float | None = None,
         sample_rate: int | None = None,
         bit_depth: int | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> CleanJob:
-        """Clean an audio file and wait for the result. ``output_url`` links to the cleaned WAV."""
+        """Clean an audio file and wait for the result. ``output_url`` links to the cleaned WAV.
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 5 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
+        """
         form = _form(
             cutoff_freq=cutoff_freq,
             q_factor=q_factor,
@@ -127,7 +171,7 @@ class SoundCleaning(SyncResource):
             sample_rate=sample_rate,
             bit_depth=bit_depth,
         )
-        spec = RequestSpec(ops.CLEAN, form=form, file=prepare_file(file), options=options)
+        spec = _clean_spec(file, form, idempotency_key, wait_timeout, options)
         return self._client._request(spec, model_parser(CleanJob))
 
 
@@ -195,9 +239,20 @@ class AsyncSoundCleaning(AsyncResource):
         comp_release_ms: float | None = None,
         sample_rate: int | None = None,
         bit_depth: int | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> CleanJob:
-        """Clean an audio file and wait for the result. ``output_url`` links to the cleaned WAV."""
+        """Clean an audio file and wait for the result. ``output_url`` links to the cleaned WAV.
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 5 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
+        """
         form = _form(
             cutoff_freq=cutoff_freq,
             q_factor=q_factor,
@@ -210,7 +265,7 @@ class AsyncSoundCleaning(AsyncResource):
             sample_rate=sample_rate,
             bit_depth=bit_depth,
         )
-        spec = RequestSpec(ops.CLEAN, form=form, file=prepare_file(file), options=options)
+        spec = _clean_spec(file, form, idempotency_key, wait_timeout, options)
         return await self._client._request(spec, model_parser(CleanJob))
 
 

@@ -69,7 +69,7 @@ Default timeouts in seconds (connect is 10 everywhere):
 | Get, list, delete | 10 | 30 |
 | Transcript export | 10 | 60 |
 | `text_to_speech.jobs.create`, `agents.sessions.start`, `agents.sessions.end` | 10 | 30 |
-| `text_to_speech.generate` | 10 | 120 |
+| `text_to_speech.generate` | 10 | 240 |
 | `speech_to_text.jobs.create` | 60 | 120 |
 | `speech_to_text.transcribe`, `sound_cleaning.clean` | 60 | 600 |
 
@@ -143,11 +143,13 @@ if result.terminology:
 for segment in result.segments or ():
     print(f"{segment.start:6.2f} {segment.speaker}: {segment.text}")
 
-job = client.speech_to_text.jobs.create(Path("meeting.wav"), language="en")
+job = client.speech_to_text.jobs.create(Path("meeting.wav"))  # no language: Arabic or English, detected
 done = client.speech_to_text.jobs.wait(job)  # polls every 5 s
 srt = client.speech_to_text.jobs.export(done, format="srt")  # str
 data = client.speech_to_text.jobs.export(done, format="json")  # TranscriptExport
 ```
+
+`language` is optional everywhere, on REST and on the stream: `"ar"`, `"en"` or `"auto"`. Left out, it isn't sent and the API detects Arabic or English (`auto`, its default). Results report the language as the API returns it, which can be `"auto"`.
 
 The SDK names the audio type from the file extension (mp3, wav, flac, ogg, opus, m4a, aac, webm, amr) or, failing that, from the file's first bytes. If it can't tell, it raises `UsageError` before sending anything; pass `(filename, content, content_type)` to set the type yourself.
 
@@ -183,7 +185,7 @@ if summary.saved_status == "saved" and summary.job_id:
 
 Each session is kept as a job. `stt.job_id` is its ID from the start; after `session.ended` the server sends `SessionSaved(job_id, status)`, where `status` is `saved`, `empty` (nothing was transcribed, so nothing is kept) or `failed`. `stop()` waits briefly for it, and `summary.job_id` and `summary.saved_status` are `None` if it didn't come. A job saved from the stream has `stream.session_id` and `audio_url`, a signed link to the recording.
 
-`client.speech_to_text.transcribe_stream(source, sample_rate=, language=)` handles audio of any length: it cuts segments itself, rolls over to a new session before the session limit, and reconnects after a dropped connection. Each session's `SessionSaved` is passed on with the transcripts.
+`client.speech_to_text.transcribe_stream(source, sample_rate=)` handles audio of any length: it cuts segments itself, rolls over to a new session before the session limit, and reconnects after a dropped connection. Each session's `SessionSaved` is passed on with the transcripts.
 
 ## Sound Cleaning
 
@@ -198,6 +200,25 @@ if job.metrics:
     print(job.metrics.integrated_lufs)
 client.download(job.output_url, to="clean.wav")
 client.sound_cleaning.jobs.delete(job)
+```
+
+## Long synchronous calls
+
+If `generate`, `transcribe` or `clean` is still running when the server stops waiting (after 220 s), the API answers `202 Processing` with the job's ID. The SDK then polls that job, every 3 s for Text to Speech and 5 s for Speech to Text and Sound Cleaning, within the same poll budget as `wait()`, and returns the result a `200` would have, with the last poll's `request_id`. The upload is never sent twice. Polls carry your `extra_headers`, but not the `Idempotency-Key`.
+
+If an earlier request with the same key is still running (a `409`), the SDK sends the call again with the key every 5 s, or after `Retry-After` when that is longer, until the first request answers. These resends don't count against `max_retries`.
+
+`wait_timeout` bounds both waits together: seconds, 1,200 by default, and never past the call's `deadline`. A failed job raises `JobFailedError`. Past the budget, a job still processing raises `JobWaitTimeoutError` with `job_id` and `last_job`, and waiting again is safe; a request still running raises `RequestInProgressError` with its `idempotency_key`.
+
+```python
+from echonova import EchoNova, JobWaitTimeoutError
+
+client = EchoNova()
+
+try:
+    result = client.speech_to_text.transcribe("all-hands.mp3", wait_timeout=1800)
+except JobWaitTimeoutError as e:
+    job = client.speech_to_text.jobs.wait(e.job_id)
 ```
 
 ## Agent sessions
@@ -235,28 +256,40 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 ## Errors and retries
 
 ```python
+import uuid
+
 import echonova
 
 client = echonova.EchoNova()
 text = "أهلاً بك في إيكونوفا"
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
+key = str(uuid.uuid4())  # optional: your own key, kept with the request, to retry it after a restart
 
 try:
-    client.text_to_speech.generate(text, voice_id=voice_id)
+    client.text_to_speech.generate(text, voice_id=voice_id, idempotency_key=key)
 except echonova.InvalidRequestError as e:
     print(e.error_message, e.request_id)
 except echonova.SpendingLimitError:
     ...  # the key reached its Credit Limit: never retried
 except echonova.RateLimitError as e:
     ...  # still limited after automatic retries; e.retry_after
+except (echonova.APIConnectionError, echonova.RequestInProgressError) as e:
+    ...  # retried already; send it again later with idempotency_key=e.idempotency_key
+except echonova.APIStatusError as e:
+    print(e.status_code, e.error_message, e.request_id)
+
+try:
+    job = client.text_to_speech.jobs.create(text, voice_id=voice_id)  # takes no key
 except echonova.APIConnectionError as e:
     if e.may_have_executed is not False and e.sent_at:  # True or None (unknown): it may have run and been charged
         candidates = client.text_to_speech.jobs.find_candidates(e.sent_at, text=text)
-except echonova.APIStatusError as e:
-    print(e.status_code, e.error_message, e.request_id)
 ```
 
-The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors carry `may_have_executed=True` and `sent_at`; `find_candidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
+The SDK retries connection failures, rate limits and temporary outages, with backoff.
+
+`text_to_speech.generate`, `speech_to_text.transcribe` and `sound_cleaning.clean` send an `Idempotency-Key`: a new one for each call (or yours, from `idempotency_key=`), the same on every retry of that call. Within 24 hours, the API answers a repeated key with the first result and charges once, so the SDK also retries these calls after a lost response or a `500`, `502`, `503` or `504`. Their errors carry `idempotency_key`: sending the call again with it, from any process, returns the first result without a second charge. `RequestInProgressError` (`409`) means the first request with the key was still running when `wait_timeout` ran out ([Long synchronous calls](#long-synchronous-calls)): send it again later with the same key. A key already used for a different request raises `InvalidRequestError` (`409`), and is never retried.
+
+Other POSTs take no key, so the SDK **never resends one that may already have run**: a second attempt could be charged again. That covers async job creation (`jobs.create`) and `agents.sessions.start`. Such errors carry `may_have_executed=True` and `sent_at`; `find_candidates()` lists the jobs created since then so you can decide (skipping jobs made on a stream). It never picks one for you.
 
 After a `429` with `Retry-After`, the client holds further calls to that endpoint until the wait is over, instead of sending more.
 

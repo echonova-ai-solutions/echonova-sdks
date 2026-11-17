@@ -53,14 +53,12 @@ CANNOT_SEND: dict[str, list[str]] = {
     "clean/clean_unknown_field": ["form field foo"],
     # The SDK always sends a JSON body; the replay sends one with placeholder text and voice.
     "tts/sync_not_json": ["a text/plain body"],
-    # language is a required argument of transcribe(); the replay sends the placeholder "ar".
-    "stt/sync_missing_language": ["no language"],
     # An explicit generic type raises UsageError before sending (see the test below), so the replay
     # lets the SDK type the file from its .mp3 extension.
     "stt/sync_octet_stream_mp3": ["content type application/octet-stream"],
 }
 # Values for required arguments a recording left out on purpose.
-PLACEHOLDERS = {"language": "ar", "text": "hello", "voiceId": "000000000000000000000001"}
+PLACEHOLDERS = {"text": "hello", "voiceId": "000000000000000000000001"}
 GENERIC_TYPES = {"application/octet-stream"}
 # Model attributes that don't follow the snake_case rule, because every model already has .raw and .request_id.
 RENAMED = {"raw": "raw_text", "requestId": "synthesis_request_id"}
@@ -102,6 +100,7 @@ class Call:
     """The SDK call that replays a recorded request, and the request it should send."""
 
     method: str  # dotted Python name from mapping.json, e.g. "text_to_speech.jobs.create"
+    idempotency_key: bool = False  # the operation accepts an Idempotency-Key, so the SDK sends one
     kwargs: dict[str, Any] = field(default_factory=dict)
     cannot_send: list[str] = field(default_factory=list)
     json: dict[str, Any] | None = None
@@ -112,7 +111,7 @@ class Call:
 def build_call(request: dict[str, Any]) -> Call:
     operation, path_values = find_operation(request["method"], request["path"])
     params = {p["api"]: p for p in operation["params"]}
-    call = Call(operation["sdk"]["python"])
+    call = Call(operation["sdk"]["python"], idempotency_key=operation["idempotency_key"])
 
     def accept(api: str, where: str, value: Any, label: str) -> bool:
         param = params.get(api)
@@ -213,6 +212,8 @@ def check_request(sent: httpx.Request, recorded: dict[str, Any], call: Call) -> 
         assert "authorization" not in sent.headers
     else:
         assert sent.headers["authorization"] == f"Bearer {TEST_KEY}"
+    # The recorder sent no key; the SDK adds one where the operation accepts it, which the API allows.
+    assert ("idempotency-key" in sent.headers) is call.idempotency_key
     content_type = sent.headers.get("content-type", "")
     if call.json is not None:
         assert content_type == "application/json"

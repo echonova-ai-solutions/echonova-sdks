@@ -18,7 +18,7 @@ import json
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
@@ -79,7 +79,6 @@ class Adaptation:
     extra: tuple[dict[str, Any], ...] = ()  # frames the SDK sends that the recorded client didn't
     started_first: bool = False  # play session.started before anything the client sends
     keepalive: bool = False  # the recorded ping comes from the SDK's keepalive
-    query: Mapping[str, str] = field(default_factory=dict)  # query values the SDK adds to the recorded ones
 
 
 ADAPTATIONS = {
@@ -98,8 +97,6 @@ ADAPTATIONS = {
     # The SDK's keepalive sends the ping, and only on a session connect() has returned.
     "stt/ping": Adaptation(started_first=True, keepalive=True),
     "tts/ping": Adaptation(keepalive=True),
-    # language is a required argument of connect(), so the replay sends one; the server rejects it as recorded.
-    "stt/handshake_missing_language": Adaptation(query={"language": "ar"}),
 }
 STT_QUERY_DEFAULTS = {"encoding": "pcm_s16le"}  # sent on every connect: the documented default
 
@@ -189,7 +186,7 @@ def check_handshake(server: ReplayServer, events: list[dict[str, Any]], adapt: A
     assert sent.path == recorded.path
     expected_query = dict(parse_qsl(recorded.query))
     if recorded.path.endswith("/speech-to-text/stream"):
-        expected_query = {**expected_query, **STT_QUERY_DEFAULTS, **adapt.query}
+        expected_query = {**expected_query, **STT_QUERY_DEFAULTS}
     assert dict(parse_qsl(sent.query)) == expected_query
     authorization = {k.lower(): v for k, v in headers.items()}.get("authorization")
     assert authorization == (f"Bearer {TEST_KEY}" if connect["authorization"] == "set" else None)
@@ -449,9 +446,10 @@ def drive_stt(
     mode: str,
     bridge: Bridge | None,
 ) -> SttRun:
-    query = {**adapt.query, **dict(parse_qsl(urlsplit(events[0]["data"]["path"]).query))}
+    query = dict(parse_qsl(urlsplit(events[0]["data"]["path"]).query))
     try:
-        run.stt = open_stt(mode, opts, bridge, sample_rate=int(query["sample_rate"]), language=query["language"])
+        # A recording without language (stt/handshake_missing_language) is replayed without one.
+        run.stt = open_stt(mode, opts, bridge, sample_rate=int(query["sample_rate"]), language=query.get("language"))
     except EchoNovaError as error:
         run.error = error
         return run

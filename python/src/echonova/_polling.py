@@ -1,8 +1,13 @@
-"""``jobs.wait()`` and ``jobs.find_candidates()``, shared by the sync and async clients."""
+"""``jobs.wait()`` and ``jobs.find_candidates()``, shared by the sync and async clients.
+
+``wait_flow`` also waits for the job behind a ``202 Processing`` answer from a
+synchronous call (ADR 0014).
+"""
 
 from __future__ import annotations
 
 import functools
+import math
 import threading
 import time
 from collections import deque
@@ -70,10 +75,25 @@ def check_interval(poll_interval: float | None, default: float) -> float:
     return float(poll_interval)
 
 
+def check_wait_timeout(wait_timeout: float | None) -> float:
+    """The wait budget of a synchronous call that may answer ``202 Processing``: seconds, 1,200 by default."""
+    if wait_timeout is None:
+        return DEFAULT_WAIT_TIMEOUT
+    if (
+        isinstance(wait_timeout, bool)
+        or not isinstance(wait_timeout, (int, float))
+        or math.isnan(wait_timeout)
+        or wait_timeout < 0
+    ):
+        raise UsageError("wait_timeout must be a number of seconds, 0 or more")
+    return float(wait_timeout)
+
+
 def wait_flow(
     *,
     job_id: str,
-    get: Callable[[], Any],
+    get: Callable[[], Any] | None = None,
+    get_flow: Callable[[], Flow[Any]] | None = None,
     interval: float,
     timeout: float,
     raise_on_failure: bool,
@@ -81,8 +101,15 @@ def wait_flow(
     bucket: str,
     runtime: Runtime,
 ) -> Flow[Any]:
+    """Poll a job until it completes or fails, or ``timeout`` runs out.
+
+    Each poll is ``get`` (run by the driver, as ``jobs.wait()`` does) or ``get_flow``
+    (a request flow run in this one, as a call waiting out a ``202`` does).
+    """
     if timeout < 0:
         raise UsageError("timeout must not be negative")
+    if (get is None) == (get_flow is None):
+        raise TypeError("pass exactly one of get and get_flow")
     clock = runtime.clock
     deadline = clock() + timeout
     last_job: Any = None
@@ -104,7 +131,14 @@ def wait_flow(
             if clock() + delay > deadline:
                 raise give_up()
             yield Sleep(delay)
-        outcome = yield Call(get)
+        if get_flow is not None:
+            try:
+                outcome = yield from get_flow()
+            except EchoNovaError as exc:
+                outcome = Failure(exc)
+        else:
+            assert get is not None
+            outcome = yield Call(get)
         pause = max(MIN_POLL_INTERVAL, interval * (0.9 + 0.2 * runtime.random()))
         if isinstance(outcome, Failure):
             error = outcome.error

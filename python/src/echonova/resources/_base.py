@@ -43,6 +43,21 @@ def model_parser(model: type[M]) -> Callable[[ApiResponse], M]:
     return parse
 
 
+def result_from_job(model: type[M]) -> Callable[[ApiResponse], M]:
+    """A synchronous call's result, built from its completed job after a ``202 Processing`` (ADR 0014).
+
+    It is the type a ``200`` returns: ``.raw`` is the job's JSON plus ``jobId`` (the job's ``id``),
+    and ``request_id`` is the last poll's.
+    """
+
+    def parse(response: ApiResponse) -> M:
+        data = response.data
+        fields = {"jobId": data.get("id"), **data} if isinstance(data, dict) else data
+        return model._from_json(fields, request_id=response.request_id)
+
+    return parse
+
+
 def parse_delete(response: ApiResponse) -> DeleteResult:
     result = DeleteResult._from_json(response.data, request_id=response.request_id)
     return replace(result, already_deleted=True) if response.already_deleted else result

@@ -32,6 +32,7 @@ __all__ = [
     "PermissionDeniedError",
     "ProtocolError",
     "RateLimitError",
+    "RequestInProgressError",
     "RequestTimeoutError",
     "ServerError",
     "ServerRestartingError",
@@ -93,6 +94,10 @@ class APIConnectionError(EchoNovaError):
     ``may_have_executed`` matters for POST requests. ``True`` means the request was
     fully sent, so it may have run and been charged: list recent jobs before sending
     it again. ``False`` means it definitely did not run. ``None`` means unknown.
+
+    ``idempotency_key`` is set on errors from calls that send one (``text_to_speech.generate``,
+    ``speech_to_text.transcribe``, ``sound_cleaning.clean``): sending the call again with
+    ``idempotency_key=`` set to it, within 24 hours, returns the first result without a second charge.
     """
 
     def __init__(
@@ -102,11 +107,13 @@ class APIConnectionError(EchoNovaError):
         may_have_executed: bool | None = False,
         sent_at: datetime | None = None,
         retry_disabled_reason: str | None = None,
+        idempotency_key: str | None = None,
     ) -> None:
         super().__init__(message)
         self.may_have_executed = may_have_executed
         self.sent_at = sent_at
         self.retry_disabled_reason = retry_disabled_reason
+        self.idempotency_key = idempotency_key
 
 
 class APITimeoutError(APIConnectionError):
@@ -130,6 +137,10 @@ class APIStatusError(EchoNovaError):
 
     ``error_message`` is the server's text, unmodified. It is never split on
     commas, because single messages can contain them.
+
+    ``idempotency_key`` is set on errors from calls that send one (``text_to_speech.generate``,
+    ``speech_to_text.transcribe``, ``sound_cleaning.clean``): sending the call again with
+    ``idempotency_key=`` set to it, within 24 hours, returns the first result without a second charge.
     """
 
     def __init__(
@@ -151,6 +162,7 @@ class APIStatusError(EchoNovaError):
         session_id: str | None = None,
         sent_at: datetime | None = None,
         from_proxy: bool = False,
+        idempotency_key: str | None = None,
     ) -> None:
         if message is None:
             message = _describe(status_code, error_code, close_code, error_message, request_id)
@@ -170,6 +182,7 @@ class APIStatusError(EchoNovaError):
         self.session_id = session_id
         self.sent_at = sent_at
         self.from_proxy = from_proxy
+        self.idempotency_key = idempotency_key
         self.retry_disabled_reason: str | None = None  # set when a retry was ruled out, e.g. "body_not_replayable"
 
 
@@ -193,7 +206,10 @@ def _describe(
 
 
 class InvalidRequestError(APIStatusError):
-    """The request was rejected as invalid (400, 405, 409, 413, 415, 422, or a stream ``validation_failed``)."""
+    """The request was rejected as invalid (400, 405, 409, 413, 415, 422, or a stream ``validation_failed``).
+
+    It includes the 409 for an Idempotency-Key already used for a different request: send that one with a new key.
+    """
 
 
 class AuthenticationError(APIStatusError):
@@ -246,6 +262,16 @@ class RateLimitError(APIStatusError):
 
 class ConcurrencyLimitError(APIStatusError):
     """429 ``Too many concurrent streams``: the workspace has no free stream slot."""
+
+
+class RequestInProgressError(APIStatusError):
+    """409: a request with this Idempotency-Key, or the same request, is still running.
+
+    The SDK sends the call again with the same key every 5 s (or after ``Retry-After``)
+    until the first request answers, within the call's ``wait_timeout``. This is raised
+    when that budget runs out: send the call again later with ``idempotency_key=`` set
+    to the error's ``idempotency_key``, and nothing is charged twice.
+    """
 
 
 class ServerError(APIStatusError):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from echonova._core._retry import RetryPolicy
+from echonova._core._retry import RetryPolicy, retry_column
 from echonova._core._rules import Rule, load_rules
 
 RULES = load_rules()
@@ -18,10 +18,26 @@ def rule(rule_id: str) -> Rule:
 
 @pytest.mark.parametrize("r", RULES.rules, ids=lambda r: r.id)
 def test_post_is_never_retried_when_it_may_have_run(r: Rule) -> None:
-    """The safety invariant: no idempotency key, so a POST that may have run is never sent again."""
+    """The safety invariant: without an idempotency key, a POST that may have run is never sent again."""
     decision = policy().decide_status("POST", r, retries_done=0, retry_after=1.0)
     if r.may_have_executed != "no":
         assert decision.retry is False
+
+
+@pytest.mark.parametrize("r", RULES.rules, ids=lambda r: r.id)
+def test_idempotent_post_retries_at_least_what_a_post_does(r: Rule) -> None:
+    """A key only adds retries: whatever a plain POST retries, an idempotent one retries too."""
+    plain = policy().decide_status("POST", r, retries_done=0, retry_after=1.0)
+    keyed = policy().decide_status("POST_IDEMPOTENT", r, retries_done=0, retry_after=1.0)
+    assert keyed.retry or not plain.retry
+
+
+def test_retry_column() -> None:
+    assert retry_column("POST", idempotency_key=True) == "POST_IDEMPOTENT"
+    assert retry_column("post", idempotency_key=True) == "POST_IDEMPOTENT"
+    assert retry_column("POST", idempotency_key=False) == "POST"
+    assert retry_column("GET", idempotency_key=True) == "GET"
+    assert retry_column("DELETE", idempotency_key=False) == "DELETE"
 
 
 @pytest.mark.parametrize(
@@ -45,6 +61,31 @@ def test_post_is_never_retried_when_it_may_have_run(r: Rule) -> None:
         ("ingress_timeout", "DELETE", True),
         ("request_timeout", "POST", True),
         ("invalid_request", "GET", False),
+        # ADR 0014: a POST with an Idempotency-Key is retried after a server error...
+        ("internal_error", "POST_IDEMPOTENT", True),
+        ("bad_gateway", "POST_IDEMPOTENT", True),
+        ("unavailable_other", "POST_IDEMPOTENT", True),
+        ("ingress_unavailable", "POST_IDEMPOTENT", True),
+        ("unavailable_refunded", "POST_IDEMPOTENT", True),
+        ("gateway_timeout", "POST_IDEMPOTENT", True),
+        ("ingress_timeout", "POST_IDEMPOTENT", True),
+        ("throttled", "POST_IDEMPOTENT", True),
+        ("request_timeout", "POST_IDEMPOTENT", True),
+        # ...and while the first request with its key is still running...
+        ("idempotency_in_progress", "POST_IDEMPOTENT", True),
+        ("same_request_starting", "POST_IDEMPOTENT", True),
+        ("idempotency_in_progress", "POST", False),
+        ("same_request_starting", "GET", False),
+        # ...but never after a client, authentication or billing error, or a key reused for another request.
+        ("idempotency_key_reused", "POST_IDEMPOTENT", False),
+        ("invalid_request", "POST_IDEMPOTENT", False),
+        ("unauthorized", "POST_IDEMPOTENT", False),
+        ("forbidden", "POST_IDEMPOTENT", False),
+        ("insufficient_balance", "POST_IDEMPOTENT", False),
+        ("spending_limit", "POST_IDEMPOTENT", False),
+        ("voice_not_found", "POST_IDEMPOTENT", False),
+        ("rate_limited_other", "POST_IDEMPOTENT", False),
+        ("server_error_other", "POST_IDEMPOTENT", False),
     ],
 )
 def test_status_table(rule_id: str, method: str, retry: bool) -> None:
@@ -88,6 +129,10 @@ def test_unreplayable_body_is_not_retried() -> None:
         ("no_response", "GET", True, "yes"),
         ("no_response", "DELETE", True, "yes"),
         ("malformed_success", "POST", False, "yes"),
+        ("connect", "POST_IDEMPOTENT", True, "no"),
+        ("send_incomplete", "POST_IDEMPOTENT", True, "no"),
+        ("no_response", "POST_IDEMPOTENT", True, "yes"),
+        ("malformed_success", "POST_IDEMPOTENT", True, "yes"),
     ],
 )
 def test_transport_phases(phase: str, method: str, retry: bool, executed: str) -> None:
@@ -96,10 +141,17 @@ def test_transport_phases(phase: str, method: str, retry: bool, executed: str) -
     assert decision.may_have_executed == executed
 
 
-def test_malformed_success_is_retried_once_for_get() -> None:
+@pytest.mark.parametrize("column", ["GET", "POST_IDEMPOTENT"])
+def test_malformed_success_is_retried_once(column: str) -> None:
     p = policy(max_retries=5)
-    assert p.decide_transport("GET", "malformed_success", retries_done=0).retry
-    assert not p.decide_transport("GET", "malformed_success", retries_done=1).retry
+    assert p.decide_transport(column, "malformed_success", retries_done=0).retry
+    assert not p.decide_transport(column, "malformed_success", retries_done=1).retry
+
+
+def test_in_progress_waits_retry_after_when_given_else_backs_off() -> None:
+    r = rule("idempotency_in_progress")
+    assert policy().decide_status("POST_IDEMPOTENT", r, retries_done=0, retry_after=4.0).delay == pytest.approx(4.5)
+    assert policy().decide_status("POST_IDEMPOTENT", r, retries_done=1, retry_after=None).delay == pytest.approx(0.75)
 
 
 def test_backoff_grows_and_is_capped() -> None:

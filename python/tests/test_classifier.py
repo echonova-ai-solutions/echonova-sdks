@@ -19,7 +19,8 @@ FAMILY = {
     402: errors.InsufficientBalanceError,
     403: errors.PermissionDeniedError,
     404: errors.NotFoundError,
-    409: (errors.InvalidRequestError, errors.ConcurrencyLimitError),  # agent call/chat limits are capacity limits
+    # Agent call/chat limits are capacity limits; a request with the same Idempotency-Key still running is in progress.
+    409: (errors.InvalidRequestError, errors.ConcurrencyLimitError, errors.RequestInProgressError),
     413: errors.InvalidRequestError,
     415: errors.InvalidRequestError,
     429: (errors.RateLimitError, errors.SpendingLimitError),

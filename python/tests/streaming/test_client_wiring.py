@@ -87,6 +87,15 @@ def test_sync_transcribe_stream(server: MockServer) -> None:
     assert any(isinstance(event, Transcript) for event in events)
 
 
+def test_client_stt_stream_without_language(server: MockServer) -> None:
+    with EchoNova(api_key=TEST_KEY, base_url=_http_base(server)) as client:
+        with client.speech_to_text.connect(sample_rate=16_000) as stt:
+            stt.stop()
+        events = list(client.speech_to_text.transcribe_stream(pcm(1.0), sample_rate=16_000))
+    assert [conn.query.get("language") for conn in server.stt_conns] == [None, None]
+    assert {event.language for event in events if isinstance(event, Transcript)} == {"auto"}
+
+
 def test_rest_only_use_does_not_load_websockets() -> None:
     code = (
         "import sys, echonova; echonova.EchoNova(api_key='ek_x').close(); "

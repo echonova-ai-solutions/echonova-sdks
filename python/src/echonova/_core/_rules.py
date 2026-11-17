@@ -17,7 +17,8 @@ RetryFlag = bool | Literal["once", "opt_in"]
 Delay = Literal["none", "backoff", "retry_after", "retry_after_or_backoff"]
 Executed = Literal["no", "yes", "unknown"]
 
-_COLUMNS = ("GET", "DELETE", "POST", "WS")
+POST_IDEMPOTENT = "POST_IDEMPOTENT"
+_COLUMNS = ("GET", "DELETE", "POST", POST_IDEMPOTENT, "WS")
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,10 +26,12 @@ class RetryColumns:
     get: RetryFlag
     delete: RetryFlag
     post: RetryFlag
+    post_idempotent: RetryFlag  # a POST sent with an Idempotency-Key to an operation that accepts one (ADR 0014)
     ws: RetryFlag
     delay: Delay
 
     def for_method(self, method: str) -> RetryFlag:
+        """The flag for a column: GET, DELETE, POST, POST_IDEMPOTENT or WS (a handshake)."""
         method = method.upper()
         if method in ("GET", "HEAD"):
             return self.get
@@ -36,6 +39,8 @@ class RetryColumns:
             return self.delete
         if method == "WS":
             return self.ws
+        if method == POST_IDEMPOTENT:
+            return self.post_idempotent
         return self.post  # POST, and any other method, is treated as non-idempotent
 
     @classmethod
@@ -43,7 +48,14 @@ class RetryColumns:
         missing = [c for c in (*_COLUMNS, "delay") if c not in data]
         if missing:
             raise ValueError(f"retry columns missing {missing}")
-        return cls(get=data["GET"], delete=data["DELETE"], post=data["POST"], ws=data["WS"], delay=data["delay"])
+        return cls(
+            get=data["GET"],
+            delete=data["DELETE"],
+            post=data["POST"],
+            post_idempotent=data[POST_IDEMPOTENT],
+            ws=data["WS"],
+            delay=data["delay"],
+        )
 
 
 @dataclass(frozen=True, slots=True)

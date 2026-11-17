@@ -23,6 +23,13 @@ def test_error_classes_match_the_taxonomy() -> None:
         assert base is expected, f"{name} should subclass {parent}"
 
 
+def test_rules_are_version_2_with_the_idempotent_post_column() -> None:
+    rules = load_rules()
+    assert rules.version == 2
+    assert all(rule.retry.post_idempotent is not None for rule in rules.rules)
+    assert all(row.retry.post_idempotent is not None for row in rules.transport.values())
+
+
 def test_rules_are_well_formed() -> None:
     rules = load_rules()
     ids = [rule.id for rule in rules.rules]

@@ -1,4 +1,8 @@
-"""Retries end to end: what is retried, after how long, and what the error says when it isn't."""
+"""Retries end to end: what is retried, after how long, and what the error says when it isn't.
+
+A plain POST here is async job creation (``text_to_speech.jobs.create``), which takes no
+Idempotency-Key, so ADR 0004 applies. The calls that send a key are in test_idempotency.py.
+"""
 
 from __future__ import annotations
 
@@ -39,7 +43,8 @@ def sequence(*steps: Any) -> Recorder:
 
 
 def generate(client: Any) -> Any:
-    return client.text_to_speech.generate("hello", voice_id="v1")
+    """A POST without an Idempotency-Key."""
+    return client.text_to_speech.jobs.create("hello", voice_id="v1")
 
 
 def test_post_read_timeout_is_not_retried_and_may_have_executed() -> None:
@@ -299,7 +304,7 @@ def test_async_post_read_timeout_is_not_retried() -> None:
     recorder = sequence(httpx.ReadTimeout)
 
     async def run() -> None:
-        await make_async_client(recorder).text_to_speech.generate("hi", voice_id="v")
+        await make_async_client(recorder).text_to_speech.jobs.create("hi", voice_id="v")
 
     with pytest.raises(APITimeoutError) as info:
         asyncio.run(run())

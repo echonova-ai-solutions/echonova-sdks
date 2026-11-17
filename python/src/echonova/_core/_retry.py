@@ -1,8 +1,11 @@
 """Decide whether a failed attempt may be retried, and after how long.
 
 Pure logic over the shared retry table in ``spec/error-rules.json``. The table
-never retries a POST that may already have run, because the API has no
-idempotency key and would charge again.
+never retries a plain POST that may already have run, because it would be
+charged again. A POST sent with an Idempotency-Key, to an operation that
+accepts one, uses the ``POST_IDEMPOTENT`` column instead: repeating it returns
+the first result, so it is retried after a lost response or a server error too
+(ADR 0014).
 """
 
 from __future__ import annotations
@@ -11,9 +14,16 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ._rules import Delay, Executed, RetryFlag, Rule, RuleSet, TransportRule, load_rules
+from ._rules import POST_IDEMPOTENT, Delay, Executed, RetryFlag, Rule, RuleSet, TransportRule, load_rules
 
 Phase = str  # "connect" | "send_incomplete" | "no_response" | "malformed_success"
+
+
+def retry_column(method: str, *, idempotency_key: bool) -> str:
+    """The retry-table column for a request: ``POST_IDEMPOTENT`` for a POST that carries an
+    Idempotency-Key its operation accepts, otherwise the HTTP method."""
+    method = method.upper()
+    return POST_IDEMPOTENT if idempotency_key and method == "POST" else method
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +71,8 @@ class RetryPolicy:
         body_replayable: bool = True,
         wait_for_slot: bool = False,
     ) -> RetryDecision:
-        """Decide for an HTTP error status (``method`` is GET/DELETE/POST, or WS for a handshake)."""
+        """Decide for an HTTP error status. ``method`` is a column: GET, DELETE, POST, POST_IDEMPOTENT
+        (see ``retry_column``), or WS for a handshake."""
         flag = rule.retry.for_method(method)
         max_retry_after = self.rules.defaults.ws_max_retry_after if method.upper() == "WS" else self.max_retry_after
         return self._decide(
@@ -84,7 +95,10 @@ class RetryPolicy:
         retries_done: int,
         body_replayable: bool = True,
     ) -> RetryDecision:
-        """Decide for a failure without an HTTP status (connect error, timeout, broken body...)."""
+        """Decide for a failure without an HTTP status (connect error, timeout, broken body...).
+
+        ``method`` is a column, as for ``decide_status``.
+        """
         row: TransportRule = self.rules.transport[phase]
         return self._decide(
             row.retry.for_method(method),

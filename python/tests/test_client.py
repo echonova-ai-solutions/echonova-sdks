@@ -215,7 +215,7 @@ def captured_timeouts(handler_calls: list[httpx.Request]) -> dict[str, float]:
     ("call", "write", "read"),
     [
         (lambda c: c.text_to_speech.jobs.get(JOB_ID), 10, 30),
-        (lambda c: c.text_to_speech.generate("hi", voice_id="v"), 10, 120),
+        (lambda c: c.text_to_speech.generate("hi", voice_id="v"), 10, 240),
         (lambda c: c.text_to_speech.jobs.create("hi", voice_id="v"), 10, 30),
         (lambda c: c.speech_to_text.jobs.export(JOB_ID, format="txt"), 10, 60),
         (lambda c: c.speech_to_text.jobs.create(b"RIFF\0\0\0\0WAVE", language="en"), 60, 120),

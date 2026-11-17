@@ -8,12 +8,23 @@ shows a result's repr (which can hold a signed link).
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 
 import pytest
-from live_support import AGENT_ENV, JOB_SENTENCE, JOB_WAIT, JobCleanup, SharedSpeech, note, require_env, run_async
+from live_support import (
+    AGENT_ENV,
+    JOB_SENTENCE,
+    JOB_WAIT,
+    RUN_TAG,
+    JobCleanup,
+    SharedSpeech,
+    note,
+    require_env,
+    run_async,
+)
 
-from echonova import AsyncEchoNova, EchoNova, JobNotFoundError
+from echonova import AsyncEchoNova, EchoNova, InvalidRequestError, JobNotFoundError
 from echonova.types.models import TranscriptExport
 
 pytestmark = pytest.mark.live
@@ -36,6 +47,34 @@ def test_generate_and_download(speech: SharedSpeech) -> None:
     audio = speech.audio  # the SDK's WAV reader: PCM16 mono for the streams
     assert audio.sample_rate > 0
     assert audio.duration > 0
+
+
+def test_generate_with_the_same_idempotency_key_returns_the_same_job(
+    client: EchoNova, voice_id: str, jobs: JobCleanup
+) -> None:
+    key = str(uuid.uuid4())
+    text = f"Idempotency check {RUN_TAG}."
+    first = client.text_to_speech.generate(text, voice_id=voice_id, idempotency_key=key)
+    jobs.add("tts", first.job_id)
+    second = client.text_to_speech.generate(text, voice_id=voice_id, idempotency_key=key)
+    jobs.add("tts", second.job_id)
+    first_id, second_id = first.job_id, second.job_id
+    assert first_id == second_id  # the first result again, charged once
+    note("text_to_speech.generate (same key twice)", request_id=second.request_id)
+
+
+def test_generate_rejects_a_key_reused_for_different_text(client: EchoNova, voice_id: str, jobs: JobCleanup) -> None:
+    """Tells the key apart from the API's 24-hour dedup of identical input: different text, same key."""
+    key = str(uuid.uuid4())
+    first = client.text_to_speech.generate(f"Key check {RUN_TAG}.", voice_id=voice_id, idempotency_key=key)
+    jobs.add("tts", first.job_id)
+    with pytest.raises(InvalidRequestError) as info:  # not charged
+        client.text_to_speech.generate(f"Another key check {RUN_TAG}.", voice_id=voice_id, idempotency_key=key)
+    status, rule, sent_key = info.value.status_code, info.value.rule, info.value.idempotency_key
+    assert status == 409
+    assert rule == "idempotency_key_reused"
+    assert sent_key == key
+    note("text_to_speech.generate (key reused)", request_id=info.value.request_id)
 
 
 def test_tts_job_create_wait_download_delete(client: EchoNova, voice_id: str, jobs: JobCleanup) -> None:
@@ -68,6 +107,15 @@ def test_stt_transcribe(client: EchoNova, speech: SharedSpeech, jobs: JobCleanup
     assert text
     assert credits is None or credits >= 0
     note("speech_to_text.transcribe", request_id=result.request_id, seconds=result.duration_seconds)
+
+
+def test_stt_transcribe_without_language(client: EchoNova, speech: SharedSpeech, jobs: JobCleanup) -> None:
+    result = client.speech_to_text.transcribe((WAV_NAME, speech.wav))  # no language: the API detects it
+    jobs.add("stt", result.job_id)
+    status, language = result.status, result.language
+    assert status == "completed"
+    assert language in ("auto", "ar", "en")
+    note("speech_to_text.transcribe (no language)", request_id=result.request_id, language=language)
 
 
 def test_stt_job_create_wait_export_delete(client: EchoNova, speech: SharedSpeech, jobs: JobCleanup) -> None:

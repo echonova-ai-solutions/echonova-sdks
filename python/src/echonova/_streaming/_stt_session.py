@@ -38,10 +38,15 @@ Terminology = Mapping[str, Any]
 AudioSource = AsyncIterable[bytes] | Iterable[bytes] | bytes | bytearray | memoryview
 
 
-def stt_query(sample_rate: int, language: str, encoding: str) -> dict[str, str | int]:
+def stt_query(sample_rate: int, language: str | None, encoding: str) -> dict[str, str | int]:
+    """The connect query. Without ``language`` none is sent, and the server detects it (``auto``)."""
     if not isinstance(sample_rate, int) or isinstance(sample_rate, bool) or sample_rate <= 0:
         raise TypeError("sample_rate must be a positive int (the Hz of the audio you send)")
-    return {"sample_rate": sample_rate, "language": language, "encoding": encoding}
+    query: dict[str, str | int] = {"sample_rate": sample_rate}
+    if language is not None:
+        query["language"] = language
+    query["encoding"] = encoding
+    return query
 
 
 class _SttBase:
@@ -127,7 +132,7 @@ class AsyncSttSession(_SttBase):
         options: StreamOptions,
         *,
         sample_rate: int,
-        language: str,
+        language: str | None = None,
         terminology: Terminology | None = None,
         encoding: str = "pcm_s16le",
         wait_for_slot: float | None = None,
@@ -367,7 +372,7 @@ class SttSession(_SttBase):
         options: StreamOptions,
         *,
         sample_rate: int,
-        language: str,
+        language: str | None = None,
         terminology: Terminology | None = None,
         encoding: str = "pcm_s16le",
         wait_for_slot: float | None = None,

@@ -1,7 +1,11 @@
 """Handle errors, including a request whose response was lost.
 
-A POST that was fully sent may have run and been charged even if no response
-arrived. The SDK never sends it again on its own; this shows how to check.
+text_to_speech.generate sends an Idempotency-Key, so the SDK retries it safely
+after a lost response or a server error. If it still fails, sending it again with
+the same key returns the first result, without a second charge.
+
+(Async job creation takes no key. A lost response there may mean it ran and was
+charged, so the SDK never sends it again; see find_candidates() in the README.)
 
     ECHONOVA_API_KEY=ek_... python examples/error_handling.py VOICE_ID
 """
@@ -26,15 +30,9 @@ def main() -> None:
         print("the key reached its Credit Limit; raise it in the portal")
     except echonova.RateLimitError as exc:
         print(f"still rate limited after retries; try again in {exc.retry_after} s")
-    except echonova.APIConnectionError as exc:
-        if exc.may_have_executed is False:
-            print("the request did not run; it is safe to send it again")
-        elif exc.sent_at is not None:
-            # True or None (unknown): it may have run and been charged
-            candidates = client.text_to_speech.jobs.find_candidates(exc.sent_at, text=text)
-            print(f"no response, but {len(candidates)} matching job(s) exist; check them before retrying")
-        else:
-            print("the request may have run; check your recent jobs before sending it again")
+    except (echonova.APIConnectionError, echonova.RequestInProgressError) as exc:
+        # Retried already. Sending it again with this key returns the first result, never a second charge.
+        print(f"no result yet; send it again later with idempotency_key={exc.idempotency_key!r}")
     except echonova.APIStatusError as exc:
         print(f"{exc.status_code} {exc.error_message} (request {exc.request_id})")
     finally:

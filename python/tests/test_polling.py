@@ -247,7 +247,7 @@ def test_find_candidates_after_a_lost_post() -> None:
 
     client = make_client(handler, time=time)
     with pytest.raises(APIConnectionError) as info:
-        client.text_to_speech.generate("hi", voice_id="v")
+        client.text_to_speech.jobs.create("hi", voice_id="v")  # no Idempotency-Key: never sent again
     assert info.value.sent_at == time.start
     assert [j.id for j in client.text_to_speech.jobs.find_candidates(info.value.sent_at, text="hi")] == ["x"]
 

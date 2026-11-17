@@ -9,6 +9,7 @@ import math
 import os
 import tempfile
 import threading
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -32,12 +33,12 @@ from ._config import (
     ws_base_url,
 )
 from ._core._classifier import build_status_error, classify_response, executed_flag
-from ._core._envelope import RAW_BODY_LIMIT, MalformedEnvelopeError, unwrap_success
+from ._core._envelope import RAW_BODY_LIMIT, MalformedEnvelopeError, header, unwrap_success
 from ._core._files import PreparedFile
 from ._core._ratelimit import RateLimitInfo, RateLimitTracker
-from ._core._retry import RetryDecision, RetryPolicy
+from ._core._retry import RetryDecision, RetryPolicy, retry_column
 from ._logging import logger, redact_url, setup_from_env
-from ._polling import PollLimiter
+from ._polling import PollLimiter, wait_flow
 from ._response import ApiResponse, RawResponse
 from ._transport import PHASE_MESSAGES, Authenticate, Flow, Send, Sleep, classify_exception
 from .errors import (
@@ -52,12 +53,15 @@ from .errors import (
 
 if TYPE_CHECKING:
     from ._streaming import StreamOptions
+    from .types._base import Model
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
 HttpT = TypeVar("HttpT", httpx.Client, httpx.AsyncClient)
 
 _OPTION_KEYS = frozenset({"timeout", "max_retries", "deadline", "extra_headers"})
+IDEMPOTENCY_HEADER = "Idempotency-Key"
+IN_PROGRESS_INTERVAL = 5.0  # seconds between resends while the first request with the key still runs (ADR 0014)
 
 
 def public_signature(init: F) -> F:
@@ -82,6 +86,17 @@ class _NotGiven:
 NOT_GIVEN: Any = _NotGiven()
 
 
+@dataclass(frozen=True)
+class Processing:
+    """How a synchronous call that answers ``202 Processing`` waits for its job (ADR 0014)."""
+
+    job_get: ops.Operation  # the job's GET, such as text_to_speech.jobs.get
+    job: type[Model]  # the model that GET returns
+    interval: float  # seconds between polls
+    timeout: float  # the wait budget in seconds
+    result: Callable[[ApiResponse], Any]  # the type a 200 returns, built from the completed job's GET response
+
+
 @dataclass
 class RequestSpec:
     op: ops.Operation
@@ -91,6 +106,8 @@ class RequestSpec:
     form: Mapping[str, str] | None = None
     file: PreparedFile | None = None
     options: Mapping[str, Any] = field(default_factory=dict)
+    idempotency_key: str | None = None  # the caller's key; None makes a new one when the operation accepts keys
+    processing: Processing | None = None  # how to wait out a 202, for an operation that can answer one
 
 
 class _Pool(Generic[HttpT]):
@@ -179,6 +196,22 @@ def check_options(options: Mapping[str, Any]) -> None:
     unknown = set(options) - _OPTION_KEYS
     if unknown:
         raise TypeError(f"unexpected keyword argument(s): {', '.join(sorted(unknown))}")
+
+
+def check_idempotency_key(key: Any) -> str:
+    """A caller's Idempotency-Key, sent as given: it must be a usable header value."""
+    if not isinstance(key, str) or not key or not key.isascii() or not key.isprintable() or key != key.strip():
+        raise UsageError("idempotency_key must be a non-empty ASCII string, without control characters or edge spaces")
+    return key
+
+
+def _processing_job_id(body: bytes) -> str:
+    """The job ID of a ``202 Processing`` answer: ``{jobId, status: "processing", resultUrl}``."""
+    data = unwrap_success(body)
+    job_id = data.get("jobId") if isinstance(data, dict) else None
+    if not isinstance(job_id, str) or not job_id.strip():
+        raise MalformedEnvelopeError("a 202 Processing response without a jobId")
+    return job_id.strip()
 
 
 class BaseClient(Generic[HttpT]):
@@ -369,7 +402,13 @@ class BaseClient(Generic[HttpT]):
         return decision.delay
 
     def _build_request(
-        self, spec: RequestSpec, url: str, auth: Mapping[str, str], timeout: httpx.Timeout, body: Any
+        self,
+        spec: RequestSpec,
+        url: str,
+        auth: Mapping[str, str],
+        timeout: httpx.Timeout,
+        body: Any,
+        idempotency_key: str | None,
     ) -> httpx.Request:
         accept = "application/json" if spec.op.envelope else "*/*"
         headers = merge_headers(
@@ -377,6 +416,7 @@ class BaseClient(Generic[HttpT]):
             self._default_headers,
             auth,
             spec.options.get("extra_headers"),
+            {IDEMPOTENCY_HEADER: idempotency_key} if idempotency_key is not None else None,
         )
         kwargs: dict[str, Any] = {}
         if spec.json is not None:
@@ -391,10 +431,42 @@ class BaseClient(Generic[HttpT]):
         )
         return request
 
+    @staticmethod
+    def _idempotency_key(spec: RequestSpec) -> str | None:
+        """The call's Idempotency-Key, for an operation that accepts one: the caller's, or a new UUID.
+
+        A key the caller set in ``extra_headers`` counts as the caller's.
+        """
+        if not spec.op.idempotency_key:
+            if spec.idempotency_key is not None:
+                raise UsageError(f"{spec.op.name} does not accept an idempotency key")
+            return None
+        key = spec.idempotency_key
+        if key is None:
+            key = header(spec.options.get("extra_headers") or {}, IDEMPOTENCY_HEADER)
+        return str(uuid.uuid4()) if key is None else check_idempotency_key(key)
+
     def _api_flow(self, spec: RequestSpec, parser: Callable[[ApiResponse], T], *, raw: bool) -> Flow[Any]:
-        """One API call: rate-limit waits, attempts and retries. Returns the parsed result or a ``RawResponse``."""
+        """One API call: rate-limit waits, attempts and retries. Returns the parsed result or a ``RawResponse``.
+
+        An operation that accepts an Idempotency-Key sends the same key on every attempt, and the
+        ``APIStatusError`` or ``APIConnectionError`` it raises carries it (ADR 0014).
+        """
+        key = self._idempotency_key(spec)
+        try:
+            result = yield from self._attempts_flow(spec, parser, raw=raw, idempotency_key=key)
+        except (APIStatusError, APIConnectionError) as exc:
+            if key is not None:
+                exc.idempotency_key = key
+            raise
+        return result
+
+    def _attempts_flow(
+        self, spec: RequestSpec, parser: Callable[[ApiResponse], T], *, raw: bool, idempotency_key: str | None
+    ) -> Flow[Any]:
         op, options, clock = spec.op, spec.options, self._runtime.clock
         method, bucket, what = op.method, op.name, f"{op.method} {op.path}"
+        column = retry_column(method, idempotency_key=idempotency_key is not None)  # the retry table's column
         policy = RetryPolicy(max_retries=options.get("max_retries", self._max_retries), rng=self._runtime.random)
         deadline = options.get("deadline", self._deadline)
         deadline_at = clock() + deadline if deadline is not None else None
@@ -409,7 +481,9 @@ class BaseClient(Generic[HttpT]):
                 response = replace(response, data=unwrap_success(response.http.content))
             return parser(response)
 
-        retries = 0
+        retries = 0  # retries counted against max_retries
+        attempt = 0  # every request sent, for the logs
+        wait_until: float | None = None  # the end of the wait budget, once a 409 in progress or a 202 starts it
         first_sent_at: datetime | None = None
         no_response_seen = False
         while True:
@@ -429,10 +503,11 @@ class BaseClient(Generic[HttpT]):
             attempt_timeout = self._attempt_timeout(timeout, deadline_at, first_sent_at)
             body = spec.file.open() if spec.file is not None else None
             try:
-                request = self._build_request(spec, url, auth, attempt_timeout, body)
+                request = self._build_request(spec, url, auth, attempt_timeout, body, idempotency_key)
                 sent_at = self._runtime.now()
                 first_sent_at = first_sent_at or sent_at
                 started = clock()
+                attempt += 1
                 result = yield Send(request)
             finally:
                 if spec.file is not None:
@@ -442,25 +517,30 @@ class BaseClient(Generic[HttpT]):
 
             if isinstance(result, Exception):
                 phase, kind = classify_exception(result)
-                logger.debug("%s failed: %s (attempt %d, %.2f s)", what, type(result).__name__, retries + 1, elapsed)
+                logger.debug("%s failed: %s (attempt %d, %.2f s)", what, type(result).__name__, attempt, elapsed)
                 if phase is None:
                     raise APIConnectionError(
                         f"{what} could not be sent: {result}", may_have_executed=False, sent_at=first_sent_at
                     ) from result
                 no_response_seen = no_response_seen or phase == "no_response"
-                decision = policy.decide_transport(method, phase, retries_done=retries, body_replayable=replayable)
+                decision = policy.decide_transport(column, phase, retries_done=retries, body_replayable=replayable)
                 executed = executed_flag(decision.may_have_executed, method)
                 if kind is not None and deadline_at is not None and clock() >= deadline_at:
                     kind = "total"
                 message = PHASE_MESSAGES[phase].format(target=what) + f": {type(result).__name__}: {result}"
-                if executed:
+                if executed and idempotency_key is not None:
+                    message += (
+                        ". It may have run: send it again with the same idempotency_key to get its result,"
+                        " without a second charge."
+                    )
+                elif executed:
                     message += ". It may have run and been charged: check recent jobs before sending it again."
                 error: APIConnectionError = (
                     APITimeoutError(message, kind=kind, may_have_executed=executed, sent_at=first_sent_at)
                     if kind is not None
                     else APIConnectionError(message, may_have_executed=executed, sent_at=first_sent_at)
                 )
-                delay = self._retry_delay(decision, deadline_at, what, retries + 1, type(result).__name__)
+                delay = self._retry_delay(decision, deadline_at, what, attempt, type(result).__name__)
                 if delay is not None:
                     yield Sleep(delay)
                     retries += 1
@@ -473,16 +553,20 @@ class BaseClient(Generic[HttpT]):
             self._limits.tracker.observe(bucket, response.headers)
             status = response.status_code
             request_id = response.headers.get("x-request-id")
-            logger.debug("%s -> %d (request_id=%s, attempt %d, %.2f s)", what, status, request_id, retries + 1, elapsed)
+            logger.debug("%s -> %d (request_id=%s, attempt %d, %.2f s)", what, status, request_id, attempt, elapsed)
 
             if 200 <= status < 300:
-                if raw:
-                    return RawResponse(ApiResponse(None, response), full_parser)
+                processing = spec.processing if status == 202 else None
                 try:
-                    return full_parser(ApiResponse(None, response))
+                    if processing is not None:
+                        job_id = _processing_job_id(response.content)
+                    elif raw:
+                        return RawResponse(ApiResponse(None, response), full_parser)
+                    else:
+                        return full_parser(ApiResponse(None, response))
                 except MalformedEnvelopeError as exc:
                     decision = policy.decide_transport(
-                        method, "malformed_success", retries_done=retries, body_replayable=replayable
+                        column, "malformed_success", retries_done=retries, body_replayable=replayable
                     )
                     raw_body = None
                     if not op.secret_response:  # a body with a secret (a session token) is never kept on an error
@@ -497,12 +581,17 @@ class BaseClient(Generic[HttpT]):
                         rule="malformed_success",
                         sent_at=first_sent_at,
                     )
-                    delay = self._retry_delay(decision, deadline_at, what, retries + 1, "malformed response")
+                    delay = self._retry_delay(decision, deadline_at, what, attempt, "malformed response")
                     if delay is not None:
                         yield Sleep(delay)
                         retries += 1
                         continue
                     raise protocol_error from exc
+                assert processing is not None  # every other 2xx has returned or raised
+                if wait_until is None:
+                    wait_until = self._wait_until(processing, deadline_at)
+                outcome = yield from self._processing_flow(spec, processing, job_id, wait_until, raw=raw)
+                return outcome
 
             if status < 400:
                 raise ProtocolError(
@@ -528,10 +617,24 @@ class BaseClient(Generic[HttpT]):
             )
             if rule.blocks_bucket and retry_after is not None:
                 self._limits.tracker.block(bucket, retry_after)
+            if rule.error == "RequestInProgressError" and idempotency_key is not None and spec.processing is not None:
+                # The first request with this key is still running, and will answer a resend once it ends.
+                # Resend every 5 s (or after Retry-After) within the wait budget, outside max_retries.
+                if wait_until is None:
+                    wait_until = self._wait_until(spec.processing, deadline_at)
+                pause = max(IN_PROGRESS_INTERVAL, retry_after or 0.0)
+                if not replayable:
+                    status_error.retry_disabled_reason = "body_not_replayable"
+                    raise status_error
+                if clock() + pause >= wait_until:
+                    raise status_error
+                logger.debug("%s is still running elsewhere; sending it again with its key in %.1f s", what, pause)
+                yield Sleep(pause)
+                continue
             decision = policy.decide_status(
-                method, rule, retries_done=retries, retry_after=retry_after, body_replayable=replayable
+                column, rule, retries_done=retries, retry_after=retry_after, body_replayable=replayable
             )
-            delay = self._retry_delay(decision, deadline_at, what, retries + 1, f"HTTP {status}")
+            delay = self._retry_delay(decision, deadline_at, what, attempt, f"HTTP {status}")
             if delay is not None:
                 yield Sleep(delay)
                 retries += 1
@@ -539,6 +642,59 @@ class BaseClient(Generic[HttpT]):
             if decision.reason == "body_not_replayable":
                 status_error.retry_disabled_reason = "body_not_replayable"
             raise status_error
+
+    def _wait_until(self, processing: Processing, deadline_at: float | None) -> float:
+        """When a call's wait budget ends: ``wait_timeout`` from now, never past the call's deadline."""
+        until = self._runtime.clock() + processing.timeout
+        return until if deadline_at is None else min(until, deadline_at)
+
+    def _processing_flow(
+        self, spec: RequestSpec, processing: Processing, job_id: str, wait_until: float, *, raw: bool
+    ) -> Flow[Any]:
+        """Wait for the job behind a ``202 Processing`` answer, then return what a ``200`` returns.
+
+        Polls go through the job's GET with the caller's extra headers (but not the
+        Idempotency-Key), and share the client's poll limiter with ``jobs.wait()``. The
+        upload is never sent again. A failed job raises ``JobFailedError``; past
+        ``wait_until``, ``JobWaitTimeoutError``.
+        """
+        timeout = max(0.0, wait_until - self._runtime.clock())
+        logger.debug(
+            "%s %s is still processing; waiting for job %s (polling every %g s for up to %g s)",
+            spec.op.method,
+            spec.op.path,
+            job_id,
+            processing.interval,
+            timeout,
+        )
+        extra = {
+            name: value
+            for name, value in (spec.options.get("extra_headers") or {}).items()
+            if name.lower() != IDEMPOTENCY_HEADER.lower()
+        }
+        get_spec = RequestSpec(
+            processing.job_get, path_params={"jobId": job_id}, options={"extra_headers": extra} if extra else {}
+        )
+        polled: list[ApiResponse] = []
+
+        def parse_job(response: ApiResponse) -> Any:
+            job = processing.job._from_json(response.data, request_id=response.request_id)
+            polled[:] = [response]
+            return job
+
+        yield from wait_flow(
+            job_id=job_id,
+            get_flow=lambda: self._api_flow(get_spec, parse_job, raw=False),
+            interval=processing.interval,
+            timeout=timeout,
+            raise_on_failure=True,
+            limiter=self._limits.limiter,
+            bucket=processing.job_get.name,
+            runtime=self._runtime,
+        )
+        last = polled[-1]  # the poll that saw the job completed
+        logger.debug("job %s completed (request_id=%s)", job_id, last.request_id)
+        return RawResponse(last, processing.result) if raw else processing.result(last)
 
     def _download_flow(self, url: str, sink: _Sink) -> Flow[None]:
         """GET a signed link with no credentials, retrying transient failures."""
@@ -608,4 +764,13 @@ class BaseClient(Generic[HttpT]):
         return url
 
 
-__all__ = ["DEFAULT_MAX_RETRIES", "NOT_GIVEN", "BaseClient", "RequestSpec", "check_options", "job_id_of"]
+__all__ = [
+    "DEFAULT_MAX_RETRIES",
+    "NOT_GIVEN",
+    "BaseClient",
+    "Processing",
+    "RequestSpec",
+    "check_idempotency_key",
+    "check_options",
+    "job_id_of",
+]

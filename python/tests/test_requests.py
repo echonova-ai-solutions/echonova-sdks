@@ -133,6 +133,32 @@ CASES = [
         file=("audio.wav", "audio/wav"),
     ),
     Case(
+        "stt.transcribe without language",
+        lambda c: c.speech_to_text.transcribe(WAV),
+        "POST",
+        "/v1/speech-to-text/sync",
+        form={},  # no language field: the API detects it (auto)
+        file=("audio.wav", "audio/wav"),
+        result=types.SttResult,
+    ),
+    Case(
+        "stt.transcribe auto",
+        lambda c: c.speech_to_text.transcribe(WAV, language="auto", numbers_as_digits=True),
+        "POST",
+        "/v1/speech-to-text/sync",
+        form={"language": "auto", "numbers_as_digits": "true"},
+        file=("audio.wav", "audio/wav"),
+    ),
+    Case(
+        "stt.jobs.create without language",
+        lambda c: c.speech_to_text.jobs.create(("m.mp3", MP3)),
+        "POST",
+        "/v1/speech-to-text",
+        form={},
+        file=("m.mp3", "audio/mpeg"),
+        result=types.JobInitiated,
+    ),
+    Case(
         "stt.jobs.create with JSON-string terminology",
         lambda c: c.speech_to_text.jobs.create(("m.flac", b"fLaC...."), language="en", terminology='{"keywords":[]}'),
         "POST",
@@ -278,10 +304,14 @@ CASES = [
 ]
 
 
+IDEMPOTENT_PATHS = {op.path for op in ops.ALL if op.idempotency_key}
+
+
 def check(case: Case, request: httpx.Request, result: Any) -> None:
     assert request.method == case.method
     assert request.url.path == case.path
     assert dict(request.url.params) == case.query
+    assert ("idempotency-key" in request.headers) is (case.path in IDEMPOTENT_PATHS)
     content_type = request.headers.get("content-type", "")
     if case.json is not None:
         assert content_type == "application/json"
@@ -368,13 +398,18 @@ def test_export_returns_raw_text_not_an_envelope() -> None:
 # --- Conformance with spec/mapping.json -----------------------------------------------------------
 
 
+def mapped_operations() -> list[dict[str, Any]]:
+    """The operations in spec/mapping.json, without the ones it excludes (with their reason)."""
+    return [entry for entry in load_mapping()["operations"].values() if "excluded" not in entry]
+
+
 def test_operations_match_the_mapping() -> None:
-    mapping = load_mapping()["operations"]
     registry = {op.name: op for op in ops.ALL}
-    assert {entry["sdk"]["python"] for entry in mapping.values()} == set(registry)
-    for entry in mapping.values():
+    assert {entry["sdk"]["python"] for entry in mapped_operations()} == set(registry)
+    for entry in mapped_operations():
         op = registry[entry["sdk"]["python"]]
         assert (op.method, op.path) == (entry["method"], entry["path"])
+        assert op.idempotency_key is entry["idempotency_key"], entry["sdk"]["python"]
 
 
 def resolve_method(client: Any, dotted: str) -> Any:
@@ -387,7 +422,7 @@ def resolve_method(client: Any, dotted: str) -> Any:
 @pytest.mark.parametrize("asynchronous", [False, True])
 def test_every_mapped_parameter_is_accepted(asynchronous: bool) -> None:
     client = make_async_client(respond) if asynchronous else make_client(respond)
-    for entry in load_mapping()["operations"].values():
+    for entry in mapped_operations():
         method = resolve_method(client, entry["sdk"]["python"])
         parameters = inspect.signature(method).parameters
         for param in entry["params"]:

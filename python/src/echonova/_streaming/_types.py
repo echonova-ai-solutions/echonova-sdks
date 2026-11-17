@@ -113,7 +113,8 @@ class Transcript:
     ``text`` is passed through unchanged: it can be empty or carry surrounding
     whitespace. ``index`` counts transcripts in arrival order, from 0.
     ``terminology`` is the server's terminology report for this segment, when
-    terms are set.
+    terms are set. ``language`` is as the server reports it, which can be
+    ``auto`` when the session was opened without one.
     """
 
     segment_id: str

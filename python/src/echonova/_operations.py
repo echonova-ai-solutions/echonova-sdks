@@ -2,6 +2,9 @@
 
 ``name`` is the SDK method (as in ``spec/mapping.json``). It also names the
 operation's rate-limit bucket: the API counts requests per key per endpoint.
+``idempotency_key`` marks the operations that accept an ``Idempotency-Key``
+(``"idempotency_key": true`` in the mapping): the SDK sends one on every call,
+and retries them with the ``POST_IDEMPOTENT`` column (ADR 0014).
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ class Operation:
     read_timeout: float
     envelope: bool = True  # False when a 2xx body is the raw file (transcript export)
     secret_response: bool = False  # the 2xx body carries a secret: never copy it into an error's raw_body
+    idempotency_key: bool = False  # accepts an Idempotency-Key header
 
 
 def _op(
@@ -29,18 +33,22 @@ def _op(
     *,
     envelope: bool = True,
     secret_response: bool = False,
+    idempotency_key: bool = False,
 ) -> Operation:
-    return Operation(name, method, path, write, read, envelope, secret_response)
+    return Operation(name, method, path, write, read, envelope, secret_response, idempotency_key)
 
 
-TTS_GENERATE = _op("text_to_speech.generate", "POST", "/v1/text-to-speech/sync", read=120)
+# Read 240 s: above the 220 s after which the API answers 202 Processing, so the 202 arrives first (ADR 0014).
+TTS_GENERATE = _op("text_to_speech.generate", "POST", "/v1/text-to-speech/sync", read=240, idempotency_key=True)
 TTS_JOBS_CREATE = _op("text_to_speech.jobs.create", "POST", "/v1/text-to-speech")
 TTS_VOICES_LIST = _op("text_to_speech.voices.list", "GET", "/v1/text-to-speech/voices")
 TTS_JOBS_LIST = _op("text_to_speech.jobs.list", "GET", "/v1/text-to-speech/jobs")
 TTS_JOBS_GET = _op("text_to_speech.jobs.get", "GET", "/v1/text-to-speech/jobs/{jobId}")
 TTS_JOBS_DELETE = _op("text_to_speech.jobs.delete", "DELETE", "/v1/text-to-speech/jobs/{jobId}")
 
-STT_TRANSCRIBE = _op("speech_to_text.transcribe", "POST", "/v1/speech-to-text/sync", write=60, read=600)
+STT_TRANSCRIBE = _op(
+    "speech_to_text.transcribe", "POST", "/v1/speech-to-text/sync", write=60, read=600, idempotency_key=True
+)
 STT_JOBS_CREATE = _op("speech_to_text.jobs.create", "POST", "/v1/speech-to-text", write=60, read=120)
 STT_JOBS_LIST = _op("speech_to_text.jobs.list", "GET", "/v1/speech-to-text/jobs")
 STT_JOBS_GET = _op("speech_to_text.jobs.get", "GET", "/v1/speech-to-text/jobs/{jobId}")
@@ -49,7 +57,7 @@ STT_JOBS_EXPORT = _op(
     "speech_to_text.jobs.export", "GET", "/v1/speech-to-text/jobs/{jobId}/export", read=60, envelope=False
 )
 
-CLEAN = _op("sound_cleaning.clean", "POST", "/v1/sound-cleaning", write=60, read=600)
+CLEAN = _op("sound_cleaning.clean", "POST", "/v1/sound-cleaning", write=60, read=600, idempotency_key=True)
 CLEAN_JOBS_LIST = _op("sound_cleaning.jobs.list", "GET", "/v1/sound-cleaning/jobs")
 CLEAN_JOBS_GET = _op("sound_cleaning.jobs.get", "GET", "/v1/sound-cleaning/jobs/{jobId}")
 CLEAN_JOBS_DELETE = _op("sound_cleaning.jobs.delete", "DELETE", "/v1/sound-cleaning/jobs/{jobId}")

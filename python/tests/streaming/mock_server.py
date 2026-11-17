@@ -522,7 +522,7 @@ class _SttConn:
             {
                 "type": "session.started",
                 "sessionId": self.record.session_id,
-                "language": self.record.query.get("language", "ar"),
+                "language": self.record.query.get("language", "auto"),  # the server's default
                 "sampleRate": self.sample_rate,
                 "maxSessionSeconds": self.script.max_session_seconds,
                 "jobId": self.record.job_id,
@@ -571,7 +571,7 @@ class _SttConn:
                 "type": "transcript",
                 "segmentId": uuid.uuid4().hex[:24],
                 "text": f"segment {self.segments}",
-                "language": self.record.query.get("language", "ar"),
+                "language": self.record.query.get("language", "auto"),  # the server's default
                 "durationSeconds": seconds,
                 "creditsConsumed": credits,
                 "isFinal": True,

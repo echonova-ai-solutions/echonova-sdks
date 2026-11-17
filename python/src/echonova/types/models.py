@@ -218,7 +218,10 @@ class TerminologyResult(Model):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SttResult(Model):
-    """The result of ``speech_to_text.transcribe()``."""
+    """The result of ``speech_to_text.transcribe()``.
+
+    ``language`` is as the API reports it, which can be ``auto`` when the call left it out.
+    """
 
     job_id: str = api_field("jobId", to_str, required=True)
     status: str = api_field("status", to_str, required=True)

@@ -114,6 +114,7 @@ def test_rollover_before_the_session_limit(server: MockServer, mode: str) -> Non
     assert b"".join(bytes(c.audio) for c in server.stt_conns) == audio  # nothing lost, nothing sent twice
     wait_for(lambda: all(conn.close_code is not None for conn in server.stt_conns))
     for conn in server.stt_conns:
+        assert conn.query["language"] == "ar"  # every session asks for the same language
         assert conn.received[0] == {"type": "terminology", "terminology": {"keywords": ["KYC"]}}
         assert conn.close_code == 1000  # each session stopped cleanly
     assert sum(t.duration_seconds for t in transcripts(events)) == pytest.approx(2.0)
@@ -149,6 +150,25 @@ def test_reconnects_and_replays_only_uncut_audio(server: MockServer, mode: str) 
     assert bytes(first.audio[:SEGMENT]) + bytes(second.audio) == audio
     assert second.received[0]["type"] == "terminology"  # terminology re-sent
     assert sum(t.duration_seconds for t in transcripts(events)) == pytest.approx(3.0)
+
+
+def test_without_language_no_session_sends_one(server: MockServer, mode: str) -> None:
+    server.stt.actions.append(SttAction("abort", after_bytes=SEGMENT + 16_000))  # a reconnect half-way through
+    audio = pcm(2.0)
+    events, error = run_transcribe(
+        mode,
+        options_for(server),
+        source(mode, audio, delay=0.005),
+        sample_rate=16_000,
+        segment_seconds=1.0,
+        reconnect=FAST,
+    )
+    assert error is None
+    assert any(isinstance(e, Reconnected) for e in events)
+    assert len(server.stt_conns) == 2
+    for conn in server.stt_conns:
+        assert conn.query == {"sample_rate": "16000", "encoding": "pcm_s16le"}  # the server detects it
+    assert {t.language for t in transcripts(events)} == {"auto"}
 
 
 def test_cut_segments_without_a_result_are_reported_dropped(server: MockServer, mode: str) -> None:

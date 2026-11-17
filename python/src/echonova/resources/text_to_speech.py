@@ -11,14 +11,30 @@ from typing import TYPE_CHECKING, Any, overload
 from typing_extensions import Unpack
 
 from .. import _operations as ops
-from .._base_client import RequestSpec, job_id_of
+from .._base_client import Processing, RequestSpec, job_id_of
 from .._pagination import AsyncPage, AsyncPageRequest, Page
-from .._polling import DEFAULT_WAIT_TIMEOUT, TTS_POLL_INTERVAL, candidates_flow, check_interval, wait_flow
+from .._polling import (
+    DEFAULT_WAIT_TIMEOUT,
+    TTS_POLL_INTERVAL,
+    candidates_flow,
+    check_interval,
+    check_wait_timeout,
+    wait_flow,
+)
 from .._response import ApiResponse, async_to_raw_response_wrapper, to_raw_response_wrapper
 from ..errors import JobFailedError, UsageError
 from ..types.models import DeleteResult, JobInitiated, TtsJob, TtsResult, VoiceList
 from ..types.params import RequestOptions
-from ._base import AsyncResource, JobRef, SyncResource, compact, model_parser, page_data, parse_delete
+from ._base import (
+    AsyncResource,
+    JobRef,
+    SyncResource,
+    compact,
+    model_parser,
+    page_data,
+    parse_delete,
+    result_from_job,
+)
 
 if TYPE_CHECKING:
     from .._client import AsyncEchoNova, EchoNova
@@ -42,6 +58,17 @@ def _speech_body(
         "voiceId": voice_id,
         **compact(speed=speed, cfg=cfg, numSteps=num_steps, tashkeel=tashkeel, normalize=normalize),
     }
+
+
+def _generate_spec(
+    body: dict[str, Any], idempotency_key: str | None, wait_timeout: float | None, options: RequestOptions
+) -> RequestSpec:
+    processing = Processing(
+        ops.TTS_JOBS_GET, TtsJob, TTS_POLL_INTERVAL, check_wait_timeout(wait_timeout), result_from_job(TtsResult)
+    )
+    return RequestSpec(
+        ops.TTS_GENERATE, json=body, options=options, idempotency_key=idempotency_key, processing=processing
+    )
 
 
 def _audio_url(job: TtsJob) -> str:
@@ -173,11 +200,23 @@ class TextToSpeech(SyncResource):
         num_steps: int | None = None,
         tashkeel: bool | None = None,
         normalize: bool | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> TtsResult:
-        """Synthesize speech and wait for it. ``audio_url`` is a signed WAV link that expires."""
+        """Synthesize speech and wait for it. ``audio_url`` is a signed WAV link that expires.
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 3 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
+        """
         body = _speech_body(text, voice_id, speed, cfg, num_steps, tashkeel, normalize)
-        return self._client._request(RequestSpec(ops.TTS_GENERATE, json=body, options=options), model_parser(TtsResult))
+        spec = _generate_spec(body, idempotency_key, wait_timeout, options)
+        return self._client._request(spec, model_parser(TtsResult))
 
     def connect(
         self,
@@ -358,13 +397,23 @@ class AsyncTextToSpeech(AsyncResource):
         num_steps: int | None = None,
         tashkeel: bool | None = None,
         normalize: bool | None = None,
+        idempotency_key: str | None = None,
+        wait_timeout: float | None = None,
         **options: Unpack[RequestOptions],
     ) -> TtsResult:
-        """Synthesize speech and wait for it. ``audio_url`` is a signed WAV link that expires."""
+        """Synthesize speech and wait for it. ``audio_url`` is a signed WAV link that expires.
+
+        Every call sends an Idempotency-Key, so it is retried safely after a lost
+        response or a server error. Pass your own ``idempotency_key`` to send the same
+        request again later (within 24 hours) and get the first result, never a second
+        charge. If the job is still running when the server stops waiting, the call
+        polls it every 3 s; while an earlier request with the same key still runs,
+        it sends the call again every 5 s. It waits up to ``wait_timeout`` seconds in all
+        (1,200 by default, and never past ``deadline``).
+        """
         body = _speech_body(text, voice_id, speed, cfg, num_steps, tashkeel, normalize)
-        return await self._client._request(
-            RequestSpec(ops.TTS_GENERATE, json=body, options=options), model_parser(TtsResult)
-        )
+        spec = _generate_spec(body, idempotency_key, wait_timeout, options)
+        return await self._client._request(spec, model_parser(TtsResult))
 
     def connect(
         self,

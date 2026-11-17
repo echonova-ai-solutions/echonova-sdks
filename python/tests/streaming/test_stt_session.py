@@ -58,6 +58,20 @@ def test_connect_waits_for_session_started(
         stt.close()
 
 
+def test_language_is_optional(server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None) -> None:
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000)
+    try:
+        assert server.stt_conns[0].query == {"sample_rate": "16000", "encoding": "pcm_s16le"}  # no language sent
+        assert stt.language == "auto"  # as the server reports it
+    finally:
+        stt.close()
+    stt = open_stt(mode, opts, bridge, sample_rate=16_000, language="auto")
+    try:
+        assert server.stt_conns[1].query["language"] == "auto"
+    finally:
+        stt.close()
+
+
 def test_transcribes_segments_and_stops(
     server: MockServer, opts: StreamOptions, mode: str, bridge: Bridge | None
 ) -> None:
