@@ -81,8 +81,9 @@ Future<Audio> speak(
 }
 
 /// Opens a Speech to Text stream for audio at [sampleRate] Hz (required: a
-/// wrong rate gives wrong transcripts without any error) in [language] (`ar`
-/// or `en`).
+/// wrong rate gives wrong transcripts without any error) in [language]
+/// (`auto`, `ar` or `en`; without it, none is sent and the server uses
+/// `auto`).
 ///
 /// Completes once the server has started the session (and confirmed
 /// [terminology], when given). Throws the handshake's exception when it is
@@ -91,7 +92,7 @@ Future<Audio> speak(
 Future<SttSession> connectStt(
   StreamOptions options, {
   required int sampleRate,
-  required String language,
+  String? language,
   Map<String, Object?>? terminology,
   String encoding = 'pcm_s16le',
   Duration? waitForSlot,

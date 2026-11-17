@@ -45,7 +45,9 @@ bool? executedFlag(Executed value, String method) {
 /// Builds the exception for an error response.
 ///
 /// [method] is the HTTP method, or `WS` for a WebSocket handshake. Only a
-/// POST can report `mayHaveExecuted: true` or `null`.
+/// POST can report `mayHaveExecuted: true` or `null`. [idempotencyKey] is
+/// the key the call sent, if any; [retryDisabledReason] says why a request
+/// that could have been sent again wasn't.
 APIStatusException buildStatusError(
   int status,
   Map<String, String> headers,
@@ -54,6 +56,8 @@ APIStatusException buildStatusError(
   TransportKind transport = TransportKind.http,
   DateTime? sentAt,
   String? reasonPhrase,
+  String? idempotencyKey,
+  String? retryDisabledReason,
   RuleSet rules = errorRules,
 }) {
   final parsed = parseErrorBody(body);
@@ -82,6 +86,8 @@ APIStatusException buildStatusError(
     rule: rule.id,
     sentAt: sentAt,
     fromProxy: rule.fromProxy,
+    retryDisabledReason: retryDisabledReason,
+    idempotencyKey: idempotencyKey,
   );
 }
 
@@ -103,6 +109,8 @@ typedef StatusExceptionFactory = APIStatusException Function({
   String? sessionId,
   DateTime? sentAt,
   bool fromProxy,
+  String? retryDisabledReason,
+  String? idempotencyKey,
   Object? cause,
 });
 
@@ -122,6 +130,7 @@ const Map<String, StatusExceptionFactory> statusExceptionFactories = {
   'SpendingLimitError': SpendingLimitException.new,
   'RateLimitError': RateLimitException.new,
   'ConcurrencyLimitError': ConcurrencyLimitException.new,
+  'RequestInProgressError': RequestInProgressException.new,
   'ServerError': ServerException.new,
   'ServiceUnavailableError': ServiceUnavailableException.new,
   'GatewayError': GatewayException.new,

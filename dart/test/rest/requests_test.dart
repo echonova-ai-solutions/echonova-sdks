@@ -106,6 +106,31 @@ void main() {
     expect(result.transcription, 'hi');
   });
 
+  test('without a language none is sent, and the API uses auto', () async {
+    final h = makeClient((_, __) => ok({
+          'jobId': jobId,
+          'status': 'completed',
+          'transcription': 'hi',
+          'language': 'auto',
+        }));
+    final result = await h.client.speechToText
+        .transcribe(AudioFile.fromBytes(wav, 'a.wav'));
+    expect(multipartParts(h.api.last).keys, ['file']);
+    expect(result.language, 'auto');
+
+    await h.client.speechToText.jobs.create(AudioFile.fromBytes(wav, 'a.wav'));
+    expect(h.api.last.url.path, '/v1/speech-to-text');
+    expect(multipartParts(h.api.last).keys, ['file']);
+
+    await h.client.speechToText
+        .transcribe(AudioFile.fromBytes(wav, 'a.wav'), language: 'auto');
+    expect(formFields(h.api.last), {'language': 'auto'});
+    await h.client.speechToText.jobs.create(AudioFile.fromBytes(wav, 'a.wav'),
+        language: 'auto', numbersAsDigits: true);
+    expect(formFields(h.api.last),
+        {'language': 'auto', 'numbers_as_digits': 'true'});
+  });
+
   test('a raw terminology JSON is sent as given', () async {
     final h =
         makeClient((_, __) => ok({'jobId': jobId, 'status': 'processing'}));

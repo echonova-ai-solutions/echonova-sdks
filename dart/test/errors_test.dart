@@ -28,6 +28,7 @@ final predicates = <String, bool Function(Object)>{
   'SpendingLimitError': (e) => e is SpendingLimitException,
   'RateLimitError': (e) => e is RateLimitException,
   'ConcurrencyLimitError': (e) => e is ConcurrencyLimitException,
+  'RequestInProgressError': (e) => e is RequestInProgressException,
   'ServerError': (e) => e is ServerException,
   'ServiceUnavailableError': (e) => e is ServiceUnavailableException,
   'GatewayError': (e) => e is GatewayException,
@@ -162,5 +163,25 @@ void main() {
     expect(APIConnectionException('m').mayHaveExecuted, isFalse);
     expect(APIStatusException().mayHaveExecuted, isFalse);
     expect(APIStatusException().transport, TransportKind.http);
+    expect(APIStatusException().idempotencyKey, isNull);
+    expect(APIConnectionException('m').idempotencyKey, isNull);
+  });
+
+  test('every status and connection class carries an idempotencyKey', () {
+    for (final MapEntry(:key, :value) in statusExceptionFactories.entries) {
+      final error = value(idempotencyKey: 'k', retryDisabledReason: 'r');
+      expect(error.idempotencyKey, 'k', reason: key);
+      expect(error.retryDisabledReason, 'r', reason: key);
+    }
+    expect(
+        APITimeoutException('m', kind: TimeoutKind.read, idempotencyKey: 'k')
+            .idempotencyKey,
+        'k');
+    expect(
+        StreamConnectionLostException('m', idempotencyKey: 'k').idempotencyKey,
+        'k');
+    final inProgress = RequestInProgressException(idempotencyKey: 'k');
+    expect(inProgress, isA<APIStatusException>());
+    expect(topLevelFamily(inProgress), 'status');
   });
 }

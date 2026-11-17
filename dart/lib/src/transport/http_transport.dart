@@ -1,8 +1,9 @@
 /// The REST transport: sends a request over `package:http`, applies the retry
 /// table, the rate-limit tracker and the error classifier.
 ///
-/// A POST that may already have run is never sent again: the API has no
-/// idempotency key, so a retry could be charged twice.
+/// A POST that may already have run is never sent again, because a retry
+/// could be charged twice, unless it carries an `Idempotency-Key`: the API
+/// then answers a repeat with the first result (ADR 0014).
 library;
 
 import 'dart:async';
@@ -32,8 +33,9 @@ enum TimeoutProfile {
   /// Exporting a transcript.
   export(Duration(seconds: 80)),
 
-  /// Synchronous Text to Speech.
-  textToSpeechSync(Duration(seconds: 140)),
+  /// Synchronous Text to Speech. Its read limit, 240 s, is above the 220 s
+  /// after which the API answers `202 Processing` (ADR 0014).
+  textToSpeechSync(Duration(seconds: 260)),
 
   /// Uploading audio for an async Speech to Text job.
   upload(Duration(seconds: 190)),
@@ -78,6 +80,37 @@ const Duration downloadHeadersTimeout = Duration(seconds: 80);
 /// A download fails when no bytes arrive for this long.
 const Duration downloadReadTimeout = Duration(seconds: 60);
 
+/// How often a synchronous call resends its request while the API says the
+/// first request with its `Idempotency-Key` is still running (ADR 0014).
+const Duration inProgressResendInterval = Duration(seconds: 5);
+
+/// How long a synchronous call may wait for the job it started (ADR 0014):
+/// while the API answers that a request with its `Idempotency-Key` is still
+/// running, and after a `202 Processing`. Both waits share it. It starts the
+/// first time the call waits, and never runs past the call's total deadline.
+final class WaitBudget {
+  /// A budget of [timeout] (`waitTimeout`), ending at [deadlineAt] at the
+  /// latest: the end of the call's total deadline, on the transport's
+  /// monotonic clock.
+  WaitBudget(this.timeout, {this.deadlineAt});
+
+  /// The wait budget.
+  final Duration timeout;
+
+  /// When the call's total deadline runs out, if it has one.
+  final Duration? deadlineAt;
+
+  Duration? _endsAt;
+
+  /// When the wait ends, at monotonic time [now]: [timeout] after the first
+  /// call, and never after [deadlineAt].
+  Duration endsAt(Duration now) {
+    final ends = _endsAt ??= now + timeout;
+    final deadline = deadlineAt;
+    return deadline != null && deadline < ends ? deadline : ends;
+  }
+}
+
 /// The file part of a multipart request.
 abstract interface class MultipartUpload {
   /// The file name sent with the part.
@@ -120,6 +153,8 @@ final class ApiRequest {
     this.deadline,
     this.expectEnvelope = true,
     this.secretResponse = false,
+    this.idempotencyKey,
+    this.waitBudget,
   });
 
   /// The HTTP method.
@@ -172,6 +207,22 @@ final class ApiRequest {
   /// Whether a 2xx body carries a secret (a room token): it is then never
   /// copied into an exception's `rawBody`.
   final bool secretResponse;
+
+  /// The `Idempotency-Key` of the call this request belongs to.
+  ///
+  /// A POST sends it as the `Idempotency-Key` header, the same on every
+  /// attempt, and is retried by the retry table's `POST_IDEMPOTENT` column:
+  /// a repeat returns the first result. Set it only for an operation that
+  /// accepts one. Other requests of the call (the polls after a `202`) only
+  /// report it on their exceptions.
+  final String? idempotencyKey;
+
+  /// For a POST with an [idempotencyKey]: how long to keep resending while
+  /// the API answers that the first request with the key is still running.
+  /// The resends come every [inProgressResendInterval] (or after a longer
+  /// `Retry-After`) and don't count against [maxRetries]. Without it, the
+  /// retry table decides, as for any other error.
+  final WaitBudget? waitBudget;
 }
 
 /// A successful REST response.
@@ -188,6 +239,7 @@ final class ApiResponse {
     this.expectEnvelope = true,
     this.alreadyDeleted = false,
     this.secret = false,
+    this.idempotencyKey,
     Object? data,
   })  : _data = data,
         _hasData = data != null || !expectEnvelope;
@@ -219,6 +271,9 @@ final class ApiResponse {
 
   /// Whether [body] carries a secret and must not be copied into errors.
   final bool secret;
+
+  /// The request's [ApiRequest.idempotencyKey].
+  final String? idempotencyKey;
 
   Object? _data;
   bool _hasData;
@@ -414,6 +469,8 @@ final class HttpTransport {
     final deadlineAt = total == null ? null : _clock() + total;
     final uri = resolve(request.path, request.query);
     final upload = request.upload;
+    final idempotencyKey = request.idempotencyKey;
+    final withKey = method == 'POST' && idempotencyKey != null;
     var retries = 0;
     DateTime? firstSentAt;
     var noResponseSeen = false;
@@ -438,6 +495,7 @@ final class HttpTransport {
                     'was not sent again'}.',
             retryAfter: wait,
             sentAt: firstSentAt,
+            idempotencyKey: idempotencyKey,
           );
         }
         await _sleep(wait);
@@ -451,6 +509,7 @@ final class HttpTransport {
             'The deadline expired before the request was sent',
             kind: TimeoutKind.total,
             sentAt: firstSentAt,
+            idempotencyKey: idempotencyKey,
           );
         }
         if (remaining < limit) limit = remaining;
@@ -463,6 +522,7 @@ final class HttpTransport {
         if (upload == null)
           if (request.contentType case final contentType?)
             'Content-Type': contentType,
+        if (withKey) 'Idempotency-Key': idempotencyKey,
       };
       final sentAt = _now();
       firstSentAt ??= sentAt;
@@ -479,8 +539,9 @@ final class HttpTransport {
           failure.phase,
           retriesDone: retries,
           bodyReplayable: upload?.isReplayable ?? true,
+          withIdempotencyKey: withKey,
         );
-        if (_mayRetry(method, decision) && fits(decision.delay)) {
+        if (_mayRetry(method, decision, withKey) && fits(decision.delay)) {
           await retryAfter(decision);
           continue;
         }
@@ -492,6 +553,7 @@ final class HttpTransport {
           retryDisabledReason: decision.reason == RetryReason.bodyNotReplayable
               ? 'body_not_replayable'
               : null,
+          idempotencyKey: idempotencyKey,
         );
       }
 
@@ -504,6 +566,7 @@ final class HttpTransport {
           rateLimit: rateLimit,
           attempts: retries + 1,
           secret: request.secretResponse,
+          idempotencyKey: idempotencyKey,
         );
         String reason;
         Object cause;
@@ -520,8 +583,9 @@ final class HttpTransport {
           method,
           FailurePhase.malformedSuccess,
           retriesDone: retries,
+          withIdempotencyKey: withKey,
         );
-        if (_mayRetry(method, decision) && fits(decision.delay)) {
+        if (_mayRetry(method, decision, withKey) && fits(decision.delay)) {
           await retryAfter(decision);
           continue;
         }
@@ -531,6 +595,7 @@ final class HttpTransport {
           sentAt: firstSentAt,
           cause: cause,
           keepBody: !request.secretResponse,
+          idempotencyKey: idempotencyKey,
         );
       }
       if (status < 400 || status > 599) {
@@ -539,19 +604,25 @@ final class HttpTransport {
           'unexpected HTTP status $status',
           mayHaveExecuted: executedFlag(Executed.unknown, method),
           sentAt: firstSentAt,
+          idempotencyKey: idempotencyKey,
         );
       }
 
-      final error = buildStatusError(
-        status,
-        attempt.headers,
-        attempt.body,
-        method: method,
-        sentAt: firstSentAt,
-        reasonPhrase: attempt.reasonPhrase,
-        rules: _rules,
-      );
-      final rule = _rules.ruleById(error.rule!)!;
+      final (:rule, retryAfter: serverRetryAfter) = classifyResponse(
+          status, attempt.headers, attempt.body,
+          rules: _rules);
+      APIStatusException error({String? retryDisabledReason}) =>
+          buildStatusError(
+            status,
+            attempt.headers,
+            attempt.body,
+            method: method,
+            sentAt: firstSentAt,
+            reasonPhrase: attempt.reasonPhrase,
+            idempotencyKey: idempotencyKey,
+            retryDisabledReason: retryDisabledReason,
+            rules: _rules,
+          );
       if (method == 'DELETE' &&
           noResponseSeen &&
           rule.error == 'JobNotFoundError') {
@@ -563,11 +634,29 @@ final class HttpTransport {
           attempts: retries + 1,
           data: const {'deleted': true},
           alreadyDeleted: true,
+          idempotencyKey: idempotencyKey,
         ));
       }
-      final serverRetryAfter = error.retryAfter;
       if (rule.blocksBucket && serverRetryAfter != null) {
         rateLimits.block(bucket, serverRetryAfter);
+      }
+      final budget = request.waitBudget;
+      if (withKey && budget != null && rule.error == 'RequestInProgressError') {
+        // The first request with this key is still running, and will answer
+        // a resend once it ends. Resend every 5 s (or after a longer
+        // Retry-After) within the call's wait budget, which starts here or
+        // at a 202, outside maxRetries. No resend lands at or past its end.
+        final waitEndsAt = budget.endsAt(_clock());
+        if (!(upload?.isReplayable ?? true)) {
+          throw error(retryDisabledReason: 'body_not_replayable');
+        }
+        final pause = serverRetryAfter != null &&
+                serverRetryAfter > inProgressResendInterval
+            ? serverRetryAfter
+            : inProgressResendInterval;
+        if (_clock() + pause >= waitEndsAt || !fits(pause)) throw error();
+        await _sleep(pause);
+        continue;
       }
       final decision = policy.decideStatus(
         method,
@@ -575,12 +664,17 @@ final class HttpTransport {
         retriesDone: retries,
         retryAfter: serverRetryAfter,
         bodyReplayable: upload?.isReplayable ?? true,
+        withIdempotencyKey: withKey,
       );
-      if (_mayRetry(method, decision) && fits(decision.delay)) {
+      if (_mayRetry(method, decision, withKey) && fits(decision.delay)) {
         await retryAfter(decision);
         continue;
       }
-      throw error;
+      throw error(
+        retryDisabledReason: decision.reason == RetryReason.bodyNotReplayable
+            ? 'body_not_replayable'
+            : null,
+      );
     }
   }
 
@@ -593,11 +687,14 @@ final class HttpTransport {
   }
 
   /// The safety invariant, checked on top of the retry table: a POST (or any
-  /// method that isn't idempotent) that may have run is never sent again.
-  static bool _mayRetry(String method, RetryDecision decision) {
+  /// method that isn't idempotent) that may have run is never sent again,
+  /// unless it carries an `Idempotency-Key` ([withKey]), which makes a
+  /// repeat return the first result instead of running again.
+  static bool _mayRetry(String method, RetryDecision decision, bool withKey) {
     if (!decision.retry) return false;
     const idempotent = {'GET', 'HEAD', 'DELETE', 'OPTIONS'};
     return idempotent.contains(method) ||
+        withKey ||
         decision.mayHaveExecuted == Executed.no;
   }
 
@@ -828,6 +925,7 @@ final class _Attempt {
     Object? data,
     bool alreadyDeleted = false,
     bool secret = false,
+    String? idempotencyKey,
   }) =>
       ApiResponse(
         statusCode: statusCode,
@@ -839,6 +937,7 @@ final class _Attempt {
         expectEnvelope: expectEnvelope,
         alreadyDeleted: alreadyDeleted,
         secret: secret,
+        idempotencyKey: idempotencyKey,
         data: data,
       );
 
@@ -848,6 +947,7 @@ final class _Attempt {
     required DateTime? sentAt,
     Object? cause,
     bool keepBody = true,
+    String? idempotencyKey,
   }) {
     final requestId = header(headers, 'x-request-id');
     return ProtocolException(
@@ -860,6 +960,7 @@ final class _Attempt {
       mayHaveExecuted: mayHaveExecuted,
       rule: 'malformed_success',
       sentAt: sentAt,
+      idempotencyKey: idempotencyKey,
       cause: cause,
     );
   }
@@ -898,12 +999,16 @@ final class _TransportFailure implements Exception {
     required DateTime? sentAt,
     required Duration deadline,
     String? retryDisabledReason,
+    String? idempotencyKey,
   }) {
     final suffix = _suffix;
-    final ran = mayHaveExecuted ?? false
-        ? '. It may have run and been charged: check recent jobs before '
-            'sending it again'
-        : '';
+    final ran = !(mayHaveExecuted ?? false)
+        ? ''
+        : idempotencyKey != null
+            ? '. It may have run: sending it again with the same '
+                'idempotencyKey returns its result without a second charge'
+            : '. It may have run and been charged: check recent jobs before '
+                'sending it again';
     if (phase == FailurePhase.connect) {
       return timedOut
           ? APITimeoutException(
@@ -912,6 +1017,7 @@ final class _TransportFailure implements Exception {
               mayHaveExecuted: mayHaveExecuted,
               sentAt: sentAt,
               retryDisabledReason: retryDisabledReason,
+              idempotencyKey: idempotencyKey,
               cause: cause,
             )
           : APIConnectionException(
@@ -919,6 +1025,7 @@ final class _TransportFailure implements Exception {
               mayHaveExecuted: mayHaveExecuted,
               sentAt: sentAt,
               retryDisabledReason: retryDisabledReason,
+              idempotencyKey: idempotencyKey,
               cause: cause,
             );
     }
@@ -929,6 +1036,7 @@ final class _TransportFailure implements Exception {
             mayHaveExecuted: mayHaveExecuted,
             sentAt: sentAt,
             retryDisabledReason: retryDisabledReason,
+            idempotencyKey: idempotencyKey,
             cause: cause,
           )
         : APIConnectionException(
@@ -937,6 +1045,7 @@ final class _TransportFailure implements Exception {
             mayHaveExecuted: mayHaveExecuted,
             sentAt: sentAt,
             retryDisabledReason: retryDisabledReason,
+            idempotencyKey: idempotencyKey,
             cause: cause,
           );
   }

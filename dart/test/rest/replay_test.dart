@@ -31,7 +31,6 @@ const unsendable = {
   'clean/clean_unknown_field': 'the unknown form field foo',
   'tts/sync_unknown_field': 'the unknown JSON field foo',
   'stt/job_export_bad_format': 'format=vtt: ExportFormat has txt, srt, json',
-  'stt/sync_missing_language': 'no language: it is a required argument',
   'stt/sync_octet_stream_mp3': 'an application/octet-stream upload: '
       'AudioFile refuses generic types',
   'tts/sync_not_json': 'a text/plain body: the SDK always sends JSON',
@@ -88,6 +87,12 @@ final class RecordedArgs {
       'query': _optionalMap(request['query']),
       'json': _optionalMap(request['json']),
       'form': _optionalMap(request['form']),
+      // Besides the authorization, the recorder keeps only the
+      // Idempotency-Key (scrubbed to a placeholder UUID).
+      'header': {
+        if (request['idempotency_key'] case final Object key)
+          'Idempotency-Key': key,
+      },
     };
     final known = <String, Set<String>>{};
     for (final param in operation.params) {
@@ -170,6 +175,13 @@ final class RecordedArgs {
         null => null,
         final num value => value.toDouble(),
         final Object value => double.parse('$value'),
+      };
+
+  /// Request options with the `Idempotency-Key`, when one was recorded
+  /// (otherwise the SDK makes one).
+  RequestOptions? idempotency(String name) => switch (string(name)) {
+        null => null,
+        final key => RequestOptions(idempotencyKey: key),
       };
 
   /// An optional flag.
@@ -261,6 +273,7 @@ final Map<String, Invoker> invokers = {
         numSteps: a.integer('numSteps'),
         tashkeel: a.flag('tashkeel'),
         normalize: a.flag('normalize'),
+        options: a.idempotency('idempotencyKey'),
       ),
   'textToSpeech.jobs.create': (c, a) => c.textToSpeech.jobs.create(
         a.required('text'),
@@ -280,14 +293,15 @@ final Map<String, Invoker> invokers = {
       c.textToSpeech.jobs.delete(a.required('jobId')),
   'speechToText.transcribe': (c, a) => c.speechToText.transcribe(
         a.file('file'),
-        language: a.required('language', standIn: 'ar'),
+        language: a.string('language'),
         numbersAsDigits: a.flag('numbersAsDigits'),
         identifySpeakers: a.flag('identifySpeakers'),
         terminology: a.terminology('terminology'),
+        options: a.idempotency('idempotencyKey'),
       ),
   'speechToText.jobs.create': (c, a) => c.speechToText.jobs.create(
         a.file('file'),
-        language: a.required('language', standIn: 'ar'),
+        language: a.string('language'),
         numbersAsDigits: a.flag('numbersAsDigits'),
         identifySpeakers: a.flag('identifySpeakers'),
         terminology: a.terminology('terminology'),
@@ -318,6 +332,7 @@ final Map<String, Invoker> invokers = {
         compReleaseMs: a.number('compReleaseMs'),
         sampleRate: a.integer('sampleRate'),
         bitDepth: a.integer('bitDepth'),
+        options: a.idempotency('idempotencyKey'),
       ),
   'soundCleaning.jobs.list': (c, a) => c.soundCleaning.jobs
       .list(offset: a.integer('offset'), limit: a.integer('limit')),
@@ -656,7 +671,8 @@ void main() {
   final expectations = fixtureExpectations('rest');
   final operations = [
     for (final op in jsonMap(loadSpecMap('mapping.json')['operations']).values)
-      MappedOperation(jsonMap(op)),
+      // Operations the SDK doesn't have yet have no recordings.
+      if (!jsonMap(op).containsKey('excluded')) MappedOperation(jsonMap(op)),
   ];
 
   fixtureCoverageTests('rest', fixtures, expectations);
@@ -718,6 +734,15 @@ void main() {
           reason: 'what the SDK could not send: ${args.deviations}');
       expect(api.requests, hasLength(1), reason: 'one request, no retry');
       expectRecordedRequest(api.last, request, args);
+      // The SDK sends an Idempotency-Key where the operation accepts one,
+      // and nowhere else: the recorded one, or one it made.
+      final acceptsKey = operation.params
+          .any((p) => p['in'] == 'header' && p['api'] == 'Idempotency-Key');
+      expect(api.last.headers.containsKey('idempotency-key'), acceptsKey,
+          reason: 'Idempotency-Key');
+      if (request['idempotency_key'] case final Object key) {
+        expect(api.last.headers['idempotency-key'], key);
+      }
 
       final body = response['json'];
       if (expectation['ok'] == true) {

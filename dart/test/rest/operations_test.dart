@@ -1,5 +1,6 @@
 // Every operation in spec/mapping.json is reachable from the client, with
-// every parameter, and goes to the documented method and path.
+// every parameter, and goes to the documented method and path. Operations
+// the mapping marks `excluded` are not part of this SDK yet.
 import 'dart:convert';
 
 import 'package:echonova_ai/echonova_ai.dart';
@@ -17,6 +18,9 @@ const pathValues = {
   'agentId': 'agent-1',
   'sessionId': 'session-1',
 };
+
+/// The `Idempotency-Key` passed to the operations that accept one.
+const key = RequestOptions(idempotencyKey: 'key-1');
 
 const terminology = Terminology([
   Keyword('KYC'),
@@ -42,6 +46,7 @@ final calls = <String, Future<Object?> Function(EchoNova client)>{
         numSteps: 64,
         tashkeel: true,
         normalize: false,
+        options: key,
       ),
   'textToSpeech.voices.list': (c) => c.textToSpeech.voices.list(),
   'textToSpeech.jobs.list': (c) =>
@@ -61,6 +66,7 @@ final calls = <String, Future<Object?> Function(EchoNova client)>{
         numbersAsDigits: false,
         identifySpeakers: true,
         terminology: terminology,
+        options: key,
       ),
   'speechToText.jobs.list': (c) =>
       c.speechToText.jobs.list(offset: 5, limit: 10),
@@ -80,6 +86,7 @@ final calls = <String, Future<Object?> Function(EchoNova client)>{
         compReleaseMs: 50,
         sampleRate: 48000,
         bitDepth: 24,
+        options: key,
       ),
   'soundCleaning.jobs.list': (c) =>
       c.soundCleaning.jobs.list(offset: 5, limit: 10),
@@ -117,7 +124,11 @@ http.Response responseFor(String path, String method) {
 
 void main() {
   final mapping = loadSpecMap('mapping.json');
-  final operations = (mapping['operations']! as Map).cast<String, Object?>();
+  final all = (mapping['operations']! as Map).cast<String, Object?>();
+  final operations = <String, Object?>{
+    for (final MapEntry(:key, :value) in all.entries)
+      if (!(value! as Map).containsKey('excluded')) key: value,
+  };
 
   test('the SDK operation table matches mapping.json', () {
     final fromSpec = {
@@ -125,13 +136,33 @@ void main() {
         ((op! as Map)['sdk']! as Map)['dart']: (
           (op as Map)['method'],
           op['path'],
+          op['idempotency_key'] ?? false,
         ),
     };
     final fromSdk = {
-      for (final op in allOperations) op.name: (op.method, op.path),
+      for (final op in allOperations)
+        op.name: (op.method, op.path, op.acceptsIdempotencyKey),
     };
     expect(fromSdk, fromSpec);
     expect(allOperations, hasLength(20));
+    expect(allOperations.where((op) => op.acceptsIdempotencyKey),
+        [ttsGenerate, sttTranscribe, cleanClean]);
+  });
+
+  test('excluded operations say why, and the SDK has none of them', () {
+    final excluded = [
+      for (final op in all.values.cast<Map<Object?, Object?>>())
+        if (op['excluded'] case final String reason) (op, reason),
+    ];
+    expect(excluded, hasLength(32));
+    for (final (op, reason) in excluded) {
+      expect(reason, isNotEmpty);
+      expect(
+        allOperations.where(
+            (sdk) => sdk.method == op['method'] && sdk.path == op['path']),
+        isEmpty,
+      );
+    }
   });
 
   test('every mapped operation has a call in this test', () {
@@ -185,6 +216,8 @@ void main() {
             expect(json, contains(api), reason: '$api in the JSON body');
           case 'form':
             expect(form, contains(api), reason: '$api in the form');
+          case 'header':
+            expect(request.headers, contains(api), reason: '$api header');
           default:
             fail('unknown location ${param['in']}');
         }

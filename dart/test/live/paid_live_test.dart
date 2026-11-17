@@ -1,6 +1,7 @@
 /// Live scenario C: small paid calls. Text to Speech (sync, job, stream),
 /// Speech to Text (sync, job and exports, stream, transcribeStream), Sound
-/// Cleaning, and an agent session.
+/// Cleaning, an agent session, the default language and an
+/// `Idempotency-Key` sent twice.
 ///
 /// Needs ECHONOVA_LIVE=1 and ECHONOVA_API_KEY; the agent test also needs
 /// ECHONOVA_AGENT_ID. About 300 credits a run (see live_support.dart). The
@@ -11,6 +12,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:echonova_ai/echonova_ai.dart';
@@ -33,6 +35,12 @@ const cancelText = 'This longer passage from the Dart SDK live test is only '
     'here to be cancelled. It keeps going for a while, sentence after '
     'sentence, so that the first audio arrives well before the end and the '
     'cancel lands in the middle.';
+
+/// For the `Idempotency-Key` test: short, so the calls cost little.
+const idempotentText = 'Dart idempotency check.';
+
+/// Other text with the same key: refused, and not charged.
+const otherIdempotentText = 'Dart idempotency check, other text.';
 
 /// For `speakStream`.
 const sentences = [
@@ -335,5 +343,53 @@ void main() {
         }
       }
     }, timeout: slow, skip: liveSkip([apiKeyVar, agentIdVar]));
+
+    test('18. transcribe without a language: the API picks one (auto)',
+        () async {
+      final wav = await sharedWav();
+      final result = await client.speechToText
+          .transcribe(AudioFile.fromBytes(wav, 'speech.wav'));
+      janitor.track(JobKind.stt, result.jobId);
+      expect(result.status, JobStatus.completed);
+      expect(result.language, isIn(['auto', 'ar', 'en']));
+      expect(result.transcription?.trim(), isNotEmpty);
+      log('transcribe (no language): ${result.language}, '
+          '${result.creditsConsumed} credits (request ${result.requestId})');
+    }, timeout: slow);
+
+    test(
+        '19. one idempotencyKey: the same text returns the same job, other '
+        'text is refused', () async {
+      final v = await englishVoice();
+      // New for every run: a key repeated within 24 hours returns the
+      // first run's (deleted) job.
+      final random = Random.secure();
+      final key = 'dart-live-${[
+        for (var i = 0; i < 16; i++)
+          random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ].join()}';
+      final options = RequestOptions(idempotencyKey: key);
+      final first = await client.textToSpeech
+          .generate(idempotentText, voiceId: v.id, options: options);
+      janitor.track(JobKind.tts, first.jobId);
+      final second = await client.textToSpeech
+          .generate(idempotentText, voiceId: v.id, options: options);
+      janitor.track(JobKind.tts, second.jobId);
+      expect(second.jobId, first.jobId);
+
+      // The API also returns the same job for the same input without a key.
+      // Only the key makes other text a 409 ("already used for a different
+      // request"), which is never retried and not charged.
+      final reused = await thrown<InvalidRequestException>(
+        () => client.textToSpeech
+            .generate(otherIdempotentText, voiceId: v.id, options: options),
+      );
+      expect(reused.statusCode, 409);
+      expect(reused.rule, 'idempotency_key_reused');
+      expect(reused.idempotencyKey, key);
+      log('idempotent generate: job reused, ${first.creditsConsumed} credits; '
+          'the key with other text is refused (requests ${first.requestId}, '
+          '${second.requestId}, ${reused.requestId})');
+    }, timeout: slow);
   }, skip: liveSkip([apiKeyVar]));
 }

@@ -63,7 +63,9 @@ class EchoNova {
   ///   attempt, retry delay and rate-limit wait included.
   /// * [maxRetries] is the number of retries per call (default 2). A POST
   ///   that may already have run is never retried, because it could be
-  ///   charged twice.
+  ///   charged twice, except `textToSpeech.generate`,
+  ///   `speechToText.transcribe` and `soundCleaning.clean`: they send an
+  ///   `Idempotency-Key`, so a repeat returns the first result.
   /// * [httpClient] lets you configure proxies, certificates or connection
   ///   pooling. You keep ownership: [close] doesn't close it.
   /// * [downloadHttpClient] is used for signed download links, which point

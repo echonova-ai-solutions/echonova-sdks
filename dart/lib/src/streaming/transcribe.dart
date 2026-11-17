@@ -74,7 +74,7 @@ Stream<TranscribeEvent> transcribeStream(
   StreamOptions options,
   Stream<List<int>> source, {
   required int sampleRate,
-  required String language,
+  String? language,
   Map<String, Object?>? terminology,
   Duration segmentLength = const Duration(seconds: 14),
   ReconnectPolicy reconnect = const ReconnectPolicy(),
@@ -133,7 +133,9 @@ final class _Transcriber {
   final StreamOptions options;
   final Stream<List<int>> source;
   final int sampleRate;
-  final String language;
+
+  /// Sent to every session, so a reconnect keeps it (or keeps sending none).
+  final String? language;
   final Map<String, Object?>? terminology;
   final ReconnectPolicy reconnect;
   final bool realtime;

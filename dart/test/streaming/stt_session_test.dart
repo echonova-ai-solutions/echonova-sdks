@@ -69,6 +69,21 @@ void main() {
     });
   });
 
+  test('without a language none is sent, and the server confirms auto',
+      () async {
+    final stt = await connectStt(options, sampleRate: 16000);
+    addTearDown(stt.close);
+    expect(server.sttConns[0].query, {
+      'sample_rate': '16000',
+      'encoding': 'pcm_s16le',
+    });
+    expect(stt.language, 'auto');
+
+    final auto = await open(language: 'auto');
+    expect(server.sttConns[1].query, containsPair('language', 'auto'));
+    expect(auto.language, 'auto');
+  });
+
   test('transcribes segments and stops', () async {
     final stt = await open(language: 'en');
     final events = drain(stt);

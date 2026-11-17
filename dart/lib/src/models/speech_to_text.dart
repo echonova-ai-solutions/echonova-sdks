@@ -278,7 +278,8 @@ final class SttResult extends ApiResult {
   /// The length of the audio in seconds.
   final double? durationSeconds;
 
-  /// The language the transcription was requested with.
+  /// The language the transcription was requested with: `auto`, `ar` or
+  /// `en`, as the API returns it.
   final String? language;
 
   /// Whether spoken numbers were written as digits.
@@ -379,7 +380,8 @@ final class SttJob extends ApiResult {
   /// The length of the audio in seconds: an estimate while processing.
   final double? durationSeconds;
 
-  /// The language the transcription was requested with.
+  /// The language the transcription was requested with: `auto`, `ar` or
+  /// `en`, as the API returns it.
   final String? language;
 
   /// Whether spoken numbers were written as digits.

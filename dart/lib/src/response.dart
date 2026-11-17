@@ -25,13 +25,15 @@ final class RequestOptions {
     this.maxRetries,
     this.deadline,
     this.headers = const {},
+    this.idempotencyKey,
+    this.waitTimeout,
   });
 
   /// The time limit for each attempt of this call.
   final Duration? timeout;
 
   /// Retries for this call. A request that may already have run is never
-  /// retried, whatever this says.
+  /// retried, whatever this says, unless it carries an [idempotencyKey].
   final int? maxRetries;
 
   /// The total time for this call: every attempt, retry delay and
@@ -41,10 +43,35 @@ final class RequestOptions {
   /// Extra headers for this call. They can't replace the credentials.
   final Map<String, String> headers;
 
+  /// The `Idempotency-Key` for `textToSpeech.generate`,
+  /// `speechToText.transcribe` or `soundCleaning.clean`, which accept one.
+  ///
+  /// Those calls always send a key, so the SDK can retry them safely: by
+  /// default a new random one per call, the same on every retry. Pass your
+  /// own to retry safely across processes or restarts: repeating a key
+  /// within 24 hours returns the first result and is not charged again. A
+  /// new request needs a new key. Other calls throw [ArgumentError] when it
+  /// is set.
+  final String? idempotencyKey;
+
+  /// How long `textToSpeech.generate`, `speechToText.transcribe` and
+  /// `soundCleaning.clean` wait for their job: after the API answers that
+  /// it is still processing (`202`, after 220 s), and while it answers that
+  /// the first request with the call's key is still running (a `409`; the
+  /// request is sent again every 5 s). Both waits share it.
+  ///
+  /// Default: 20 minutes, as for `jobs.wait`, and never past the call's
+  /// total [deadline] (or the client's). Past it, the call throws
+  /// [JobWaitTimeoutException] while waiting after a `202` (the job keeps
+  /// running, and waiting for it with `jobs.wait` is safe), or
+  /// [RequestInProgressException] while the request is still running.
+  final Duration? waitTimeout;
+
   @override
   String toString() => 'RequestOptions(timeout: $timeout, '
       'maxRetries: $maxRetries, deadline: $deadline, '
-      'headers: ${headers.keys.toList()})';
+      'headers: ${headers.keys.toList()}, idempotencyKey: $idempotencyKey, '
+      'waitTimeout: $waitTimeout)';
 }
 
 /// An HTTP response with its metadata. Call [parse] for the value the
@@ -111,6 +138,7 @@ final class RawResponse<T> {
       rawBody: _response.secret ? null : parseErrorBody(body).rawBody,
       rule: 'malformed_success',
       mayHaveExecuted: executedFlag(Executed.yes, _response.method),
+      idempotencyKey: _response.idempotencyKey,
       cause: cause,
     );
   }

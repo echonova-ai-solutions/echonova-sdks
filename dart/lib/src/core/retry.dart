@@ -1,8 +1,10 @@
 /// Decide whether a failed attempt may be retried, and after how long.
 ///
 /// Pure logic over the shared retry table in `spec/error-rules.json`. The
-/// table never retries a POST that may already have run, because the API has
-/// no idempotency key and would charge again.
+/// table never retries a POST that may already have run, because it could be
+/// charged again, except a POST sent with an `Idempotency-Key` (the
+/// `POST_IDEMPOTENT` column, ADR 0014): repeating it returns the first
+/// result.
 library;
 
 import 'dart:math' as math;
@@ -128,7 +130,8 @@ final class RetryPolicy {
   }
 
   /// Decides for an HTTP error status. [method] is GET, DELETE or POST, or
-  /// `WS` for a WebSocket handshake.
+  /// `WS` for a WebSocket handshake. [withIdempotencyKey] is true for a POST
+  /// sent with an `Idempotency-Key`.
   RetryDecision decideStatus(
     String method,
     ErrorRule rule, {
@@ -136,10 +139,11 @@ final class RetryPolicy {
     required Duration? retryAfter,
     bool bodyReplayable = true,
     bool waitForSlot = false,
+    bool withIdempotencyKey = false,
   }) {
     final isHandshake = method.toUpperCase() == 'WS';
     return _decide(
-      rule.retry.forMethod(method),
+      rule.retry.forMethod(method, withIdempotencyKey: withIdempotencyKey),
       rule.retry.delay,
       row: rule.row,
       executed: rule.mayHaveExecuted,
@@ -154,19 +158,20 @@ final class RetryPolicy {
   }
 
   /// Decides for a failure without an HTTP status (connect error, timeout,
-  /// malformed body).
+  /// malformed body). [withIdempotencyKey] is as for [decideStatus].
   RetryDecision decideTransport(
     String method,
     FailurePhase phase, {
     required int retriesDone,
     bool bodyReplayable = true,
+    bool withIdempotencyKey = false,
   }) {
     final row = rules.transport[phase.key];
     if (row == null) {
       throw StateError('error-rules.json has no transport row ${phase.key}');
     }
     return _decide(
-      row.retry.forMethod(method),
+      row.retry.forMethod(method, withIdempotencyKey: withIdempotencyKey),
       row.retry.delay,
       row: row.row,
       executed: row.mayHaveExecuted,

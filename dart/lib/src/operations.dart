@@ -18,6 +18,7 @@ final class Operation {
     this.profile = TimeoutProfile.standard,
     this.envelope = true,
     this.secretResponse = false,
+    this.acceptsIdempotencyKey = false,
   });
 
   /// The SDK method, such as `textToSpeech.jobs.get`.
@@ -38,6 +39,12 @@ final class Operation {
   /// The 2xx body carries a secret (a room token or a widget ticket): it is
   /// never copied into an exception.
   final bool secretResponse;
+
+  /// The operation accepts an `Idempotency-Key` (`"idempotency_key": true`
+  /// in `spec/mapping.json`): every call sends one, retries use the
+  /// `POST_IDEMPOTENT` column, and a `202 Processing` answer is waited out
+  /// by polling the job (ADR 0014).
+  final bool acceptsIdempotencyKey;
 
   /// [path] with each `{name}` replaced by its percent-encoded value.
   /// Throws [UsageException] for an empty value.
@@ -63,6 +70,7 @@ const ttsGenerate = Operation(
   'POST',
   '/v1/text-to-speech/sync',
   profile: TimeoutProfile.textToSpeechSync,
+  acceptsIdempotencyKey: true,
 );
 
 /// `textToSpeech.jobs.create`.
@@ -91,6 +99,7 @@ const sttTranscribe = Operation(
   'POST',
   '/v1/speech-to-text/sync',
   profile: TimeoutProfile.longRunning,
+  acceptsIdempotencyKey: true,
 );
 
 /// `speechToText.jobs.create`.
@@ -128,6 +137,7 @@ const cleanClean = Operation(
   'POST',
   '/v1/sound-cleaning',
   profile: TimeoutProfile.longRunning,
+  acceptsIdempotencyKey: true,
 );
 
 /// `soundCleaning.jobs.list`.

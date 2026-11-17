@@ -12,6 +12,11 @@
 - Typed, immutable results that keep the API's JSON in `raw` and the response's `requestId`. Unknown statuses and channels are kept as they are.
 - `Page` results with `nextPage()`, and `listAll()` streams that skip jobs they already returned.
 - Retries that never resend a request that may already have run, a shared throttle per endpoint, rate-limit preflight, per-call `RequestOptions` and a total `deadline`.
+- Idempotency keys: `textToSpeech.generate`, `speechToText.transcribe` and `soundCleaning.clean` send an `Idempotency-Key` (a new UUID per call, or `RequestOptions(idempotencyKey:)`), the same on every retry, so they are retried safely after a lost response or a 500, 502, 503 or 504. Their exceptions carry `idempotencyKey`.
+- `RequestInProgressException` (409): the first request with the same key is still running. The SDK sends the request again with the key every 5 s (or after a longer `Retry-After`), and throws it only when the wait runs out, or at once for an upload it can't send again. `retryDisabledReason` (`body_not_replayable`), on status and connection exceptions, says why a request wasn't sent again.
+- A synchronous call the API answers with `202 Processing` waits for its job and returns the usual result. `RequestOptions(waitTimeout:)` bounds this wait and the in-progress one (default 20 minutes, never past the call's `deadline`).
+- `textToSpeech.generate` reads for 240 s, so the API's `202` (at 220 s) can arrive.
+- Speech to Text `language` is optional (`auto`, `ar` or `en`) on `transcribe`, `jobs.create`, `connect` and `transcribeStream`; left out, the API detects Arabic or English.
 - `…WithResponse` methods returning `RawResponse` (status, headers, request ID, rate limit).
 - Downloads of signed links without credentials; an expired link throws `DownloadExpiredException`.
 - Webhook verification with `verifyWebhook`.

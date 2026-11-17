@@ -25,15 +25,16 @@ import '../transport/http_transport.dart' show ApiRequest, ApiResponse;
 import 'context.dart';
 
 /// The multipart fields. Their names are snake_case, and `terminology`
-/// travels as a JSON string. Only the options that were set are sent.
+/// travels as a JSON string. Only the options that were set are sent:
+/// without `language`, the API detects Arabic or English (`auto`).
 Map<String, String> _form(
-  String language,
+  String? language,
   bool? numbersAsDigits,
   bool? identifySpeakers,
   Terminology? terminology,
 ) =>
     {
-      'language': language,
+      if (language != null) 'language': language,
       if (numbersAsDigits != null)
         'numbers_as_digits': formValue(numbersAsDigits),
       if (identifySpeakers != null)
@@ -44,6 +45,19 @@ Map<String, String> _form(
 final _parseResult = modelParser(SttResult.fromJson, 'SttResult');
 final _parseInitiated = modelParser(JobInitiated.fromJson, 'JobInitiated');
 final _parseJob = modelParser(SttJob.fromJson, 'SttJob');
+
+/// `transcribe` after `202 Processing`: poll the job every 5 s.
+final _syncJob = SyncJob<SttResult, SttJob>(
+  get: sttJobsGet,
+  parse: _parseJob,
+  statusOf: (job) => job.status,
+  errorOf: (job) => job.error,
+  interval: sttPollInterval,
+  toResult: (job) => SttResult.fromJson(
+    syncResultJson(job.id, job.raw),
+    requestId: job.requestId,
+  ),
+);
 
 String _parseText(ApiResponse response) =>
     utf8.decode(response.body, allowMalformed: true);
@@ -75,9 +89,12 @@ final class SpeechToText {
   /// Opens a live Speech to Text session for PCM16LE mono audio at
   /// [sampleRate] Hz. Completes once the session has started (and
   /// [terminology] is confirmed). Sessions never reconnect on their own.
+  ///
+  /// [language] is `auto` (the API's default when it is left out: detects
+  /// Arabic or English), `ar` or `en`.
   Future<SttSession> connect({
     required int sampleRate,
-    required String language,
+    String? language,
     Terminology? terminology,
     String encoding = 'pcm_s16le',
     Duration? waitForSlot,
@@ -94,10 +111,12 @@ final class SpeechToText {
   /// Transcribes a PCM16LE [source], rolling over to new sessions past the
   /// session limit. Emits [Transcript] events plus [StreamErrorEvent],
   /// [Reconnected], [AudioDropped] and [SessionSaved].
+  ///
+  /// [language] is as for [connect]; every session uses the same one.
   Stream<TranscribeEvent> transcribeStream(
     Stream<List<int>> source, {
     required int sampleRate,
-    required String language,
+    String? language,
     Terminology? terminology,
     Duration segmentLength = const Duration(seconds: 14),
     ReconnectPolicy reconnect = const ReconnectPolicy(),
@@ -124,47 +143,62 @@ final class SpeechToText {
 
   /// Transcribes [file] and waits for the result.
   ///
-  /// * [language]: `ar` for Arabic and mixed Arabic/English, `en` only for
-  ///   wholly English speech.
+  /// * [language]: `auto` (the API's default when it is left out) detects
+  ///   Arabic or English; `ar` for Arabic and mixed Arabic/English, `en`
+  ///   only for wholly English speech. [SttResult.language] reports it as
+  ///   the API returns it, which can be `auto`.
   /// * [numbersAsDigits]: write spoken numbers as digits (the API's default
   ///   is `true`).
   /// * [identifySpeakers]: split the transcript into timed segments, each
   ///   with its speaker.
   /// * [terminology]: your own terms, applied to a corrected copy of the
   ///   transcript.
+  ///
+  /// Every call sends an `Idempotency-Key` (a new one, or
+  /// [RequestOptions.idempotencyKey]), so it is retried safely after a lost
+  /// response or a server error, with the upload sent again when it can
+  /// be, and sent again every 5 s while the API says the first request with
+  /// the key is still running. When the API answers that the job is still
+  /// processing, this polls the job every 5 s and returns the same result;
+  /// a failed job throws [JobFailedException]. Both waits share
+  /// [RequestOptions.waitTimeout] (20 minutes); running out of it throws
+  /// [JobWaitTimeoutException] or [RequestInProgressException].
   Future<SttResult> transcribe(
     AudioFile file, {
-    required String language,
+    String? language,
     bool? numbersAsDigits,
     bool? identifySpeakers,
     Terminology? terminology,
     RequestOptions? options,
   }) async =>
-      _context.call(
+      _context.callSync(
         await _upload(sttTranscribe, file, language, numbersAsDigits,
             identifySpeakers, terminology, options),
         _parseResult,
+        _syncJob,
       );
 
-  /// [transcribe], returning the HTTP response too.
+  /// [transcribe], returning the HTTP response too: after a wait for the
+  /// job, the response of the last poll.
   Future<RawResponse<SttResult>> transcribeWithResponse(
     AudioFile file, {
-    required String language,
+    String? language,
     bool? numbersAsDigits,
     bool? identifySpeakers,
     Terminology? terminology,
     RequestOptions? options,
   }) async =>
-      _context.callRaw(
+      _context.callSyncRaw(
         await _upload(sttTranscribe, file, language, numbersAsDigits,
             identifySpeakers, terminology, options),
         _parseResult,
+        _syncJob,
       );
 
   Future<ApiRequest> _upload(
     Operation operation,
     AudioFile file,
-    String language,
+    String? language,
     bool? numbersAsDigits,
     bool? identifySpeakers,
     Terminology? terminology,
@@ -178,7 +212,7 @@ Future<ApiRequest> _uploadRequest(
   ClientContext context,
   Operation operation,
   AudioFile file,
-  String language,
+  String? language,
   bool? numbersAsDigits,
   bool? identifySpeakers,
   Terminology? terminology,
@@ -204,7 +238,7 @@ final class SttJobs {
   /// [SpeechToText.transcribe].
   Future<JobInitiated> create(
     AudioFile file, {
-    required String language,
+    String? language,
     bool? numbersAsDigits,
     bool? identifySpeakers,
     Terminology? terminology,
@@ -219,7 +253,7 @@ final class SttJobs {
   /// [create], returning the HTTP response too.
   Future<RawResponse<JobInitiated>> createWithResponse(
     AudioFile file, {
-    required String language,
+    String? language,
     bool? numbersAsDigits,
     bool? identifySpeakers,
     Terminology? terminology,

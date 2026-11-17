@@ -14,6 +14,10 @@ const Duration ttsPollInterval = Duration(seconds: 3);
 /// The documented polling interval for Speech to Text jobs.
 const Duration sttPollInterval = Duration(seconds: 5);
 
+/// How often a Sound Cleaning call that answered `202 Processing` polls its
+/// job (ADR 0014).
+const Duration cleanPollInterval = Duration(seconds: 5);
+
 /// The API asks clients not to poll faster than this.
 const Duration minPollInterval = Duration(seconds: 1);
 

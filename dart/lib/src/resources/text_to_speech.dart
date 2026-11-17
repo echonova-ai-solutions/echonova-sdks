@@ -44,6 +44,19 @@ final _parseInitiated = modelParser(JobInitiated.fromJson, 'JobInitiated');
 final _parseJob = modelParser(TtsJob.fromJson, 'TtsJob');
 final _parseVoices = modelParser(VoiceList.fromJson, 'VoiceList');
 
+/// `generate` after `202 Processing`: poll the job every 3 s.
+final _syncJob = SyncJob<TtsResult, TtsJob>(
+  get: ttsJobsGet,
+  parse: _parseJob,
+  statusOf: (job) => job.status,
+  errorOf: (job) => job.error,
+  interval: ttsPollInterval,
+  toResult: (job) => TtsResult.fromJson(
+    syncResultJson(job.id, job.raw),
+    requestId: job.requestId,
+  ),
+);
+
 /// Text to Speech: `client.textToSpeech`.
 final class TextToSpeech {
   /// Internal: the client creates it.
@@ -116,6 +129,16 @@ final class TextToSpeech {
   /// [TtsResult.audioUrl] is a signed WAV link that expires: download it
   /// with `client.download` soon. Options you leave out are not sent, so the
   /// API's defaults apply.
+  ///
+  /// Every call sends an `Idempotency-Key` (a new one, or
+  /// [RequestOptions.idempotencyKey]), so it is retried safely after a lost
+  /// response or a server error, and sent again every 5 s while the API
+  /// says the first request with the key is still running. When the API
+  /// answers that the job is still processing, this polls the job every 3 s
+  /// and returns the same result; a failed job throws [JobFailedException].
+  /// Both waits share [RequestOptions.waitTimeout] (20 minutes); running out
+  /// of it throws [JobWaitTimeoutException] or
+  /// [RequestInProgressException].
   Future<TtsResult> generate(
     String text, {
     required String voiceId,
@@ -126,13 +149,15 @@ final class TextToSpeech {
     bool? normalize,
     RequestOptions? options,
   }) =>
-      _context.call(
+      _context.callSync(
         _request(ttsGenerate, text, voiceId, speed, cfg, numSteps, tashkeel,
             normalize, options),
         _parseResult,
+        _syncJob,
       );
 
-  /// [generate], returning the HTTP response too.
+  /// [generate], returning the HTTP response too: after a wait for the job,
+  /// the response of the last poll.
   Future<RawResponse<TtsResult>> generateWithResponse(
     String text, {
     required String voiceId,
@@ -143,10 +168,11 @@ final class TextToSpeech {
     bool? normalize,
     RequestOptions? options,
   }) =>
-      _context.callRaw(
+      _context.callSyncRaw(
         _request(ttsGenerate, text, voiceId, speed, cfg, numSteps, tashkeel,
             normalize, options),
         _parseResult,
+        _syncJob,
       );
 
   ApiRequest _request(

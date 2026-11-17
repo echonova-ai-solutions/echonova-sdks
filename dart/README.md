@@ -7,7 +7,7 @@ Official Dart and Flutter SDK for the [EchoNova API](https://echonova.ai/docs/de
 - One pure-Dart package for server-side Dart and for Flutter on Android, iOS, desktop and the web.
 - Proxy mode for apps: your backend keeps the API key; the app never holds it.
 - Typed results, with the API's JSON kept on every result as `raw`.
-- Retries that never charge you twice, client-side rate limiting, job polling and safe downloads.
+- Retries that never charge you twice (idempotency keys on synchronous calls), client-side rate limiting, job polling and safe downloads.
 
 ## Install
 
@@ -76,6 +76,7 @@ print(done.transcription);
 
 - API paths are appended to `baseUrl`: the job above is created with `POST https://api.example.com/echonova/v1/speech-to-text`.
 - `auth` is called before every attempt, so it can return a fresh token. On the web you can also use cookies, with an `httpClient` that sends them.
+- Your proxy should forward the `Idempotency-Key` header (and allow it in CORS, for Flutter web), as the reference proxies do: it is what makes retried syntheses, transcriptions and cleanings safe.
 - `EchoNova(apiKey: ...)` throws `UnsupportedEnvironmentException` in a browser unless you pass `dangerouslyAllowBrowser: true`.
 - Paths (`AudioFile.fromPath`, `downloadTo`) need a file system, so they don't work on the web: use bytes there (`AudioFile.fromBytes`, `client.download`).
 
@@ -110,13 +111,15 @@ await client.textToSpeech.jobs.get(
 final fast = client.withOptions(timeout: const Duration(seconds: 10)); // shares connections and rate limits
 ```
 
+`textToSpeech.generate`, `speechToText.transcribe` and `soundCleaning.clean` also take `idempotencyKey` and `waitTimeout` (see [Errors and retries](#errors-and-retries) and [Jobs, pages and downloads](#jobs-pages-and-downloads)).
+
 Default time limits per attempt (`package:http` has one deadline per request, so each is the connect, write and read limits added together):
 
 | Operation | Limit |
 |---|---|
 | Get, list, delete; `textToSpeech.jobs.create`; widget tickets; agent sessions | 50 s |
 | Transcript export | 80 s |
-| `textToSpeech.generate` | 140 s |
+| `textToSpeech.generate` | 260 s (it reads for 240 s, past the API's `202` at 220 s) |
 | `speechToText.jobs.create` | 190 s, plus time for the upload's size |
 | `speechToText.transcribe`, `soundCleaning.clean` | 670 s, plus time for the upload's size |
 
@@ -187,6 +190,8 @@ final srt = await client.speechToText.jobs.export(done.id, format: ExportFormat.
 final data = await client.speechToText.jobs.exportJson(done.id); // TranscriptExport
 ```
 
+`language` is optional on `transcribe`, `jobs.create`, `connect` and `transcribeStream`: `auto` (what the API uses when you leave it out) detects Arabic or English, `ar` is for Arabic and mixed Arabic/English, `en` only for wholly English speech. Results report the language as the API returns it, which can be `auto`.
+
 `TerminologyResult.rawText` holds the API's `raw` field, because `raw` is the JSON on every result. A job saved from the Speech to Text stream has `stream.sessionId` and `audioUrl`, a signed link to the recording.
 
 ## Sound Cleaning
@@ -238,6 +243,7 @@ The room `token` is a secret, returned only by `start()`. Hand it only to the cl
 - `jobs.list(offset:, limit:)` returns a `Page` with `items`, `total`, `hasNextPage` and `nextPage()`.
 - `jobs.listAll(limit:)` is a `Stream` of every job. It fetches pages as you read and skips jobs it already returned (a new job shifts later pages by one).
 - `jobs.wait(jobId, pollInterval:, timeout:, raiseOnFailure:)` throws `JobFailedException` for a failed job and `JobWaitTimeoutException` when it gives up; calling it again is safe. Unknown statuses count as not finished. All `wait` calls on one client share a budget of 80 polls a minute per endpoint.
+- When `textToSpeech.generate`, `speechToText.transcribe` or `soundCleaning.clean` is still processing after 220 s, the API answers `202` and the SDK waits for the job the same way (every 3 s for Text to Speech, 5 s otherwise, within the same polling budget), then returns the usual result. A failed job throws `JobFailedException`. `RequestOptions(waitTimeout:)` bounds the wait (default 20 minutes, and never past the call's `deadline`); past it, `JobWaitTimeoutException` has the `jobId`, and the job keeps running.
 - Download links are signed and expire. `client.download(url)` returns the bytes and `client.downloadTo(url, path)` writes a file (not on the web). Neither sends your API key or proxy credentials. An expired link throws `DownloadExpiredException`. `jobs.download(jobId)` gets the job again for a fresh link.
 
 ## Errors and retries
@@ -259,17 +265,32 @@ try {
   // The key reached its Credit Limit: never retried.
 } on RateLimitException catch (e) {
   print('Still limited after the automatic retries; retry in ${e.retryAfter}');
+} on RequestInProgressException catch (e) {
+  // The first request with this key is still running: send it again later.
+  print('Still running; send it again with idempotencyKey ${e.idempotencyKey}');
+} on APIConnectionException catch (e) {
+  // Still no response after the retries. The same key returns the first
+  // result, without a second charge.
+  await client.textToSpeech.generate(text, voiceId: voiceId, options: RequestOptions(idempotencyKey: e.idempotencyKey));
+} on APIStatusException catch (e) {
+  print('${e.statusCode} ${e.errorMessage} ${e.requestId}');
+}
+
+try {
+  await client.textToSpeech.jobs.create(text, voiceId: voiceId);
 } on APIConnectionException catch (e) {
   if (e.mayHaveExecuted ?? true) {
     // Sent, but the response was lost: it may have run and been charged.
     final candidates = await client.textToSpeech.jobs.findCandidates(e.sentAt!, text: text);
   }
-} on APIStatusException catch (e) {
-  print('${e.statusCode} ${e.errorMessage} ${e.requestId}');
 }
 ```
 
-The SDK retries connection failures, rate limits and temporary outages, with backoff. It **never resends a request that may already have run**, because the API has no idempotency key and a second attempt could be charged again. Such errors have `mayHaveExecuted == true` and `sentAt`; `findCandidates()` lists the jobs created since then (skipping jobs made on a stream) so you can decide. It never picks one for you.
+The SDK retries connection failures, rate limits and temporary outages, with backoff.
+
+`textToSpeech.generate`, `speechToText.transcribe` and `soundCleaning.clean` send an `Idempotency-Key`: a new UUID for each call, the same on each of its retries. A repeat with the same key within 24 hours returns the first result and is not charged again, so these calls are also retried after a lost response and after a 500, 502, 503 or 504. Pass your own key with `RequestOptions(idempotencyKey: ...)` to retry safely across processes or restarts; a new request needs a new key. Errors from these calls carry the key as `idempotencyKey`. A key already used for a different request throws `InvalidRequestException`. While the first request with a key is still running, the API answers `409`: the SDK sends the request again with the key every 5 s (or after a longer `Retry-After`), within the same `waitTimeout` as a `202`, and throws `RequestInProgressException` only when it is still running after that, or at once when the upload is a stream it can't send again (`retryDisabledReason` is then `body_not_replayable`).
+
+Any other request that may already have run, such as creating a job or starting an agent session, is **never resent**, because a second attempt could be charged again. Such errors have `mayHaveExecuted == true` and `sentAt`; `findCandidates()` lists the jobs created since then (skipping jobs made on a stream) so you can decide. It never picks one for you.
 
 After a `429` with `Retry-After`, the client holds further calls to that endpoint until the wait is over, instead of sending more. A wait longer than 60 s, or past the call's `deadline`, throws `RateLimitException` without sending.
 

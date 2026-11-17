@@ -132,7 +132,8 @@ base class UnsupportedEnvironmentException extends EchoNovaException {
 /// [mayHaveExecuted] matters for POST requests. `true` means the request was
 /// fully sent, so it may have run and been charged: list recent jobs before
 /// sending it again. `false` means it definitely did not run. `null` means
-/// unknown.
+/// unknown. A call that sent an [idempotencyKey] can be sent again with that
+/// key instead: it returns the first result, without a second charge.
 base class APIConnectionException extends EchoNovaException {
   /// Creates a connection exception.
   APIConnectionException(
@@ -140,6 +141,7 @@ base class APIConnectionException extends EchoNovaException {
     this.mayHaveExecuted = false,
     this.sentAt,
     this.retryDisabledReason,
+    this.idempotencyKey,
     super.cause,
   });
 
@@ -152,6 +154,12 @@ base class APIConnectionException extends EchoNovaException {
   /// Why the SDK did not retry when the failure itself was retryable, such
   /// as `body_not_replayable`.
   final String? retryDisabledReason;
+
+  /// The `Idempotency-Key` the call sent (`textToSpeech.generate`,
+  /// `speechToText.transcribe` and `soundCleaning.clean`), or `null`.
+  /// Sending the call again with it, within 24 hours, returns the first
+  /// result without a second charge.
+  final String? idempotencyKey;
 
   @override
   String get _name => 'APIConnectionException';
@@ -166,6 +174,7 @@ base class APITimeoutException extends APIConnectionException {
     super.mayHaveExecuted,
     super.sentAt,
     super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -185,6 +194,7 @@ base class StreamConnectionLostException extends APIConnectionException {
     super.mayHaveExecuted,
     super.sentAt,
     super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -219,6 +229,8 @@ base class APIStatusException extends EchoNovaException {
     this.sessionId,
     this.sentAt,
     this.fromProxy = false,
+    this.retryDisabledReason,
+    this.idempotencyKey,
     super.cause,
   })  : headers = Map.unmodifiable(headers ?? const <String, String>{}),
         super(
@@ -279,6 +291,17 @@ base class APIStatusException extends EchoNovaException {
   /// The response came from the hosting proxy, not from the API.
   final bool fromProxy;
 
+  /// Why the SDK did not send the request again when it otherwise would
+  /// have, such as `body_not_replayable` (the upload was a stream already
+  /// read).
+  final String? retryDisabledReason;
+
+  /// The `Idempotency-Key` the call sent (`textToSpeech.generate`,
+  /// `speechToText.transcribe` and `soundCleaning.clean`), or `null`.
+  /// Sending the call again with it, within 24 hours, returns the first
+  /// result without a second charge.
+  final String? idempotencyKey;
+
   @override
   String get _name => 'APIStatusException';
 }
@@ -305,7 +328,8 @@ String _describe(
 }
 
 /// The request was rejected as invalid (400, 405, 409, 413, 415, 422, or a
-/// stream `validation_failed`).
+/// stream `validation_failed`). This includes an `Idempotency-Key` that was
+/// already used for a different request: use a new key for a new request.
 base class InvalidRequestException extends APIStatusException {
   /// Creates the exception. See [APIStatusException.new].
   InvalidRequestException({
@@ -325,6 +349,8 @@ base class InvalidRequestException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -352,6 +378,8 @@ base class AuthenticationException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -379,6 +407,8 @@ base class PermissionDeniedException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -407,6 +437,8 @@ base class FeatureNotEnabledException extends PermissionDeniedException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -434,6 +466,8 @@ base class NotFoundException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -461,6 +495,8 @@ base class VoiceNotFoundException extends NotFoundException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -488,6 +524,8 @@ base class JobNotFoundException extends NotFoundException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -516,6 +554,8 @@ base class RequestTimeoutException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -546,6 +586,8 @@ sealed class BillingException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 }
@@ -570,6 +612,8 @@ base class InsufficientBalanceException extends BillingException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -598,6 +642,8 @@ base class SpendingLimitException extends BillingException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -629,6 +675,8 @@ base class RateLimitException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -656,11 +704,51 @@ base class ConcurrencyLimitException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
   @override
   String get _name => 'ConcurrencyLimitException';
+}
+
+/// 409: a request with this `Idempotency-Key` is still running, or the same
+/// request is still being started.
+///
+/// The SDK sends the request again with the same key, because the first
+/// request is running and will answer it: every 5 s (or after a longer
+/// `Retry-After`), within `RequestOptions.waitTimeout`. You get this when it
+/// is still running after that, or at once when the upload can't be sent
+/// again ([retryDisabledReason] `body_not_replayable`): send the call again
+/// later with the same [idempotencyKey] to get its result without a second
+/// charge.
+base class RequestInProgressException extends APIStatusException {
+  /// Creates the exception. See [APIStatusException.new].
+  RequestInProgressException({
+    super.message,
+    super.statusCode,
+    super.errorMessage,
+    super.errorCode,
+    super.requestId,
+    super.docsUrl,
+    super.headers,
+    super.rawBody,
+    super.transport,
+    super.retryAfter,
+    super.mayHaveExecuted,
+    super.rule,
+    super.closeCode,
+    super.sessionId,
+    super.sentAt,
+    super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
+    super.cause,
+  });
+
+  @override
+  String get _name => 'RequestInProgressException';
 }
 
 /// 5xx: EchoNova failed to handle the request.
@@ -683,6 +771,8 @@ base class ServerException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -710,6 +800,8 @@ base class ServiceUnavailableException extends ServerException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -738,6 +830,8 @@ base class GatewayException extends ServerException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -765,6 +859,8 @@ base class UpstreamException extends ServerException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 
@@ -793,6 +889,8 @@ base class ProtocolException extends APIStatusException {
     super.sessionId,
     super.sentAt,
     super.fromProxy,
+    super.retryDisabledReason,
+    super.idempotencyKey,
     super.cause,
   });
 

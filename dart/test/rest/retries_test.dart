@@ -1,6 +1,7 @@
 // Retries through the resources: a POST that may have run is never sent
-// again, uploads are replayed only when they can be, throttles are shared,
-// and deadlines are kept.
+// again (unless it carries an Idempotency-Key: see idempotency_test.dart),
+// uploads are replayed only when they can be, throttles are shared, and
+// deadlines are kept.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -21,18 +22,14 @@ Never refused() => throw const SocketException('Connection refused',
 final initiated = {'jobId': jobId, 'status': 'processing'};
 
 void main() {
-  group('a POST whose response was lost is not sent again', () {
+  group(
+      'a POST without an Idempotency-Key whose response was lost is not '
+      'sent again', () {
     final posts = <String, Future<Object?> Function(EchoNova client)>{
-      'textToSpeech.generate': (c) =>
-          c.textToSpeech.generate('hi', voiceId: 'v1'),
       'textToSpeech.jobs.create': (c) =>
           c.textToSpeech.jobs.create('hi', voiceId: 'v1'),
       'speechToText.jobs.create': (c) => c.speechToText.jobs
           .create(AudioFile.fromBytes(mp3, 'a.mp3'), language: 'ar'),
-      'speechToText.transcribe': (c) => c.speechToText
-          .transcribe(AudioFile.fromBytes(mp3, 'a.mp3'), language: 'ar'),
-      'soundCleaning.clean': (c) =>
-          c.soundCleaning.clean(AudioFile.fromBytes(wav, 'a.wav')),
       'widgets.createTicket': (c) => c.widgets.createTicket('wdg_1'),
       'agents.sessions.start': (c) => c.agents.sessions.start('agent-1'),
       'agents.sessions.end': (c) => c.agents.sessions.end('agent-1', 's-1'),
@@ -45,9 +42,11 @@ void main() {
           throwsA(isA<APIConnectionException>()
               .having((e) => e.mayHaveExecuted, 'mayHaveExecuted', isTrue)
               .having((e) => e.sentAt, 'sentAt', h.time.now())
-              .having((e) => e.message, 'message', contains('may have run'))),
+              .having((e) => e.message, 'message', contains('may have run'))
+              .having((e) => e.idempotencyKey, 'idempotencyKey', isNull)),
         );
         expect(h.api.requests, hasLength(1));
+        expect(h.api.last.headers, isNot(contains('idempotency-key')));
         expect(h.time.sleeps, isEmpty);
       });
     }
@@ -165,7 +164,10 @@ void main() {
         (_, __) => failure(503, 'Speech to Text is temporarily unavailable'));
     await expectLater(
       h.client.speechToText.jobs.create(file, language: 'ar'),
-      throwsA(isA<ServiceUnavailableException>()),
+      throwsA(isA<ServiceUnavailableException>().having(
+          (e) => e.retryDisabledReason,
+          'retryDisabledReason',
+          'body_not_replayable')),
     );
     expect(h.api.requests, hasLength(1));
     expect(file.isReplayable, isFalse);
@@ -355,10 +357,10 @@ void main() {
       expect(h.api.requests, hasLength(2));
     });
 
-    test('a POST is not retried and may have run', () async {
+    test('a POST without a key is not retried and may have run', () async {
       final h = makeClient((_, __) => http.Response('not json', 200));
       await expectLater(
-        h.client.textToSpeech.generate('hi', voiceId: 'v1'),
+        h.client.textToSpeech.jobs.create('hi', voiceId: 'v1'),
         throwsA(isA<ProtocolException>()
             .having((e) => e.mayHaveExecuted, 'mayHaveExecuted', isTrue)),
       );

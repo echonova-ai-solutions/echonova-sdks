@@ -575,7 +575,8 @@ final class _SttConn {
       send({
         'type': 'session.started',
         'sessionId': record.sessionId,
-        'language': record.query['language'] ?? 'ar',
+        // Without a language the server uses (and confirms) auto.
+        'language': record.query['language'] ?? 'auto',
         'sampleRate': sampleRate,
         'maxSessionSeconds': script.maxSessionSeconds,
         'jobId': record.jobId,

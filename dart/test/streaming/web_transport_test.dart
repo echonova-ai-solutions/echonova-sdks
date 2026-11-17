@@ -115,6 +115,19 @@ void main() {
     expect((conns.single! as Map<Object?, Object?>)['audio'], 16000);
   });
 
+  test('Speech to Text without a language sends none', () async {
+    final stt = await connectStt(options(), sampleRate: 16000);
+    expect(stt.language, 'auto'); // the server's default
+    await stt.stop();
+    final attempts = await ask(['attempts']) as List<Object?>;
+    final attempt = attempts.single! as Map<Object?, Object?>;
+    expect(attempt['query'], {
+      'sample_rate': '16000',
+      'encoding': 'pcm_s16le',
+      'token': 'short-lived',
+    });
+  });
+
   test('a rejected handshake is a connection error with a hint', () async {
     // A browser can't tell a rejection from a network failure, so it is
     // retried like one: three attempts in all.

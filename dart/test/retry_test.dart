@@ -11,7 +11,9 @@ Duration seconds(num value) =>
     Duration(microseconds: (value * Duration.microsecondsPerSecond).round());
 
 void main() {
-  group('the safety invariant: a POST that may have run is never retried', () {
+  group(
+      'the safety invariant: a POST without an Idempotency-Key that may '
+      'have run is never retried', () {
     for (final r in errorRules.rules) {
       test(r.id, () {
         for (final retryAfter in [null, Duration.zero, seconds(1)]) {
@@ -36,6 +38,111 @@ void main() {
         }
       });
     }
+  });
+
+  group('POST_IDEMPOTENT: a POST with an Idempotency-Key', () {
+    for (final (id, retry) in [
+      ('internal_error', true),
+      ('bad_gateway', true),
+      ('unavailable_other', true),
+      ('ingress_unavailable', true),
+      ('unavailable_refunded', true),
+      ('gateway_timeout', true),
+      ('ingress_timeout', true),
+      ('throttled', true),
+      ('request_timeout', true),
+      ('idempotency_in_progress', true),
+      ('same_request_starting', true),
+      ('idempotency_key_reused', false),
+      ('invalid_request', false),
+      ('unauthorized', false),
+      ('forbidden', false),
+      ('insufficient_balance', false),
+      ('spending_limit', false),
+      ('server_error_other', false),
+      ('client_error_other', false),
+    ]) {
+      test('$id -> $retry', () {
+        final decision = policy().decideStatus(
+          'POST',
+          rule(id),
+          retriesDone: 0,
+          retryAfter: seconds(5),
+          withIdempotencyKey: true,
+        );
+        expect(decision.retry, retry);
+      });
+    }
+
+    test('the in-progress 409s are not retried without a key', () {
+      for (final id in ['idempotency_in_progress', 'same_request_starting']) {
+        final decision = policy()
+            .decideStatus('POST', rule(id), retriesDone: 0, retryAfter: null);
+        expect(decision.retry, isFalse, reason: id);
+        expect(rule(id).mayHaveExecuted, Executed.yes, reason: id);
+      }
+    });
+
+    test('the in-progress 409 waits Retry-After, or backs off', () {
+      final r = rule('idempotency_in_progress');
+      expect(
+        policy()
+            .decideStatus('POST', r,
+                retriesDone: 0,
+                retryAfter: seconds(3),
+                withIdempotencyKey: true)
+            .delay,
+        seconds(3.5),
+      );
+      expect(
+        policy()
+            .decideStatus('POST', r,
+                retriesDone: 1, retryAfter: null, withIdempotencyKey: true)
+            .delay,
+        seconds(0.75),
+      );
+    });
+
+    for (final (phase, retry) in [
+      (FailurePhase.connect, true),
+      (FailurePhase.sendIncomplete, true),
+      (FailurePhase.noResponse, true),
+      (FailurePhase.malformedSuccess, true),
+    ]) {
+      test('${phase.key} -> $retry', () {
+        final decision = policy().decideTransport('POST', phase,
+            retriesDone: 0, withIdempotencyKey: true);
+        expect(decision.retry, retry);
+      });
+    }
+
+    test('a malformed success is retried once', () {
+      expect(
+        policy(maxRetries: 5)
+            .decideTransport('POST', FailurePhase.malformedSuccess,
+                retriesDone: 1, withIdempotencyKey: true)
+            .retry,
+        isFalse,
+      );
+    });
+
+    test('the retry budget and unreplayable bodies still apply', () {
+      final p = policy(maxRetries: 2);
+      expect(
+        p
+            .decideStatus('POST', rule('internal_error'),
+                retriesDone: 2, retryAfter: null, withIdempotencyKey: true)
+            .reason,
+        RetryReason.maxRetries,
+      );
+      expect(
+        p
+            .decideTransport('POST', FailurePhase.noResponse,
+                retriesDone: 0, bodyReplayable: false, withIdempotencyKey: true)
+            .reason,
+        RetryReason.bodyNotReplayable,
+      );
+    });
   });
 
   group('status table', () {

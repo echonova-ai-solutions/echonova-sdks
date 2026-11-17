@@ -136,6 +136,7 @@ void main() {
         },
       });
       expect(conn.closeCode, 1000); // each session stopped cleanly
+      expect(conn.query, containsPair('language', 'ar'));
     }
     expect(seconds(events), closeTo(2, 1e-9));
     expect(
@@ -176,6 +177,24 @@ void main() {
     );
     expect(second.received.first['type'], 'terminology'); // re-sent
     expect(seconds(events), closeTo(3, 1e-9));
+  });
+
+  test('without a language, no session sends one, reconnects included',
+      () async {
+    server.stt.actions.add(SttAction('abort', afterBytes: segment + 16000));
+    final (events, error) = await run(transcribeStream(
+      optionsFor(server),
+      chunked(pcm(3), delay: const Duration(milliseconds: 5)),
+      sampleRate: 16000,
+      segmentLength: oneSecond,
+      reconnect: fast,
+    ));
+    expect(error, isNull);
+    expect(events.whereType<Reconnected>(), hasLength(1));
+    expect(server.sttConns, hasLength(2));
+    for (final conn in server.sttConns) {
+      expect(conn.query, {'sample_rate': '16000', 'encoding': 'pcm_s16le'});
+    }
   });
 
   test('cut segments without a result are reported as dropped', () async {

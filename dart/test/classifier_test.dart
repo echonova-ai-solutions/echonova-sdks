@@ -21,8 +21,9 @@ final family = <int, bool Function(Object)>{
   403: (e) => e is PermissionDeniedException,
   404: (e) => e is NotFoundException,
   409: (e) =>
-      e is InvalidRequestException ||
-      e is ConcurrencyLimitException, // agent limits
+      e is InvalidRequestException || // including a reused Idempotency-Key
+      e is ConcurrencyLimitException || // agent limits
+      e is RequestInProgressException, // a request with the key still runs
   413: (e) => e is InvalidRequestException,
   415: (e) => e is InvalidRequestException,
   429: (e) => e is RateLimitException || e is SpendingLimitException,
@@ -94,6 +95,48 @@ void main() {
         expect(error.docsUrl, docs);
       });
     }
+  });
+
+  test('the idempotency 409s', () {
+    for (final (message, rule, matcher) in [
+      (
+        'This Idempotency-Key was already used for a different request.',
+        'idempotency_key_reused',
+        isA<InvalidRequestException>(),
+      ),
+      (
+        'A request with this Idempotency-Key is still running.',
+        'idempotency_in_progress',
+        isA<RequestInProgressException>(),
+      ),
+      (
+        'The same request is still being started. Send it again in a few '
+            'seconds.',
+        'same_request_starting',
+        isA<RequestInProgressException>(),
+      ),
+    ]) {
+      final error = buildStatusError(
+        409,
+        {'x-request-id': 'r-409'},
+        envelope(409, message),
+        method: 'POST',
+        idempotencyKey: 'key-1',
+      );
+      expect(error, matcher, reason: rule);
+      expect(error, isNot(isA<ConcurrencyLimitException>()));
+      expect(error.rule, rule);
+      expect(error.idempotencyKey, 'key-1');
+      expect(error.mayHaveExecuted,
+          rule == 'idempotency_key_reused' ? isFalse : isTrue);
+    }
+    // Other 409s are unchanged.
+    expect(
+      buildStatusError(409, const {}, envelope(409, 'Conflict'),
+          method: 'POST'),
+      isA<InvalidRequestException>()
+          .having((e) => e.idempotencyKey, 'idempotencyKey', isNull),
+    );
   });
 
   test('error code and message are surfaced', () {

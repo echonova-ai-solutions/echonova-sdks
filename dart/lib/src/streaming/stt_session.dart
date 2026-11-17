@@ -27,8 +27,13 @@ const String stopFrame = '{"type":"stop"}';
 const Duration defaultStopTimeout = Duration(seconds: 20);
 
 /// The query parameters of a Speech to Text stream. Throws [ArgumentError]
-/// for a sample rate that isn't a positive number of Hz.
-Map<String, String> sttQuery(int sampleRate, String language, String encoding) {
+/// for a sample rate that isn't a positive number of Hz. Without
+/// [language], none is sent and the server uses `auto`.
+Map<String, String> sttQuery(
+  int sampleRate,
+  String? language,
+  String encoding,
+) {
   if (sampleRate <= 0) {
     throw ArgumentError.value(
       sampleRate,
@@ -38,7 +43,7 @@ Map<String, String> sttQuery(int sampleRate, String language, String encoding) {
   }
   return {
     'sample_rate': '$sampleRate',
-    'language': language,
+    if (language != null) 'language': language,
     'encoding': encoding,
   };
 }
@@ -57,7 +62,7 @@ final class SttSession {
   SttSession._(
     this._options, {
     required int sampleRate,
-    required String language,
+    required String? language,
     Map<String, Object?>? terminology,
     String encoding = 'pcm_s16le',
     Duration? waitForSlot,
@@ -100,7 +105,7 @@ final class SttSession {
   /// [SessionSaved] and in `stop()`'s [SessionSummary.savedStatus].
   String? get jobId => _protocol.jobId;
 
-  /// The language the server confirmed.
+  /// The language the server confirmed: `auto`, `ar` or `en`.
   String? get language => _protocol.language;
 
   /// The sample rate of the audio you send.
@@ -426,7 +431,7 @@ final class _AudioSink implements StreamConsumer<List<int>> {
 Future<SttSession> openSttSession(
   StreamOptions options, {
   required int sampleRate,
-  required String language,
+  required String? language,
   Map<String, Object?>? terminology,
   String encoding = 'pcm_s16le',
   Duration? waitForSlot,

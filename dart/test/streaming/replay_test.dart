@@ -465,8 +465,8 @@ final class SttReplay extends Replay {
     session = await connectStt(
       options,
       sampleRate: int.parse(query['sample_rate']!),
-      // language is required; an empty one stands in for a missing one.
-      language: query['language'] ?? '',
+      // Left out when the recording left it out, as the SDK can now do.
+      language: query['language'],
     );
     session!.events.listen(
       (event) {
@@ -651,7 +651,11 @@ void main() {
       expect(server.handshakes, hasLength(1), reason: 'one connection');
       final handshake = server.handshakes.single;
       if (stream == 'stt') {
-        expect(handshake.query['encoding'], 'pcm_s16le');
+        // What was recorded, and the encoding the SDK always sends: a
+        // recording without a language is replayed without one.
+        final recorded = Uri.parse(script.first.data['path']! as String);
+        expect(handshake.query,
+            {...recorded.queryParameters, 'encoding': 'pcm_s16le'});
       }
 
       // Frames the SDK sent that the recording has not.

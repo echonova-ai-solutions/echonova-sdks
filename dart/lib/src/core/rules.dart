@@ -85,13 +85,14 @@ final class RetryColumns {
     required this.get,
     required this.delete,
     required this.post,
+    required this.postIdempotent,
     required this.ws,
     required this.delay,
   });
 
   /// Parses the `retry` object of a rule.
   factory RetryColumns.fromJson(Map<String, Object?> json) {
-    const columns = ['GET', 'DELETE', 'POST', 'WS', 'delay'];
+    const columns = ['GET', 'DELETE', 'POST', 'POST_IDEMPOTENT', 'WS', 'delay'];
     final missing = columns.where((c) => !json.containsKey(c)).toList();
     if (missing.isNotEmpty) {
       throw FormatException('retry columns missing $missing');
@@ -100,6 +101,7 @@ final class RetryColumns {
       get: RetryFlag.fromJson(json['GET']),
       delete: RetryFlag.fromJson(json['DELETE']),
       post: RetryFlag.fromJson(json['POST']),
+      postIdempotent: RetryFlag.fromJson(json['POST_IDEMPOTENT']),
       ws: RetryFlag.fromJson(json['WS']),
       delay: RetryDelay.fromJson(json['delay']),
     );
@@ -114,6 +116,11 @@ final class RetryColumns {
   /// POST requests, and any other method.
   final RetryFlag post;
 
+  /// A POST sent with an `Idempotency-Key`, to an operation that accepts
+  /// one (ADR 0014): repeating it returns the first result, so it may be
+  /// retried after it may have run.
+  final RetryFlag postIdempotent;
+
   /// The WebSocket handshake.
   final RetryFlag ws;
 
@@ -121,8 +128,9 @@ final class RetryColumns {
   final RetryDelay delay;
 
   /// The flag for [method]. Methods other than GET, HEAD, DELETE and WS are
-  /// treated as POST: not idempotent.
-  RetryFlag forMethod(String method) {
+  /// treated as POST: not idempotent. A POST [withIdempotencyKey] uses
+  /// [postIdempotent].
+  RetryFlag forMethod(String method, {bool withIdempotencyKey = false}) {
     switch (method.toUpperCase()) {
       case 'GET' || 'HEAD':
         return get;
@@ -130,6 +138,8 @@ final class RetryColumns {
         return delete;
       case 'WS':
         return ws;
+      case 'POST' when withIdempotencyKey:
+        return postIdempotent;
       default:
         return post;
     }

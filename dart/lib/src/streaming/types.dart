@@ -302,7 +302,8 @@ final class Transcript implements SttEvent, TranscribeEvent {
   /// The segment corrected to the terms you set, while terms are set.
   final Map<String, Object?>? terminology;
 
-  /// The detected language.
+  /// The detected language, `ar` or `en`; `auto` for a segment with no
+  /// speech on a stream opened with `auto`.
   final String? language;
 
   /// The session it came from.

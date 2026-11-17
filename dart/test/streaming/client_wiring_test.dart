@@ -168,5 +168,18 @@ void main() {
             sampleRate: 16000, language: 'en')
         .toList();
     expect(events.whereType<Transcript>(), isNotEmpty);
+    expect(server.sttConns[1].query, containsPair('language', 'en'));
+
+    // Without a language, none is sent: the server uses auto.
+    final auto = await client.speechToText.connect(sampleRate: 16000);
+    expect(auto.language, 'auto');
+    await auto.stop();
+    await client.speechToText
+        .transcribeStream(Stream.value(pcm(1)), sampleRate: 16000)
+        .drain<void>();
+    for (final conn in server.sttConns.skip(2)) {
+      expect(conn.query, isNot(contains('language')));
+    }
+    expect(server.sttConns, hasLength(4));
   });
 }

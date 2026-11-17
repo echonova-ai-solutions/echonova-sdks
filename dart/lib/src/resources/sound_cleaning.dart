@@ -5,16 +5,29 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../errors.dart';
 import '../files.dart';
 import '../models/sound_cleaning.dart';
 import '../models/text_to_speech.dart' show DeleteResult;
 import '../operations.dart';
 import '../pagination.dart';
+import '../polling.dart';
 import '../response.dart';
 import '../transport/http_transport.dart' show ApiRequest, ApiResponse;
 import 'context.dart';
 
 final _parseJob = modelParser(CleanJob.fromJson, 'CleanJob');
+
+/// `clean` after `202 Processing`: poll the job every 5 s. The result is
+/// the job itself.
+final _syncJob = SyncJob<CleanJob, CleanJob>(
+  get: cleanJobsGet,
+  parse: _parseJob,
+  statusOf: (job) => job.status,
+  errorOf: (job) => job.error,
+  interval: cleanPollInterval,
+  toResult: (job) => job,
+);
 
 /// Sound Cleaning: `client.soundCleaning`.
 final class SoundCleaning {
@@ -33,6 +46,16 @@ final class SoundCleaning {
   /// The tuning values are optional: those you leave out are not sent, so
   /// the API's defaults apply. [sampleRate] (16000, 24000, 32000 or 48000)
   /// and [bitDepth] (16 or 24) set the format of the cleaned file.
+  ///
+  /// Every call sends an `Idempotency-Key` (a new one, or
+  /// [RequestOptions.idempotencyKey]), so it is retried safely after a lost
+  /// response or a server error, with the upload sent again when it can
+  /// be, and sent again every 5 s while the API says the first request with
+  /// the key is still running. When the API answers that the job is still
+  /// processing, this polls the job every 5 s and returns it once it has
+  /// completed; a failed job throws [JobFailedException]. Both waits share
+  /// [RequestOptions.waitTimeout] (20 minutes); running out of it throws
+  /// [JobWaitTimeoutException] or [RequestInProgressException].
   Future<CleanJob> clean(
     AudioFile file, {
     double? cutoffFreq,
@@ -47,7 +70,7 @@ final class SoundCleaning {
     int? bitDepth,
     RequestOptions? options,
   }) async =>
-      _context.call(
+      _context.callSync(
         await _clean(
             file,
             {
@@ -64,9 +87,11 @@ final class SoundCleaning {
             },
             options),
         _parseJob,
+        _syncJob,
       );
 
-  /// [clean], returning the HTTP response too.
+  /// [clean], returning the HTTP response too: after a wait for the job,
+  /// the response of the last poll.
   Future<RawResponse<CleanJob>> cleanWithResponse(
     AudioFile file, {
     double? cutoffFreq,
@@ -81,7 +106,7 @@ final class SoundCleaning {
     int? bitDepth,
     RequestOptions? options,
   }) async =>
-      _context.callRaw(
+      _context.callSyncRaw(
         await _clean(
             file,
             {
@@ -98,6 +123,7 @@ final class SoundCleaning {
             },
             options),
         _parseJob,
+        _syncJob,
       );
 
   /// The multipart fields are camelCase, as the API names them.

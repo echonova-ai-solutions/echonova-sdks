@@ -56,8 +56,14 @@ Map<String, Object?> describe(RuleSet rules) => {
       ],
     };
 
-List<String> _retry(RetryColumns c) =>
-    [c.get.name, c.delete.name, c.post.name, c.ws.name, c.delay.name];
+List<String> _retry(RetryColumns c) => [
+      c.get.name,
+      c.delete.name,
+      c.post.name,
+      c.postIdempotent.name,
+      c.ws.name,
+      c.delay.name,
+    ];
 
 void main() {
   final spec = loadSpecMap('error-rules.json');
@@ -134,6 +140,33 @@ void main() {
     expect(throttled.retry.forMethod('POST'), RetryFlag.no);
   });
 
+  test('a POST with an Idempotency-Key uses the POST_IDEMPOTENT column', () {
+    final internal = errorRules.ruleById('internal_error')!.retry;
+    expect(internal.forMethod('post', withIdempotencyKey: true), RetryFlag.yes);
+    // Only a POST has the column: other methods keep their own.
+    expect(internal.forMethod('PATCH', withIdempotencyKey: true), RetryFlag.no);
+    expect(internal.forMethod('GET', withIdempotencyKey: true), RetryFlag.yes);
+    final reused = errorRules.ruleById('idempotency_key_reused')!.retry;
+    expect(reused.forMethod('POST', withIdempotencyKey: true), RetryFlag.no);
+    final malformed = errorRules.transport['malformed_success']!.retry;
+    expect(
+        malformed.forMethod('POST', withIdempotencyKey: true), RetryFlag.once);
+    expect(malformed.forMethod('POST'), RetryFlag.no);
+  });
+
+  test('version 2 has the idempotency rules before invalid_request', () {
+    expect(errorRules.version, 2);
+    final ids = errorRules.rules.map((r) => r.id).toList();
+    for (final id in [
+      'idempotency_key_reused',
+      'idempotency_in_progress',
+      'same_request_starting',
+    ]) {
+      expect(ids.indexOf(id), lessThan(ids.indexOf('invalid_request')),
+          reason: id);
+    }
+  });
+
   test('parsing rejects unknown values', () {
     expect(() => RetryFlag.fromJson('sometimes'), throwsFormatException);
     expect(() => RetryDelay.fromJson('later'), throwsFormatException);
@@ -141,6 +174,18 @@ void main() {
     expect(
       () => RetryColumns.fromJson({'GET': true}),
       throwsFormatException,
+    );
+    // A version 1 row, without POST_IDEMPOTENT.
+    expect(
+      () => RetryColumns.fromJson({
+        'GET': true,
+        'DELETE': true,
+        'POST': false,
+        'WS': true,
+        'delay': 'backoff',
+      }),
+      throwsA(isFormatException.having(
+          (e) => e.message, 'message', contains('POST_IDEMPOTENT'))),
     );
   });
 }
