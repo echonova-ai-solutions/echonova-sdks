@@ -27,3 +27,10 @@ regexes = [
   '''^whsec_(TEST|REDACTED)[A-Za-z0-9_+/=-]*$''',
   '''^change-me$''',
 ]
+
+# An Idempotency-Key is a request identifier, not a credential: the tests use
+# made-up UUIDs as keys, which the generic-api-key rule takes for secrets.
+[[allowlists]]
+description = "Idempotency keys are request identifiers, not secrets"
+regexTarget = "line"
+regexes = ['''(?i)idempotency[-_ ]?key''']
