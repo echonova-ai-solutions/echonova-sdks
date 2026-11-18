@@ -31,7 +31,7 @@ import { SoundCleaning } from './resources/sound-cleaning.js';
 import { SpeechToText } from './resources/speech-to-text.js';
 import { TextToSpeech } from './resources/text-to-speech.js';
 import { Widgets } from './resources/widgets.js';
-import { isBrowserLike, readEnv, runtimeInfo } from './runtime/detect.js';
+import { isBrowserLike, isReactNative, readEnv, runtimeInfo } from './runtime/detect.js';
 import { VERSION } from './version.js';
 
 export type { AuthContext, FetchLike, OnRequestHook, OnResponseHook, RequestDetails } from './core/http.js';
@@ -81,8 +81,8 @@ export interface ClientOptions {
   /** A custom `fetch` implementation. Defaults to `globalThis.fetch`. */
   fetch?: FetchLike | undefined;
   /**
-   * Allow an API key in a browser-like environment. Anyone using your app could
-   * read the key, so prefer proxy mode. Default false.
+   * Allow an API key in a browser-like environment or a React Native app.
+   * Anyone using your app could read the key, so prefer proxy mode. Default false.
    */
   dangerouslyAllowBrowser?: boolean | undefined;
   /** Log level. Defaults to `ECHONOVA_LOG`, or `"off"`. */
@@ -263,9 +263,9 @@ export class EchoNova {
         'No API key. Pass `apiKey`, set ECHONOVA_API_KEY, or pass `auth` with `baseURL` (proxy mode).',
       );
     }
-    if (apiKey !== null && isBrowserLike() && !options.dangerouslyAllowBrowser) {
+    if (apiKey !== null && (isBrowserLike() || isReactNative()) && !options.dangerouslyAllowBrowser) {
       throw new Errors.UnsupportedEnvironmentError(
-        'An EchoNova API key was given in a browser-like environment, where anyone using the app can read it. ' +
+        'An EchoNova API key was given in a browser or mobile app (React Native), where anyone using the app can read it. ' +
           'Keep the key on your server and point `baseURL` at your backend (proxy mode), ' +
           'or pass `dangerouslyAllowBrowser: true` if you understand the risk.',
       );
@@ -274,8 +274,14 @@ export class EchoNova {
       if (apiKey !== null && !apiKey.startsWith('ek_')) {
         logger.warn("the API key does not start with 'ek_'; check it is an EchoNova API key");
       }
-      if (new URL(baseURL).pathname.replace(/\/+$/, '').endsWith('/v1')) {
+      const { pathname, protocol, hostname, host } = new URL(baseURL);
+      if (pathname.replace(/\/+$/, '').endsWith('/v1')) {
         logger.warn('baseURL ends with /v1, but request paths already start with /v1');
+      }
+      // Loopback (a local proxy or mock server) is fine. Streams use baseURL with
+      // http changed to ws, so this covers them too.
+      if (protocol === 'http:' && !/^(?:localhost|\[::1\]|127(?:\.\d+){3})$/.test(hostname)) {
+        logger.warn(`baseURL uses plain http, so credentials would be sent unencrypted to ${host} (streams too, over ws://)`);
       }
     }
 

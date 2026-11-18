@@ -74,6 +74,23 @@ function memorySink(): Sink {
   };
 }
 
+/**
+ * The link's last path segment, decoded, as a file name. An encoded separator
+ * (`..%2Fx`, `%5C..%5Cx`) must not move the file out of the directory, so only
+ * the part after the last `/` or `\` is kept; anything unusable becomes "download".
+ */
+function fileName(url: string): string {
+  let name = '';
+  try {
+    name = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+  } catch {
+    // keep the default name
+  }
+  name = name.slice(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+  if (name === '' || name === '.' || name === '..' || /[\u0000-\u001f\u007f]/.test(name)) return 'download';
+  return name;
+}
+
 async function fileSink(to: string, url: string): Promise<Sink> {
   const why = 'saving a download to a file';
   const fs = await nodeFs(why);
@@ -81,13 +98,12 @@ async function fileSink(to: string, url: string): Promise<Sink> {
   let target = to;
   const stats = await fs.promises.stat(to).catch(() => null);
   if (stats?.isDirectory()) {
-    let name = '';
-    try {
-      name = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
-    } catch {
-      // keep the default name
+    target = path.join(to, fileName(url));
+    // fileName() leaves no separators, so this holds; checked again in case a
+    // platform's path rules differ from ours.
+    if (path.dirname(path.resolve(target)) !== path.resolve(to)) {
+      throw new UsageError(`the link's file name would be saved outside ${to}; pass a file path as \`to\``);
     }
-    target = path.join(to, name || 'download');
   }
   const random = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('');
   const temp = path.join(path.dirname(target), `.${path.basename(target)}.${random}.part`);

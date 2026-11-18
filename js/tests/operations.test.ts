@@ -3,6 +3,7 @@
 // multipart. Operations the mapping marks `excluded` are not part of this SDK yet.
 import { describe, expect, it } from 'vitest';
 import { OPS, attemptTimeout } from '../src/core/operations.js';
+import * as errors from '../src/errors.js';
 import type { Language } from '../src/types/models.js';
 import { loadSpec } from './helpers.js';
 import { dataSchema, exampleFor, JOB_ID, makeClient, ok, partsOf, WAV, type Captured } from './rest-support.js';
@@ -208,6 +209,24 @@ describe('the operation table', () => {
     ]);
     await expect(client.textToSpeech.jobs.get('  ')).rejects.toThrow(/job ID/);
     await expect(client.agents.sessions.get('', 's1')).rejects.toThrow(/agentId/);
+  });
+
+  it.each([['.'], ['..'], [' .. ']])('refuses %j as a path parameter before sending anything', async (id) => {
+    const { client, requests } = makeClient(() => ok({ id: JOB_ID, status: 'completed' }));
+    await expect(client.agents.sessions.get(id, 's1')).rejects.toThrow(errors.UsageError);
+    await expect(client.agents.sessions.get('a1', id)).rejects.toThrow(/sessionId/);
+    await expect(client.agents.sessions.end('a1', id)).rejects.toThrow(errors.UsageError);
+    await expect(client.textToSpeech.jobs.get(id)).rejects.toThrow(errors.UsageError);
+    await expect(client.speechToText.jobs.delete({ id })).rejects.toThrow(errors.UsageError);
+    await expect(client.soundCleaning.jobs.get(id)).rejects.toThrow(errors.UsageError);
+    expect(requests).toEqual([]);
+  });
+
+  it('still encodes IDs that only contain dots', async () => {
+    const { client, requests } = makeClient(() => ok({ id: JOB_ID, status: 'completed' }));
+    await client.textToSpeech.jobs.get('...');
+    await client.textToSpeech.jobs.get('a/../b');
+    expect(requests.map((r) => r.url.pathname)).toEqual(['/v1/text-to-speech/jobs/...', '/v1/text-to-speech/jobs/a%2F..%2Fb']);
   });
 
   it.each([

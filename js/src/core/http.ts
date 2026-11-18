@@ -297,6 +297,39 @@ function isSuccess(status: number): boolean {
   return status >= 200 && status < 300;
 }
 
+/** How much of an error response is read: enough for any real error message. */
+const ERROR_BODY_LIMIT = 64 * 1024;
+
+/**
+ * Read at most `limit` bytes of a response body and cancel the rest, so a huge
+ * or endless error body can't exhaust memory.
+ */
+async function readCapped(response: Response, limit: number): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array(await response.arrayBuffer()).slice(0, limit);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, limit - size);
+      chunks.push(part);
+      size += part.length;
+    }
+  } finally {
+    if (size >= limit) void reader.cancel().catch(() => undefined);
+    else reader.releaseLock();
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
+}
+
 export class HttpTransport {
   readonly baseURL: string;
   readonly maxRetries: number;
@@ -462,7 +495,9 @@ export class HttpTransport {
       let bytes: Uint8Array;
       try {
         response = await abortable(this.#options.fetch(url, init), deadline.signal);
-        bytes = new Uint8Array(await abortable(response.arrayBuffer(), deadline.signal));
+        bytes = isSuccess(response.status)
+          ? new Uint8Array(await abortable(response.arrayBuffer(), deadline.signal))
+          : await abortable(readCapped(response, ERROR_BODY_LIMIT), deadline.signal);
       } catch (error) {
         deadline.done();
         if (spec.signal?.aborted) throw spec.signal.reason ?? error;

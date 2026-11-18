@@ -2,6 +2,7 @@ import { inspect } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EchoNova, redactKey, transportOf } from '../src/client.js';
 import { UnsupportedEnvironmentError, UsageError } from '../src/errors.js';
+import { resolveStreamOptions } from '../src/streaming/options.js';
 import { VERSION } from '../src/version.js';
 import { readFileSync } from 'node:fs';
 import { success, TEST_KEY } from './helpers.js';
@@ -72,6 +73,35 @@ describe('configuration', () => {
     new EchoNova({ apiKey: TEST_KEY, baseURL: 'https://api.echonova.ai/v1/', logLevel: 'warn', logger });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('/v1'));
   });
+
+  it.each([
+    [{ apiKey: TEST_KEY, baseURL: 'http://api.example.com' }],
+    [{ baseURL: 'http://proxy.example.com/echonova', auth: () => ({ 'X-Session': 's1' }) }],
+  ])('warns once when credentials would go over plain http (%j)', (options) => {
+    const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    const client = new EchoNova({ ...options, logLevel: 'warn', logger });
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/plain http.*unencrypted/));
+    expect(logger.warn.mock.calls[0]![0]).not.toContain(TEST_KEY);
+    resolveStreamOptions(client._streamOptions()); // the stream URL derives from baseURL: no second warning
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it('reads plain http from ECHONOVA_BASE_URL too', () => {
+    vi.stubEnv('ECHONOVA_BASE_URL', 'http://10.0.0.5:8080');
+    const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    new EchoNova({ apiKey: TEST_KEY, logLevel: 'warn', logger });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.5:8080'));
+  });
+
+  it.each([['http://localhost:4010'], ['http://127.0.0.1:9000'], ['http://127.8.9.10'], ['http://[::1]:8080'], ['https://api.example.com']])(
+    'stays silent for %s',
+    (baseURL) => {
+      const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+      new EchoNova({ apiKey: TEST_KEY, baseURL, logLevel: 'warn', logger });
+      expect(logger.warn).not.toHaveBeenCalled();
+    },
+  );
 
   it('reads ECHONOVA_LOG', () => {
     vi.stubEnv('ECHONOVA_LOG', 'warning');
@@ -154,6 +184,25 @@ describe('browser guard', () => {
     vi.stubGlobal('WorkerGlobalScope', function WorkerGlobalScope() {});
     vi.stubGlobal('importScripts', () => {});
     expect(() => new EchoNova({ apiKey: TEST_KEY })).toThrow(UnsupportedEnvironmentError);
+  });
+
+  it('refuses a key in a React Native app, which has no document', () => {
+    vi.stubGlobal('navigator', { product: 'ReactNative' });
+    const error = (() => {
+      try {
+        new EchoNova({ apiKey: TEST_KEY });
+      } catch (e) {
+        return e;
+      }
+      return null;
+    })();
+    expect(error).toBeInstanceOf(UnsupportedEnvironmentError);
+    expect(String(error)).toMatch(/mobile app/);
+    expect(String(error)).toMatch(/proxy mode/);
+    expect(String(error)).not.toContain(TEST_KEY);
+    expect(() => new EchoNova({ apiKey: TEST_KEY, dangerouslyAllowBrowser: true })).not.toThrow();
+    vi.stubEnv('ECHONOVA_API_KEY', TEST_KEY);
+    expect(() => new EchoNova({ baseURL: 'https://api.myapp.example.com', auth: () => ({}) })).not.toThrow();
   });
 
   it('does not treat Node as a browser', () => {

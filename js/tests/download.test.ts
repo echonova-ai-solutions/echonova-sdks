@@ -61,6 +61,24 @@ describe('client.download()', () => {
     expect(await client.download(SIGNED_URL, { to: dir })).toBe(join(dir, 'out.wav'));
   });
 
+  it.each([
+    ['..%2F..%2Fescaped.txt', 'escaped.txt'],
+    ['%5C..%5Cx', 'x'],
+    ['..%5C..%5Cwin.txt', 'win.txt'],
+    ['%2e%2e', 'download'],
+    ['.', 'download'],
+    ['..%2F', 'download'],
+    ['a%00b', 'download'],
+    ['line%0Abreak', 'download'],
+  ])('into a directory, never leaves it (%s)', async (segment, expected) => {
+    const dir = freshDir();
+    const url = `https://storage.example.com/tts/${segment}?sv=2024&sig=REDACTED-secret-signature`;
+    const { client } = makeClient(routes());
+    expect(await client.download(url, { to: dir })).toBe(join(dir, expected));
+    expect(readdirSync(dir)).toEqual([expected]);
+    expect(readdirSync(join(dir, '..')).filter((f) => !/^d\d+$/.test(f))).toEqual([]);
+  });
+
   it('an expired link is explained, hides the signature and leaves no file', async () => {
     const dir = freshDir();
     const { client, requests } = makeClient(routes(new Response('<Error><Code>AuthenticationFailed</Code></Error>', { status: 403 })));

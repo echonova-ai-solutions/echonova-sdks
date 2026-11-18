@@ -326,7 +326,7 @@ const client = new EchoNova({
 
 With `auth` set, `ECHONOVA_API_KEY` is not read, so the key never reaches your proxy by accident.
 
-In a browser or browser worker, passing an API key throws `UnsupportedEnvironmentError`, because anyone using the page could read it. Proxy mode works in browsers. `dangerouslyAllowBrowser: true` turns the check off, for internal tools only.
+In a browser, a browser worker or a React Native app, passing an API key throws `UnsupportedEnvironmentError`, because anyone using the app could read it. Proxy mode works in browsers. `dangerouslyAllowBrowser: true` turns the check off, for internal tools only.
 
 ## Logging
 

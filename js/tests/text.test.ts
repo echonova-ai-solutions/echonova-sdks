@@ -65,6 +65,26 @@ describe('strip', () => {
     expect(strip('\u001c\u0085 a b 　\n')).toBe('a b');
     expect(strip('﻿a')).toBe('﻿a'); // a byte order mark is not whitespace there
   });
+
+  it('trims exactly the reference set, at either end', () => {
+    const reference = /^[\t\n\v\f\r\x1c-\x20\x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]$/;
+    for (let code = 0; code <= 0xffff; code += 1) {
+      const c = String.fromCharCode(code);
+      const expected = reference.test(c) ? 'x' : `${c}x${c}`;
+      expect(strip(`${c}x${c}`)).toBe(expected);
+    }
+    expect(strip(' \t ')).toBe('');
+    expect(strip('')).toBe('');
+  });
+
+  it('runs in linear time on long whitespace runs', () => {
+    const spaces = ' '.repeat(100_000);
+    const started = performance.now();
+    expect(strip(`${spaces}a${spaces}`)).toBe('a');
+    expect(strip(`a${spaces}b`)).toBe(`a${spaces}b`);
+    expect(strip(spaces)).toBe('');
+    expect(performance.now() - started).toBeLessThan(100);
+  });
 });
 
 describe('truncateCodePoints', () => {

@@ -167,6 +167,32 @@ describe('verifyWebhook', () => {
     expect(error.message).toMatch(/jobId/);
   });
 
+  it.each([
+    ['tts', '{"jobId":"j1","service":"tts","error":"failed"}', /audioUrl/],
+    ['tts', '{"jobId":"j1","service":"tts","audioUrl":""}', /audioUrl/],
+    ['tts', '{"jobId":"j1","service":"tts","audioUrl":42}', /audioUrl/],
+    ['stt', '{"jobId":"j1","service":"stt","error":"failed"}', /transcription/],
+    ['stt', '{"jobId":"j1","service":"stt","transcription":null}', /transcription/],
+  ] as const)('rejects a %s job.completed without its result (%s)', async (_service, body, field) => {
+    const error = await rejection(verifyWebhook(body, signed(body, 'job.completed'), SECRET, { now: 1762300800 }));
+    expect(error.reason).toBe('payload');
+    expect(error.message).toMatch(field);
+  });
+
+  it('does not require a result field for a service it does not know', async () => {
+    const body = '{"jobId":"j1","service":"clean"}';
+    const event = await verifyWebhook(body, signed(body, 'job.completed'), SECRET, { now: 1762300800 });
+    expect(event).toMatchObject({ type: 'job.completed', service: 'clean', audioUrl: null, transcription: null });
+  });
+
+  it('rejects a timestamp longer than 15 characters before parsing it', async () => {
+    const v = vector('job.failed');
+    const padded = { ...v.headers, 'X-Webhook-Timestamp': `0${v.headers['X-Webhook-Timestamp']!.padStart(15, '0')}` };
+    expect((await rejection(verifyWebhook(v.body, padded, v.secrets, { now: v.now }))).reason).toBe('timestamp');
+    const spaced = { ...v.headers, 'X-Webhook-Timestamp': `  ${v.headers['X-Webhook-Timestamp']!}  ` };
+    await expect(verifyWebhook(v.body, spaced, v.secrets, { now: v.now })).resolves.toMatchObject({ type: 'job.failed' });
+  });
+
   it('parses a non-object payload as an unknown event', async () => {
     const body = '[1,2]';
     const event = await verifyWebhook(body, signed(body, 'job.completed'), SECRET, { now: 1762300800 });
