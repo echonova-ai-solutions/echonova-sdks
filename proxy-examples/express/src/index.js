@@ -6,7 +6,7 @@
 
 export { createProxy } from './app.js';
 export { ConfigError, makeSettings, settingsFromEnv } from './config.js';
-export { InMemoryQuota, demoAuthenticate, parseCookies } from './hooks.js';
+export { InMemoryJobOwners, InMemoryQuota, demoAuthenticate, parseCookies } from './hooks.js';
 export { createLogger } from './log.js';
 export { REST_ROUTES, STREAM_ROUTES } from './routes.js';
 export { mintStreamToken, verifyStreamToken } from './tokens.js';

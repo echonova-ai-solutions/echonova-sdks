@@ -7,6 +7,8 @@
 // - a close on either side is repeated on the other with the same code and reason. A connection
 //   that drops without a close frame (1006) is dropped on the other side too. A close frame with
 //   no code (1005) is repeated as 1000, as the FastAPI proxy does.
+// - the job id a Speech to Text session announces is recorded as the user's (JobOwners in hooks.js)
+//   before the message carrying it reaches the app.
 
 import { STATUS_CODES } from 'node:http';
 
@@ -25,7 +27,7 @@ import {
 } from './common.js';
 import { upstreamWsUrl } from './config.js';
 import { errorName, levelFor } from './log.js';
-import { STREAM_ROUTES, isStreamRoute } from './routes.js';
+import { JOB_CREATING_STREAM, STREAM_ROUTES, isStreamRoute, sessionJobId } from './routes.js';
 import { verifyStreamToken } from './tokens.js';
 
 const MAX_APP_FRAME = 1024 * 1024; // the API's own frame limit
@@ -274,10 +276,24 @@ export function createUpgradeHandler(ctx) {
       wss.handleUpgrade(req, socket, head, (app) => {
         connected = true;
         log('ws.open', fields);
-        relay(app, upstream, (closedBy, code, counts) => {
-          release();
-          logEnd('ws.close', { closed_by: closedBy, code, ...counts });
-        });
+        /** @type {((frame: Buffer) => Promise<void> | null) | null} */
+        const watch =
+          path === JOB_CREATING_STREAM
+            ? (frame) => {
+                const jobId = sessionJobId(frame);
+                return jobId === null ? null : ctx.jobs.record('speech-to-text', jobId, user);
+              }
+            : null;
+        relay(
+          app,
+          upstream,
+          (closedBy, code, counts) => {
+            release();
+            logEnd('ws.close', { closed_by: closedBy, code, ...counts });
+          },
+          watch,
+          (err) => log('job.unrecorded', { ...fields, error: errorName(err) }, 'error'),
+        );
       });
     });
   }
@@ -288,8 +304,11 @@ export function createUpgradeHandler(ctx) {
  * @param {WebSocket} app
  * @param {WebSocket} upstream
  * @param {(closedBy: 'app' | 'upstream', code: number, counts: { frames_up: number, frames_down: number }) => void} onEnd
+ * @param {((frame: Buffer) => Promise<void> | null) | null} [watch]
+ *   Sees EchoNova's text frames; a promise holds that frame (and the ones after it) until it settles.
+ * @param {(err: unknown) => void} [onWatchError]
  */
-function relay(app, upstream, onEnd) {
+function relay(app, upstream, onEnd, watch = null, onWatchError = () => {}) {
   const counts = { frames_up: 0, frames_down: 0 };
   let ended = false;
 
@@ -297,19 +316,38 @@ function relay(app, upstream, onEnd) {
    * @param {WebSocket} from
    * @param {WebSocket} to
    * @param {'frames_up' | 'frames_down'} counter
+   * @param {((frame: Buffer) => Promise<void> | null) | null} [inspect]
    */
-  const forward = (from, to, counter) => {
-    from.on('message', (data, isBinary) => {
+  const forward = (from, to, counter, inspect = null) => {
+    /** @type {Promise<void> | null} frames wait here, in order, while inspect's promise is pending */
+    let held = null;
+    /** @param {Buffer} data @param {boolean} isBinary */
+    const send = (data, isBinary) => {
       if (to.readyState !== WebSocket.OPEN) return;
-      to.send(/** @type {Buffer} */ (data), { binary: isBinary }, () => {
+      to.send(data, { binary: isBinary }, () => {
         if (from.isPaused && to.bufferedAmount < HIGH_WATER) from.resume();
       });
       counts[counter] += 1;
       if (to.bufferedAmount >= HIGH_WATER) from.pause();
+    };
+    /** @param {Promise<void>} next */
+    const hold = (next) => {
+      held = next;
+      next.then(() => {
+        if (held === next) held = null;
+      });
+    };
+    from.on('message', (data, isBinary) => {
+      const frame = /** @type {Buffer} */ (data);
+      if (held) return hold(held.then(() => send(frame, isBinary)));
+      const pending = inspect && !isBinary ? inspect(frame) : null;
+      if (!pending) return send(frame, isBinary);
+      hold(pending.catch(onWatchError).then(() => send(frame, isBinary)));
     });
+    return () => held;
   };
   forward(app, upstream, 'frames_up');
-  forward(upstream, app, 'frames_down');
+  const heldDown = forward(upstream, app, 'frames_down', watch);
   app.on('error', () => {});
   upstream.on('error', () => {});
 
@@ -329,9 +367,15 @@ function relay(app, upstream, onEnd) {
     ended = true;
     clearInterval(heartbeat);
     app.resume();
-    if (code === 1006) app.terminate();
-    else app.close(code === 1005 ? 1000 : code, reason);
-    onEnd('upstream', code, counts);
+    // Frames held for the job record go first: the close must not overtake them.
+    const repeat = () => {
+      if (code === 1006) app.terminate();
+      else app.close(code === 1005 ? 1000 : code, reason);
+      onEnd('upstream', code, counts);
+    };
+    const pending = heldDown();
+    if (pending) pending.then(repeat);
+    else repeat();
   });
   app.on('close', (code, reason) => {
     if (ended) return;

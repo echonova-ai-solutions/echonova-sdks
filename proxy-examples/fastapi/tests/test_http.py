@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import tracemalloc
 from collections.abc import AsyncIterator
@@ -26,7 +27,7 @@ from conftest import (
 from fastapi import FastAPI
 from starlette.requests import HTTPConnection
 
-from echonova_proxy import ConfigError, Settings, create_app
+from echonova_proxy import ConfigError, InMemoryJobOwners, Settings, create_app
 from echonova_proxy.log import quiet_libraries
 from echonova_proxy.routes import REST_ROUTES
 
@@ -35,12 +36,22 @@ pytestmark = pytest.mark.anyio
 MiB = 1024 * 1024
 
 
+JOB_ID = "65a1b2c3d4e5f60718293a4b"
+
+
 def concrete(path: str) -> str:
-    return path.replace("{jobId}", "65a1b2c3d4e5f60718293a4b")
+    return path.replace("{jobId}", JOB_ID)
+
+
+def scoped(user: str, key: str) -> str:
+    """The Idempotency-Key the proxy sends upstream for a user's key (the tests' secret is test-secret)."""
+    return hmac.new(b"test-secret", f"{user}\0{key}".encode(), hashlib.sha256).hexdigest()
 
 
 @pytest.mark.parametrize(("method", "path"), REST_ROUTES)
 async def test_every_allowed_route_is_forwarded(harness: Harness, method: str, path: str) -> None:
+    if "{jobId}" in path:
+        await harness.jobs.record(path.split("/")[2], JOB_ID, "demo-user")
     response = await harness.client.request(method, harness.base + concrete(path) + "?limit=5")
     assert response.status_code == 200
     seen = harness.fake.requests[-1]
@@ -95,7 +106,7 @@ async def test_key_is_injected_and_app_credentials_are_stripped(harness: Harness
     )
     assert response.status_code == 200
     seen = harness.fake.requests[-1]
-    assert seen.headers["idempotency-key"] == "4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a"
+    assert seen.headers["idempotency-key"] == scoped("demo-user", "4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a")
     assert [v for k, v in seen.raw_headers if k == "authorization"] == [f"Bearer {API_KEY}"]
     for name in ("cookie", "x-forwarded-for", "proxy-authorization", "x-custom-hop", "te", "x-api-key"):
         assert name not in seen.headers, name
@@ -159,6 +170,7 @@ async def test_export_download_keeps_content_disposition(harness: Harness) -> No
         await send({"type": "http.response.body", "body": b"1\n00:00:00,000 --> 00:00:01,000\nhi\n"})
 
     harness.fake.respond = respond
+    await harness.jobs.record("speech-to-text", "abc", "demo-user")
     response = await harness.client.get(harness.base + "/v1/speech-to-text/jobs/abc/export?format=srt")
     assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''call.srt"
     assert response.text.startswith("1\n")
@@ -195,6 +207,137 @@ async def test_custom_authenticate_hook_and_quota(start_proxy: StartProxy) -> No
         assert (await h.client.get(url, headers={"authorization": "Bearer bob-token"})).status_code == 200
         assert (await h.client.get(url)).status_code == 401  # the demo token means nothing to this hook
         assert len(h.fake.requests) == 4
+
+
+ALICE = {"authorization": "Bearer alice-token"}
+BOB = {"authorization": "Bearer bob-token"}
+
+
+async def alice_or_bob(conn: HTTPConnection) -> str | None:
+    return {"Bearer alice-token": "alice", "Bearer bob-token": "bob"}.get(conn.headers.get("authorization", ""))
+
+
+def creates(h: Harness, data: dict[str, object], status: int = 200) -> None:
+    """Make the fake API answer the next calls with a job-creating body."""
+
+    async def respond(scope, receive, send, recorded: Recorded) -> None:  # type: ignore[no-untyped-def]
+        body = {"data": data, "success": True, "statusCode": status, "errorMessage": None}
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [(b"content-type", b"application/json; charset=utf-8")],
+            }
+        )
+        await send({"type": "http.response.body", "body": json.dumps(body).encode()})
+
+    h.fake.respond = respond
+
+
+async def test_another_users_job_is_404_for_get_delete_and_export(start_proxy: StartProxy) -> None:
+    async with start_proxy(authenticate=alice_or_bob) as h:
+        creates(h, {"jobId": "stt-alice-1", "status": "processing"})
+        assert (await h.client.post(h.base + "/v1/speech-to-text", headers=ALICE)).status_code == 200
+        h.fake.respond = None
+        before = len(h.fake.requests)
+        for method, path in (
+            ("GET", "/v1/speech-to-text/jobs/stt-alice-1"),
+            ("DELETE", "/v1/speech-to-text/jobs/stt-alice-1"),
+            ("GET", "/v1/speech-to-text/jobs/stt-alice-1/export"),
+        ):
+            response = await h.client.request(method, h.base + path, headers=BOB)
+            assert response.status_code == 404, (method, path)
+            # The API's own answer for an unknown job: Bob can't tell that the job exists.
+            assert response.json() == {
+                "data": None,
+                "success": False,
+                "statusCode": 404,
+                "errorMessage": "STT Job not found",
+            }
+        assert len(h.fake.requests) == before  # never reached the API
+        assert (await h.client.get(h.base + "/v1/speech-to-text/jobs/stt-alice-1", headers=ALICE)).status_code == 200
+        export = await h.client.get(h.base + "/v1/speech-to-text/jobs/stt-alice-1/export", headers=ALICE)
+        assert export.status_code == 200
+        assert (await h.client.get(h.base + "/v1/speech-to-text/jobs/never-made", headers=ALICE)).status_code == 404
+        assert len(h.fake.requests) == before + 2
+
+
+async def test_every_job_creating_route_records_its_job(start_proxy: StartProxy) -> None:
+    async with start_proxy(authenticate=alice_or_bob) as h:
+        creates(h, {"jobId": "tts-sync-1", "status": "completed", "audioUrl": "https://storage.example.com/a.wav"})
+        await h.client.post(h.base + "/v1/text-to-speech/sync", headers=ALICE)
+        creates(
+            h, {"jobId": "stt-sync-1", "status": "processing", "resultUrl": "/v1/speech-to-text/jobs/stt-sync-1"}, 202
+        )
+        await h.client.post(h.base + "/v1/speech-to-text/sync", headers=ALICE)
+        creates(h, {"id": "clean-1", "status": "completed"})
+        await h.client.post(h.base + "/v1/sound-cleaning", headers=ALICE)
+        creates(h, {"jobId": "tts-async-1", "status": "processing"})
+        await h.client.post(h.base + "/v1/text-to-speech", headers=ALICE)
+        creates(h, {"jobId": "tts-refused-1"}, 402)
+        await h.client.post(h.base + "/v1/text-to-speech", headers=ALICE)
+        h.fake.respond = None
+        for product, job_id in (
+            ("text-to-speech", "tts-sync-1"),
+            ("speech-to-text", "stt-sync-1"),
+            ("sound-cleaning", "clean-1"),
+            ("text-to-speech", "tts-async-1"),
+        ):
+            url = f"{h.base}/v1/{product}/jobs/{job_id}"
+            assert (await h.client.get(url, headers=ALICE)).status_code == 200, job_id
+            assert (await h.client.get(url, headers=BOB)).status_code == 404, job_id
+        assert (await h.client.get(h.base + "/v1/text-to-speech/jobs/tts-refused-1", headers=ALICE)).status_code == 404
+        # Jobs are per product: a TTS job id doesn't open the STT routes.
+        assert (await h.client.get(h.base + "/v1/speech-to-text/jobs/tts-sync-1", headers=ALICE)).status_code == 404
+
+
+async def test_a_deleted_job_is_forgotten(start_proxy: StartProxy) -> None:
+    async with start_proxy(authenticate=alice_or_bob) as h:
+        await h.jobs.record("sound-cleaning", "clean-del-1", "alice")
+        response = await h.client.delete(h.base + "/v1/sound-cleaning/jobs/clean-del-1", headers=ALICE)
+        assert response.status_code == 200
+        assert not await h.jobs.is_owner("sound-cleaning", "clean-del-1", "alice")
+
+
+@pytest.mark.parametrize("product", ["text-to-speech", "speech-to-text", "sound-cleaning"])
+async def test_the_job_lists_are_not_forwarded(harness: Harness, product: str) -> None:
+    response = await harness.client.get(f"{harness.base}/v1/{product}/jobs?limit=5")
+    assert response.status_code == 404
+    assert response.json()["errorMessage"] == "Route not found"
+    assert harness.fake.requests == []
+
+
+async def test_idempotency_keys_are_scoped_to_the_user_and_stable(start_proxy: StartProxy) -> None:
+    idempotency_key = "4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a"
+    async with start_proxy(authenticate=alice_or_bob) as h:
+
+        async def forwarded(who: dict[str, str], value: str) -> str:
+            await h.client.post(h.base + "/v1/text-to-speech/sync", json={}, headers={**who, "idempotency-key": value})
+            return h.fake.requests[-1].headers["idempotency-key"]
+
+        first = await forwarded(ALICE, idempotency_key)
+        assert await forwarded(ALICE, idempotency_key) == first  # a retry gets the first result
+        assert await forwarded(BOB, idempotency_key) != first  # Bob can't replay Alice's key
+        assert await forwarded(ALICE, idempotency_key + "x") != first
+        assert first == scoped("alice", idempotency_key)
+        assert len(first) == 64
+        assert set(first) <= set("0123456789abcdef")  # a key the API accepts
+        # A key the API would refuse is left as it is, so the app gets the API's own 400.
+        assert await forwarded(ALICE, "has space") == "has space"
+        assert await forwarded(ALICE, "k" * 201) == "k" * 201
+
+
+async def test_the_in_memory_job_store_is_bounded_and_fails_closed() -> None:
+    jobs = InMemoryJobOwners(max_jobs=2)
+    await jobs.record("text-to-speech", "a", "alice")
+    await jobs.record("text-to-speech", "b", "alice")
+    await jobs.record("text-to-speech", "a", "bob")  # the same job for the same input: both own it
+    await jobs.record("text-to-speech", "c", "alice")  # evicts b, the oldest
+    assert len(jobs.owners) == 2
+    assert not await jobs.is_owner("text-to-speech", "b", "alice")
+    assert await jobs.is_owner("text-to-speech", "a", "alice")
+    assert await jobs.is_owner("text-to-speech", "a", "bob")
+    assert not await jobs.is_owner("speech-to-text", "a", "alice")
 
 
 async def chunks(total: int, size: int = 64 * 1024, gate: asyncio.Event | None = None) -> AsyncIterator[bytes]:
@@ -291,6 +434,7 @@ async def test_download_is_streamed_not_buffered(harness: Harness) -> None:
         await send({"type": "http.response.body", "body": b""})
 
     harness.fake.respond = respond
+    await harness.jobs.record("speech-to-text", "abc", "demo-user")
     received = 0
     tracemalloc.start()
     try:
@@ -322,7 +466,7 @@ async def test_upstream_timeout_is_504(start_proxy: StartProxy) -> None:
             await asyncio.sleep(2)
 
         h.fake.respond = respond
-        response = await h.client.get(h.base + "/v1/text-to-speech/jobs")
+        response = await h.client.get(h.base + "/v1/text-to-speech/voices")
     assert response.status_code == 504
 
 
@@ -348,7 +492,7 @@ async def test_upstream_cut_mid_body_fails_the_download(harness: Harness) -> Non
 
     harness.fake.respond = respond
     with pytest.raises(httpx.HTTPError):
-        await harness.client.get(harness.base + "/v1/text-to-speech/jobs")
+        await harness.client.get(harness.base + "/v1/text-to-speech/voices")
 
 
 async def test_cors_for_listed_origins_only(harness: Harness) -> None:

@@ -1,17 +1,26 @@
 // REST relay: allow-list, key injection, header filtering, auth, quota, streaming, errors.
 
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 import v8 from 'node:v8';
 import vm from 'node:vm';
 
-import { ConfigError, createProxy, makeSettings, settingsFromEnv } from '../src/index.js';
+import { ConfigError, InMemoryJobOwners, createProxy, makeSettings, settingsFromEnv } from '../src/index.js';
 import { REST_ROUTES } from '../src/routes.js';
 import { API_KEY, AUTH, MiB, ORIGIN, UPSTREAM_RID, USER_TOKEN, closedPort, startProxy } from './helpers.js';
 
+const JOB_ID = '65a1b2c3d4e5f60718293a4b';
+
 /** @param {string} path */
-const concrete = (path) => path.replace('{jobId}', '65a1b2c3d4e5f60718293a4b');
+const concrete = (path) => path.replace('{jobId}', JOB_ID);
+
+/**
+ * The Idempotency-Key the proxy sends upstream for a user's key (the tests' secret is 'test-secret').
+ * @param {string} user
+ * @param {string} key
+ */
+const scoped = (user, key) => createHmac('sha256', 'test-secret').update(`${user}\0${key}`).digest('hex');
 
 /**
  * @param {string} url
@@ -95,6 +104,7 @@ describe('REST relay', () => {
   test('every allowed route is forwarded', async () => {
     reset();
     for (const [method, path] of REST_ROUTES) {
+      if (path.includes('{jobId}')) await h.jobs.record(path.split('/')[2], JOB_ID, 'demo-user'); // DELETE forgets it
       const response = await call(`${h.base}${concrete(path)}?limit=5`, { method });
       assert.equal(response.status, 200, `${method} ${path}`);
       await response.arrayBuffer();
@@ -158,7 +168,7 @@ describe('REST relay', () => {
     const text = await response.text();
     const seen = h.fake.requests.at(-1);
     assert.ok(seen);
-    assert.equal(seen.headers['idempotency-key'], '4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a');
+    assert.equal(seen.headers['idempotency-key'], scoped('demo-user', '4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a'));
     assert.equal(seen.headers.authorization, `Bearer ${API_KEY}`);
     assert.equal(seen.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === 'authorization').length, 1);
     for (const name of ['cookie', 'x-forwarded-for', 'proxy-authorization', 'x-custom-hop', 'x-api-key']) {
@@ -205,6 +215,7 @@ describe('REST relay', () => {
 
   test('an export download keeps Content-Disposition', async () => {
     reset();
+    await h.jobs.record('speech-to-text', 'abc', 'demo-user');
     h.fake.respond = (_req, res) => {
       res.writeHead(200, {
         'content-type': 'application/x-subrip',
@@ -281,6 +292,7 @@ describe('REST relay', () => {
 
   test('a download is streamed, not buffered', async () => {
     reset();
+    await h.jobs.record('speech-to-text', 'abc', 'demo-user');
     const total = 64 * MiB;
     /** @type {() => void} */
     let release = () => {};
@@ -331,7 +343,7 @@ describe('REST relay', () => {
       res.write(Buffer.alloc(10, 'x'));
       setTimeout(() => res.socket?.destroy(), 50);
     };
-    const response = await call(`${h.base}/v1/text-to-speech/jobs`);
+    const response = await call(`${h.base}/v1/text-to-speech/voices`);
     await assert.rejects(response.arrayBuffer());
   });
 
@@ -433,6 +445,148 @@ test('a custom authenticate hook, and the quota', async () => {
   }
 });
 
+describe('job ownership', () => {
+  /** @type {import('../src/hooks.js').Authenticate} */
+  const authenticate = async (req) =>
+    /** @type {Record<string, string>} */ ({ 'Bearer alice-token': 'alice', 'Bearer bob-token': 'bob' })[
+      req.headers.authorization ?? ''
+    ] ?? null;
+  const alice = { authorization: 'Bearer alice-token' };
+  const bob = { authorization: 'Bearer bob-token' };
+  /** @type {Awaited<ReturnType<typeof startProxy>>} */
+  let h;
+  before(async () => {
+    h = await startProxy({}, { authenticate });
+  });
+  after(async () => {
+    await h.close();
+  });
+
+  /**
+   * Make the fake API answer the next calls with a job-creating body.
+   * @param {Record<string, unknown>} data
+   * @param {number} [status]
+   */
+  const creates = (data, status = 200) => {
+    h.fake.respond = (_req, res) => {
+      res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ data, success: true, statusCode: status, errorMessage: null }));
+    };
+  };
+  /** @param {string} path @param {Record<string, string>} who @param {string} [method] */
+  const send = async (path, who, method = 'GET') => {
+    const response = await fetch(h.base + path, { method, headers: who });
+    return { status: response.status, body: await response.text() };
+  };
+
+  test("another user's job is 404 for get, delete and export, and never reaches the API", async () => {
+    creates({ jobId: 'stt-alice-1', status: 'processing' });
+    assert.equal((await send('/v1/speech-to-text', alice, 'POST')).status, 200);
+    h.fake.respond = null;
+    const before = h.fake.requests.length;
+    for (const [method, path] of [
+      ['GET', '/v1/speech-to-text/jobs/stt-alice-1'],
+      ['DELETE', '/v1/speech-to-text/jobs/stt-alice-1'],
+      ['GET', '/v1/speech-to-text/jobs/stt-alice-1/export'],
+    ]) {
+      const response = await send(path, bob, method);
+      assert.equal(response.status, 404, `${method} ${path}`);
+      // The API's own answer for an unknown job: Bob can't tell that the job exists.
+      assert.deepEqual(JSON.parse(response.body), {
+        data: null,
+        success: false,
+        statusCode: 404,
+        errorMessage: 'STT Job not found',
+      });
+    }
+    assert.equal(h.fake.requests.length, before);
+    assert.equal((await send('/v1/speech-to-text/jobs/stt-alice-1', alice)).status, 200);
+    assert.equal((await send('/v1/speech-to-text/jobs/stt-alice-1/export', alice)).status, 200);
+    assert.equal((await send('/v1/speech-to-text/jobs/never-made', alice)).status, 404);
+    assert.equal(h.fake.requests.length, before + 2);
+  });
+
+  test('every job-creating route records its job, a failed call does not', async () => {
+    creates({ jobId: 'tts-sync-1', status: 'completed', audioUrl: 'https://storage.example.com/a.wav' });
+    await send('/v1/text-to-speech/sync', alice, 'POST');
+    creates({ jobId: 'stt-sync-1', status: 'processing', resultUrl: '/v1/speech-to-text/jobs/stt-sync-1' }, 202);
+    await send('/v1/speech-to-text/sync', alice, 'POST');
+    creates({ id: 'clean-1', status: 'completed' });
+    await send('/v1/sound-cleaning', alice, 'POST');
+    creates({ jobId: 'tts-async-1', status: 'processing' });
+    await send('/v1/text-to-speech', alice, 'POST');
+    creates({ jobId: 'tts-refused-1' }, 402);
+    await send('/v1/text-to-speech', alice, 'POST');
+    h.fake.respond = null;
+    for (const [product, id] of [
+      ['text-to-speech', 'tts-sync-1'],
+      ['speech-to-text', 'stt-sync-1'],
+      ['sound-cleaning', 'clean-1'],
+      ['text-to-speech', 'tts-async-1'],
+    ]) {
+      assert.equal((await send(`/v1/${product}/jobs/${id}`, alice)).status, 200, id);
+      assert.equal((await send(`/v1/${product}/jobs/${id}`, bob)).status, 404, id);
+    }
+    assert.equal((await send('/v1/text-to-speech/jobs/tts-refused-1', alice)).status, 404);
+    // Jobs are per product: a TTS job id doesn't open the STT routes.
+    assert.equal((await send('/v1/speech-to-text/jobs/tts-sync-1', alice)).status, 404);
+  });
+
+  test('a deleted job is forgotten', async () => {
+    await h.jobs.record('sound-cleaning', 'clean-del-1', 'alice');
+    assert.equal((await send('/v1/sound-cleaning/jobs/clean-del-1', alice, 'DELETE')).status, 200);
+    assert.equal(await h.jobs.isOwner('sound-cleaning', 'clean-del-1', 'alice'), false);
+  });
+
+  test('the job lists are not forwarded', async () => {
+    const before = h.fake.requests.length;
+    for (const product of ['text-to-speech', 'speech-to-text', 'sound-cleaning']) {
+      const response = await send(`/v1/${product}/jobs?limit=5`, alice);
+      assert.equal(response.status, 404, product);
+      assert.equal(JSON.parse(response.body).errorMessage, 'Route not found');
+    }
+    assert.equal(h.fake.requests.length, before);
+  });
+
+  test('idempotency keys are scoped to the user, and stable per user', async () => {
+    h.fake.respond = null;
+    const idempotencyKey = '4b6f2c1e-1d2a-4e7b-9a3c-2f1e0d9c8b7a';
+    /** @param {Record<string, string>} who @param {string} value */
+    const forwarded = async (who, value) => {
+      await (
+        await fetch(`${h.base}/v1/text-to-speech/sync`, {
+          method: 'POST',
+          body: '{}',
+          headers: { ...who, 'content-type': 'application/json', 'idempotency-key': value },
+        })
+      ).arrayBuffer();
+      return h.fake.requests.at(-1)?.headers['idempotency-key'];
+    };
+    const first = await forwarded(alice, idempotencyKey);
+    assert.equal(await forwarded(alice, idempotencyKey), first); // a retry gets the first result
+    assert.notEqual(await forwarded(bob, idempotencyKey), first); // Bob can't replay Alice's key
+    assert.notEqual(await forwarded(alice, `${idempotencyKey}x`), first);
+    assert.equal(first, scoped('alice', idempotencyKey));
+    assert.match(String(first), /^[0-9a-f]{64}$/); // a key the API accepts
+    // A key the API would refuse is left as it is, so the app gets the API's own 400.
+    assert.equal(await forwarded(alice, 'has space'), 'has space');
+    assert.equal(await forwarded(alice, 'k'.repeat(201)), 'k'.repeat(201));
+  });
+});
+
+test('the in-memory job store is bounded and fails closed', async () => {
+  const jobs = new InMemoryJobOwners({ maxJobs: 2 });
+  await jobs.record('text-to-speech', 'a', 'alice');
+  await jobs.record('text-to-speech', 'b', 'alice');
+  await jobs.record('text-to-speech', 'a', 'bob'); // the same job for the same input: both own it
+  await jobs.record('text-to-speech', 'c', 'alice'); // evicts b, the oldest
+  assert.equal(jobs.owners.size, 2);
+  assert.equal(await jobs.isOwner('text-to-speech', 'b', 'alice'), false);
+  assert.equal(await jobs.isOwner('text-to-speech', 'a', 'alice'), true);
+  assert.equal(await jobs.isOwner('text-to-speech', 'a', 'bob'), true);
+  assert.equal(await jobs.isOwner('speech-to-text', 'a', 'alice'), false);
+});
+
 test('the upload cap', async () => {
   const h = await startProxy({ maxUploadBytes: MiB });
   try {
@@ -466,7 +620,7 @@ test('an upstream timeout is 504', async () => {
     h.fake.respond = (_req, res) => {
       setTimeout(() => res.end('late'), 2000);
     };
-    const response = await call(`${h.base}/v1/text-to-speech/jobs`);
+    const response = await call(`${h.base}/v1/text-to-speech/voices`);
     assert.equal(response.status, 504);
   } finally {
     await h.close();

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
 import uuid
@@ -11,7 +13,7 @@ from dataclasses import dataclass
 import httpx
 
 from .config import Settings
-from .hooks import Authenticate, Quota
+from .hooks import Authenticate, JobOwners, Quota
 
 PROXY_USER_AGENT = "echonova-proxy/0.1 (fastapi)"
 
@@ -19,8 +21,11 @@ PROXY_USER_AGENT = "echonova-proxy/0.1 (fastapi)"
 # Authorization, Cookie, hop-by-hop headers and X-Forwarded-*. The proxy sets its own
 # Authorization (the API key) and X-Request-Id.
 # Idempotency-Key makes a retried synthesis, transcription or cleaning return the first result
-# instead of running (and charging) twice.
+# instead of running (and charging) twice. It is forwarded scoped to the user (scoped_idempotency_key).
 FORWARDED_REQUEST_HEADERS = ("accept", "content-type", "idempotency-key")
+
+# What the API accepts as an Idempotency-Key: 1 to 200 printable ASCII characters, no spaces.
+_IDEMPOTENCY_KEY = re.compile(r"[\x21-\x7e]{1,200}")
 
 # Response headers copied from EchoNova's response. Everything else is dropped
 # (Set-Cookie, Server, upstream CORS headers, ...).
@@ -43,6 +48,7 @@ class Proxy:
     settings: Settings
     authenticate: Authenticate
     quota: Quota
+    jobs: JobOwners
     client: httpx.AsyncClient
 
 
@@ -51,6 +57,21 @@ def request_id(incoming: str | None) -> str:
     if incoming and _REQUEST_ID.match(incoming):
         return incoming
     return str(uuid.uuid4())
+
+
+def scoped_idempotency_key(key: str, user_id: str, secret: bytes) -> str:
+    """The Idempotency-Key sent upstream for the app's key: hex HMAC-SHA256(secret, user_id + "\\0" + key).
+
+    The API keeps one set of keys per workspace, and every user of the proxy shares the workspace.
+    Forwarded as-is, a key another user sent first would return that user's job. Scoped, the same
+    user always gets the same upstream key (so retries stay safe) and different users never share
+    one. The secret must be the same on every instance and across restarts, or a retry after a
+    restart runs (and charges) again: set PROXY_STREAM_TOKEN_SECRET.
+    A key the API would refuse is forwarded unchanged, so the app gets the API's own 400.
+    """
+    if not _IDEMPOTENCY_KEY.fullmatch(key):
+        return key
+    return hmac.new(secret, f"{user_id}\0{key}".encode(), hashlib.sha256).hexdigest()
 
 
 def strip_prefix(raw_path: str, prefix: str) -> str | None:

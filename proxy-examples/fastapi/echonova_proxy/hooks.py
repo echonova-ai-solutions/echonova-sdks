@@ -1,6 +1,6 @@
-"""The two parts you replace: who the end user is, and how much they may use.
+"""The parts you replace: who the end user is, how much they may use, and which jobs are theirs.
 
-Pass your own versions to create_app(settings, authenticate=..., quota=...).
+Pass your own versions to create_app(settings, authenticate=..., quota=..., jobs=...).
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import asyncio
 import hmac
 import math
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 
@@ -114,3 +114,54 @@ class InMemoryQuota:
         if len(self._requests) > 10_000:
             for user in [u for u, w in self._requests.items() if not w or w[-1] <= now - 60]:
                 del self._requests[user]
+
+
+class JobOwners(Protocol):
+    """Which of your users owns which job.
+
+    Every user's calls reach EchoNova with the same workspace key, so the API can't tell your
+    users' jobs apart. The proxy records the job each successful create (and each Speech to Text
+    stream) returns as the calling user's, and answers 404 when another user reads, exports or
+    deletes it. Keep these records in your database, next to the rest of your user's data.
+
+    product is "text-to-speech", "speech-to-text" or "sound-cleaning".
+    """
+
+    async def record(self, product: str, job_id: str, user_id: str) -> None:
+        """Remember that user_id created the job."""
+
+    async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
+        """Did user_id create the job? False makes the proxy answer 404."""
+
+    async def forget(self, product: str, job_id: str) -> None:
+        """The job was deleted."""
+
+
+class InMemoryJobOwners:
+    """DEMO ONLY - REPLACE THIS with a table in your database.
+
+    Keeps job owners in this process, for the most recent max_jobs jobs. A job that falls out (or
+    that was created before a restart, or on another worker or instance) is 404 for everyone, its
+    owner too: the store fails closed. Store (product, job_id, user_id) rows in your database
+    instead, and list a user's jobs from there.
+
+    A job can have more than one owner: the API returns the same job for the same synthesis input
+    within 24 hours, so two users who send the same text both get it.
+    """
+
+    def __init__(self, max_jobs: int = 100_000) -> None:
+        self.max_jobs = max_jobs
+        self.owners: OrderedDict[tuple[str, str], set[str]] = OrderedDict()  # oldest first
+
+    async def record(self, product: str, job_id: str, user_id: str) -> None:
+        key = (product, job_id)
+        self.owners.setdefault(key, set()).add(user_id)
+        self.owners.move_to_end(key)
+        while len(self.owners) > self.max_jobs:
+            self.owners.popitem(last=False)
+
+    async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
+        return user_id in self.owners.get((product, job_id), ())
+
+    async def forget(self, product: str, job_id: str) -> None:
+        self.owners.pop((product, job_id), None)

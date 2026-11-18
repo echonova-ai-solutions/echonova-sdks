@@ -74,7 +74,7 @@ Anything you ship to a user's device can be extracted from it: a web page's sour
 
 The SDKs guard against the common mistakes:
 
-- **TypeScript:** creating a client with an API key in a browser or browser worker throws `UnsupportedEnvironmentError`. Streaming from a browser with a key is refused too.
+- **TypeScript:** creating a client with an API key in a browser, a browser worker or a React Native app throws `UnsupportedEnvironmentError`. Streaming from a browser with a key is refused too.
 - **Dart:** `EchoNova(apiKey: ...)` throws `UnsupportedEnvironmentException` on the web. On Android, iOS and desktop the SDK can't tell an app from a server, so the rule is yours to keep: Flutter apps use `EchoNova.proxy`, never `EchoNova(apiKey: ...)`.
 - Both checks can be turned off with `dangerouslyAllowBrowser: true`, for internal tools whose users may see the key. The name is meant to stand out in code review.
 
@@ -261,6 +261,7 @@ The Python SDK doesn't run in browsers, so its streams always send the `auth` he
 - **forward only an allow-list of routes.** The Text to Speech, Speech to Text and Sound Cleaning REST routes, each with its own method, and the two streams. Anything else gets `404`. A proxy that forwarded any path would let every signed-in user do anything your key can do, so it is never an open proxy. Delete the routes your app doesn't use.
 - **keep widget tickets and agent sessions server-side.** Those routes are left out on purpose. Starting an agent session spends workspace credits and returns a room token for one user, and a widget ticket admits one visitor. Your backend decides which of your users may have one, then calls the API directly with the SDK and hands the result to that user only. See [Agents and widgets](agents-and-widgets.md).
 - **authenticate each user and apply a quota.** Both are hooks you replace: the demo `authenticate` hook accepts one static token and must not reach production.
+- **keep each user's jobs to that user.** Every user's calls reach the API with the same key, so the proxies record which user created each job and answer `404` when anyone else reads, exports or deletes it. The job list routes are left out for the same reason, and an `Idempotency-Key` is scoped to the user before it is forwarded. The demo job store keeps records in memory: replace it with your database.
 - **add the key upstream and never return it.** The key comes only from the proxy's environment. The app's own `Authorization` and `Cookie` headers are dropped before forwarding, and only a short list of safe response headers comes back, including `Retry-After`, `X-RateLimit-*` and `X-Request-Id`.
 - **stream everything and relay WebSockets faithfully.** Uploads are never held in memory, and a rejected stream handshake or a stream's close code reaches the app unchanged, so the SDK raises the same errors as it would without a proxy.
 

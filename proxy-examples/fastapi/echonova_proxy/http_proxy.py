@@ -1,4 +1,4 @@
-"""REST relay: allow-list, end-user auth, quota, key injection, streaming both ways."""
+"""REST relay: allow-list, end-user auth, quota, job ownership, key injection, streaming both ways."""
 
 from __future__ import annotations
 
@@ -21,11 +21,24 @@ from .common import (
     error_body,
     request_id,
     safe_response_headers,
+    scoped_idempotency_key,
     strip_prefix,
     user_agent,
 )
 from .log import log_event
-from .routes import STREAM_ROUTES, match_rest
+from .routes import (
+    JOB_CREATING_ROUTES,
+    JOB_NOT_FOUND,
+    STREAM_ROUTES,
+    created_job_id,
+    job_id_of,
+    match_rest,
+    product_of,
+)
+
+# A job-creating answer is read whole before it is relayed, to record its job for the user before
+# the app can ask for it. These answers are small JSON; a longer one is relayed unrecorded.
+MAX_JOB_RESPONSE = 8 * 1024 * 1024
 
 
 class BodyTooLarge(Exception):
@@ -74,7 +87,19 @@ async def handle_http(request: Request) -> Response:
     if retry_after is not None:
         return done(proxy_error(429, rid, headers={"retry-after": str(retry_after)}))
 
+    # One workspace key serves every user: a job is only its creator's to read, export or delete.
+    # Someone else's job gets the API's own answer for an unknown job, so its existence stays hidden.
+    product = product_of(path)
+    job_id = job_id_of(str(route.template), path)
+    if job_id is not None and not await proxy.jobs.is_owner(product, job_id, user):
+        return done(proxy_error(404, rid, JOB_NOT_FOUND[product]), outcome="not_owner")
+    creates_job = (request.method, route.template) in JOB_CREATING_ROUTES
+
     headers = {name: request.headers[name] for name in FORWARDED_REQUEST_HEADERS if name in request.headers}
+    if "idempotency-key" in headers:
+        headers["idempotency-key"] = scoped_idempotency_key(
+            headers["idempotency-key"], user, settings.stream_token_secret
+        )
     headers.update(
         {
             "authorization": f"Bearer {settings.api_key}",
@@ -132,13 +157,44 @@ async def handle_http(request: Request) -> Response:
         await upstream.aclose()
         return done(proxy_error(502, rid, UNEXPECTED_REDIRECT), upstream_status=upstream.status_code)
 
+    ok = upstream.is_success
+    kept: list[bytes] = []  # the start of a job-creating answer, read before anything is relayed
+    complete = False
+    chunks = upstream.aiter_bytes()
+    if creates_job and ok:
+        size = 0
+        try:
+            async for chunk in chunks:
+                kept.append(chunk)
+                size += len(chunk)
+                if size > MAX_JOB_RESPONSE:
+                    break
+            else:
+                complete = True
+        except httpx.HTTPError as exc:
+            await upstream.aclose()
+            return done(proxy_error(502, rid), upstream_error=type(exc).__name__)
+        created = created_job_id(b"".join(kept)) if complete else None
+        if created is not None:
+            await proxy.jobs.record(product, created, user)
+        else:
+            log_event("job.unrecorded", logging.WARNING, route=fields["route"], request_id=rid)
+    if job_id is not None and request.method == "DELETE" and ok:
+        await proxy.jobs.forget(product, job_id)
+
     response_headers = safe_response_headers(upstream.headers.multi_items())
     upstream_rid = upstream.headers.get("x-request-id")
     if upstream_rid is None:
         response_headers.append(("x-request-id", rid))
     response_headers.append(("cache-control", "no-store"))
+    if complete:
+        await upstream.aclose()
+        response: Response = Response(
+            b"".join(kept), status_code=upstream.status_code, headers=dict(_merge(response_headers))
+        )
+        return done(response, upstream_request_id=upstream_rid)
     response = StreamingResponse(
-        _relay(upstream, fields),
+        _relay(upstream, fields, kept, chunks),
         status_code=upstream.status_code,
         headers=dict(_merge(response_headers)),
         background=BackgroundTask(upstream.aclose),
@@ -164,9 +220,13 @@ async def _wait_for_disconnect(request: Request, body_done: asyncio.Event) -> No
         pass
 
 
-async def _relay(upstream: httpx.Response, fields: dict[str, object]) -> AsyncIterator[bytes]:
+async def _relay(
+    upstream: httpx.Response, fields: dict[str, object], kept: list[bytes], chunks: AsyncIterator[bytes]
+) -> AsyncIterator[bytes]:
     try:
-        async for chunk in upstream.aiter_bytes():
+        for chunk in kept:
+            yield chunk
+        async for chunk in chunks:
             yield chunk
     except httpx.HTTPError as exc:
         log_event(

@@ -1,4 +1,4 @@
-// The proxy application: createProxy(settings, { authenticate, quota }).
+// The proxy application: createProxy(settings, { authenticate, quota, jobs }).
 
 import http from 'node:http';
 
@@ -7,7 +7,7 @@ import { Agent } from 'undici';
 
 import { EXPOSED_HEADERS, requestId, splitUrl, stripPrefix } from './common.js';
 import { ConfigError } from './config.js';
-import { InMemoryQuota, demoAuthenticate } from './hooks.js';
+import { InMemoryJobOwners, InMemoryQuota, demoAuthenticate } from './hooks.js';
 import { handleHttp, sendError } from './http-proxy.js';
 import { createLogger, errorName } from './log.js';
 import { mintStreamToken } from './tokens.js';
@@ -17,19 +17,21 @@ import { createUpgradeHandler } from './ws-proxy.js';
  * @typedef {import('./config.js').Settings} Settings
  * @typedef {import('./hooks.js').Authenticate} Authenticate
  * @typedef {import('./hooks.js').Quota} Quota
+ * @typedef {import('./hooks.js').JobOwners} JobOwners
  * @typedef {import('./log.js').Logger} Logger
  *
  * @typedef {object} ProxyContext
  * @property {Settings} settings
  * @property {Authenticate} authenticate
  * @property {Quota} quota
+ * @property {JobOwners} jobs
  * @property {Logger} log
  * @property {Agent} dispatcher HTTP connection pool for upstream calls (with the proxy's timeouts)
  */
 
 /**
  * @param {Settings} settings
- * @param {{ authenticate?: Authenticate, quota?: Quota, logger?: Logger }} [hooks]
+ * @param {{ authenticate?: Authenticate, quota?: Quota, jobs?: JobOwners, logger?: Logger }} [hooks]
  */
 export function createProxy(settings, hooks = {}) {
   let authenticate = hooks.authenticate;
@@ -44,6 +46,7 @@ export function createProxy(settings, hooks = {}) {
     settings,
     authenticate,
     quota: hooks.quota ?? new InMemoryQuota(settings),
+    jobs: hooks.jobs ?? new InMemoryJobOwners(),
     log: hooks.logger ?? createLogger(),
     // The pool behind fetch (http-proxy.js), with timeouts suited to the API: long synchronous
     // calls (STT, Sound Cleaning) can take minutes, and undici's default gives up after 300 s.

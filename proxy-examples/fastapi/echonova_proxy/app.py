@@ -1,4 +1,4 @@
-"""The proxy application: create_app(settings, authenticate=..., quota=...)."""
+"""The proxy application: create_app(settings, authenticate=..., quota=..., jobs=...)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .common import (
     strip_prefix,
 )
 from .config import ConfigError, Settings
-from .hooks import Authenticate, InMemoryQuota, Quota, demo_authenticate
+from .hooks import Authenticate, InMemoryJobOwners, InMemoryQuota, JobOwners, Quota, demo_authenticate
 from .http_proxy import handle_http, proxy_error
 from .log import log_event, quiet_libraries
 from .tokens import mint_stream_token
@@ -38,6 +38,7 @@ def create_app(
     *,
     authenticate: Authenticate | None = None,
     quota: Quota | None = None,
+    jobs: JobOwners | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
     if authenticate is None:
@@ -61,7 +62,7 @@ def create_app(
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     # Set here rather than at startup, so the app also works mounted inside another app
     # (mounted apps don't get their own startup and shutdown events).
-    app.state.proxy = Proxy(settings, auth, limits, client)
+    app.state.proxy = Proxy(settings, auth, limits, InMemoryJobOwners() if jobs is None else jobs, client)
     app.add_middleware(BrowserPolicy, prefix=settings.prefix, allowed_origins=settings.allowed_origins)
 
     @app.api_route("/healthz", methods=["GET", "HEAD"])

@@ -7,6 +7,8 @@ The app's upgrade is held until EchoNova has accepted (or refused) the proxy's o
 - a close on either side is repeated on the other with the same code and reason. A connection
   that drops without a close frame (1006) is dropped on the other side too. A close frame with
   no code (1005) is repeated as 1000, because a server can't send "no code" here.
+- the job id a Speech to Text session announces is recorded as the user's (JobOwners in hooks.py)
+  before the message carrying it reaches the app.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from urllib.parse import parse_qsl, urlencode
 
 from starlette.responses import Response
@@ -34,7 +37,7 @@ from .common import (
     user_agent,
 )
 from .log import log_event
-from .routes import STREAM_ROUTES
+from .routes import JOB_CREATING_STREAM, STREAM_ROUTES, session_job_id
 from .tokens import verify_stream_token
 
 MAX_FRAME_BYTES = 16 * 1024 * 1024  # frames from EchoNova (the API itself caps app frames at 1 MiB)
@@ -130,7 +133,19 @@ async def handle_ws(websocket: WebSocket) -> None:
             await websocket.accept(headers=[(b"x-request-id", rid.encode())])
             log_event("ws.open", **fields)
             counts = {"frames_up": 0, "frames_down": 0}
-            closed_by, code, _ = await _relay(websocket, upstream, counts)
+
+            async def watch(frame: str) -> None:
+                job_id = session_job_id(frame)
+                if job_id is None:
+                    return
+                try:
+                    await proxy.jobs.record("speech-to-text", job_id, user)
+                except Exception as exc:
+                    log_event("job.unrecorded", logging.ERROR, **fields, error=type(exc).__name__)
+
+            closed_by, code, _ = await _relay(
+                websocket, upstream, counts, watch if path == JOB_CREATING_STREAM else None
+            )
             log("ws.close", closed_by=closed_by, code=code, **counts)
         finally:
             with contextlib.suppress(Exception):
@@ -139,8 +154,16 @@ async def handle_ws(websocket: WebSocket) -> None:
         await proxy.quota.release_stream(user)
 
 
-async def _relay(app: WebSocket, upstream: ClientConnection, counts: dict[str, int]) -> tuple[str, int, str]:
-    """Relay until one side closes, repeat the close on the other side, return who closed and how."""
+async def _relay(
+    app: WebSocket,
+    upstream: ClientConnection,
+    counts: dict[str, int],
+    watch: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[str, int, str]:
+    """Relay until one side closes, repeat the close on the other side, return who closed and how.
+
+    watch sees EchoNova's text frames before they are relayed.
+    """
 
     async def app_to_upstream() -> tuple[str, int, str] | None:
         while True:
@@ -160,6 +183,8 @@ async def _relay(app: WebSocket, upstream: ClientConnection, counts: dict[str, i
                 if isinstance(data, bytes):
                     await app.send_bytes(data)
                 else:
+                    if watch is not None:
+                        await watch(data)
                     await app.send_text(data)
                 counts["frames_down"] += 1
         except ConnectionClosed:

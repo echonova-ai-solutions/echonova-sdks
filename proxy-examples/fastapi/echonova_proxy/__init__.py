@@ -7,6 +7,15 @@ on your server.
 
 from .app import create_app
 from .config import ConfigError, Settings
-from .hooks import InMemoryQuota, Quota, demo_authenticate
+from .hooks import InMemoryJobOwners, InMemoryQuota, JobOwners, Quota, demo_authenticate
 
-__all__ = ["ConfigError", "InMemoryQuota", "Quota", "Settings", "create_app", "demo_authenticate"]
+__all__ = [
+    "ConfigError",
+    "InMemoryJobOwners",
+    "InMemoryQuota",
+    "JobOwners",
+    "Quota",
+    "Settings",
+    "create_app",
+    "demo_authenticate",
+]
