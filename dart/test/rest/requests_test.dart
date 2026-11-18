@@ -190,6 +190,20 @@ void main() {
     expect(h.api.requests, hasLength(1));
   });
 
+  test('a job ID of "." or ".." is refused before any request', () async {
+    final h = makeClient((_, __) => ok({'id': 'x', 'status': 'completed'}));
+    for (final id in ['.', '..', ' .. ']) {
+      expect(() => h.client.textToSpeech.jobs.get(id),
+          throwsA(isA<UsageException>()));
+      expect(() => h.client.speechToText.jobs.delete(id),
+          throwsA(isA<UsageException>()));
+    }
+    expect(h.api.requests, isEmpty);
+    // Dots inside an ID are fine.
+    await h.client.textToSpeech.jobs.get('a..b');
+    expect(h.api.last.url.path, '/v1/text-to-speech/jobs/a..b');
+  });
+
   test('list sends offset and limit only when set', () async {
     final h = makeClient((_, __) => ok({'items': <Object>[], 'total': 0}));
     await h.client.speechToText.jobs.list();

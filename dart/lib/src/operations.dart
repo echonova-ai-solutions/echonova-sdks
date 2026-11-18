@@ -47,13 +47,18 @@ final class Operation {
   final bool acceptsIdempotencyKey;
 
   /// [path] with each `{name}` replaced by its percent-encoded value.
-  /// Throws [UsageException] for an empty value.
+  /// Throws [UsageException] for an empty value, `.` or `..`.
   String expand([Map<String, String> params = const {}]) {
     var result = path;
     for (final MapEntry(:key, :value) in params.entries) {
       final trimmed = value.trim();
       if (trimmed.isEmpty) {
         throw UsageException('$key must not be empty');
+      }
+      // Percent-encoding leaves dots alone, and Uri removes dot segments,
+      // so `..` would send the request to the parent path.
+      if (trimmed == '.' || trimmed == '..') {
+        throw UsageException('$key must not be "$trimmed"');
       }
       result = result.replaceAll('{$key}', Uri.encodeComponent(trimmed));
     }

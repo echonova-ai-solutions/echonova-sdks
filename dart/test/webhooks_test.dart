@@ -100,6 +100,52 @@ void main() {
     expect(event.audioUrl, isNull);
   });
 
+  group('a job.completed without its result fails as a payload problem', () {
+    for (final (name, body) in [
+      ('tts without audioUrl', {'jobId': 'j', 'service': 'tts'}),
+      (
+        'tts with an empty audioUrl',
+        {'jobId': 'j', 'service': 'tts', 'audioUrl': ''}
+      ),
+      (
+        'tts with a non-string audioUrl',
+        {'jobId': 'j', 'service': 'tts', 'audioUrl': 1}
+      ),
+      (
+        'tts with only a transcription',
+        {'jobId': 'j', 'service': 'tts', 'transcription': 'hi'}
+      ),
+      ('stt without transcription', {'jobId': 'j', 'service': 'stt'}),
+      (
+        'stt with an empty transcription',
+        {'jobId': 'j', 'service': 'stt', 'transcription': ''}
+      ),
+      (
+        'stt with a null transcription',
+        {'jobId': 'j', 'service': 'stt', 'transcription': null}
+      ),
+      (
+        'stt with only an audioUrl',
+        {'jobId': 'j', 'service': 'stt', 'audioUrl': 'https://x'}
+      ),
+    ]) {
+      test(name, () {
+        expect(
+          () => verifySigned('job.completed', body),
+          throwsA(isA<WebhookVerificationException>()
+              .having((e) => e.reason, 'reason', WebhookFailure.payload)
+              .having((e) => e.message, 'message', contains('missing'))),
+        );
+      });
+    }
+  });
+
+  test('a job.completed for another service needs no particular result', () {
+    final event = verifySigned('job.completed', {'jobId': 'j', 'service': 'x'})
+        as JobCompleted;
+    expect(event.service, 'x');
+  });
+
   test('spending dedupe key', () {
     final event = verifyVector(vector('spending.warning')) as SpendingWarning;
     expect(event.percentageUsed, 80);
@@ -183,6 +229,33 @@ void main() {
     final headers = {...headersOf(v), 'X-Webhook-Timestamp': '9' * 40};
     expect(
       () => verifyWebhook(bodyOf(v), headers, secretsOf(v), now: nowOf(v)),
+      throwsA(isA<WebhookVerificationException>()
+          .having((e) => e.reason, 'reason', WebhookFailure.timestamp)),
+    );
+  });
+
+  test('a timestamp header longer than 15 characters is refused', () {
+    // Signed correctly, so only the length can be the reason.
+    WebhookEvent verifyAt(String timestamp) {
+      const body = '{"jobId":"j","service":"tts","error":"x"}';
+      final signature = Hmac(sha256, utf8.encode(testSecret))
+          .convert(utf8.encode('${timestamp.trim()}.$body'));
+      return verifyWebhook(
+        utf8.encode(body),
+        {
+          'X-Webhook-Event': 'job.failed',
+          'X-Webhook-Timestamp': timestamp,
+          'X-Webhook-Signature': '$signature',
+        },
+        [testSecret],
+        now: DateTime.fromMillisecondsSinceEpoch(1000 * 1000),
+      );
+    }
+
+    expect(verifyAt('${'0' * 11}1000').timestamp, 1000); // 15 characters
+    expect(verifyAt('  ${'0' * 11}1000\t').timestamp, 1000); // trimmed
+    expect(
+      () => verifyAt('${'0' * 12}1000'), // 16 characters
       throwsA(isA<WebhookVerificationException>()
           .having((e) => e.reason, 'reason', WebhookFailure.timestamp)),
     );

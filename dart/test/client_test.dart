@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:echonova_ai/echonova_ai.dart';
-import 'package:echonova_ai/src/client.dart' show redactApiKey, transportOf;
+import 'package:echonova_ai/src/client.dart'
+    show isLoopbackHost, logWarning, redactApiKey, transportOf;
 import 'package:echonova_ai/src/transport/http_transport.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -79,6 +80,78 @@ void main() {
       () => EchoNova(apiKey: key, timeout: Duration.zero),
       throwsArgumentError,
     );
+  });
+
+  group('a plain http baseUrl', () {
+    late List<String> warnings;
+    late void Function(String) original;
+    setUp(() {
+      warnings = [];
+      original = logWarning;
+      logWarning = warnings.add;
+    });
+    tearDown(() => logWarning = original);
+
+    final mock = MockClient((_) async => http.Response('', 200));
+
+    test('warns once that the API key would be sent unencrypted', () {
+      final url = Uri.parse('http://direct.example.com:8080/x');
+      EchoNova(apiKey: key, baseUrl: url, httpClient: mock);
+      EchoNova(apiKey: key, baseUrl: url, httpClient: mock)
+          .withOptions(maxRetries: 0);
+      expect(warnings, hasLength(1));
+      expect(
+        warnings.single,
+        'baseUrl http://direct.example.com:8080 uses plain http, so the API '
+        'key would be sent unencrypted. Use https.',
+      );
+      expect(warnings.single, isNot(contains('REDACTED')));
+    });
+
+    test('warns for proxy credentials too', () {
+      EchoNova.proxy(
+        baseUrl: Uri.parse('http://proxy.example.com'),
+        auth: () => {'Authorization': 'Bearer app-session'},
+        httpClient: mock,
+      );
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains('the auth headers'));
+    });
+
+    test('stays silent for https and for this machine', () {
+      for (final url in [
+        'https://plain.example.com',
+        'http://localhost:8000',
+        'http://LOCALHOST',
+        'http://127.0.0.1:8000',
+        'http://127.10.20.30',
+        'http://[::1]:8000',
+        'http://[0:0:0:0:0:0:0:1]',
+      ]) {
+        EchoNova(apiKey: key, baseUrl: Uri.parse(url), httpClient: mock);
+        EchoNova.proxy(
+            baseUrl: Uri.parse(url), auth: () => const {}, httpClient: mock);
+      }
+      expect(warnings, isEmpty);
+    });
+
+    test('loopback means localhost, 127.0.0.0/8 or ::1 only', () {
+      for (final host in ['localhost', '127.0.0.1', '127.255.0.9', '::1']) {
+        expect(isLoopbackHost(host), isTrue, reason: host);
+      }
+      for (final host in [
+        'localhost.example.com',
+        '127.0.0.1.example.com',
+        '127.0.0.256',
+        '128.0.0.1',
+        '10.0.0.1',
+        '::2',
+        '::ffff:127.0.0.1',
+        '',
+      ]) {
+        expect(isLoopbackHost(host), isFalse, reason: host);
+      }
+    });
   });
 
   test('proxy mode calls auth before every attempt and appends paths',

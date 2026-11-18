@@ -164,6 +164,30 @@ void main() {
       expect(File(path).existsSync(), isTrue);
     });
 
+    for (final name in [
+      'x.wav%3A%24DATA',
+      'C%3Aout.wav',
+      'a%00b.wav',
+      'a%0Ab.wav',
+      'a%1Bb.wav',
+      'a%7Fb.wav',
+      'a%C2%85b.wav',
+      '..',
+      'a%2F..%2Fb.wav',
+      'a%5Cb.wav',
+      'a%FFb.wav',
+    ]) {
+      test('into a folder, a link named $name falls back to "download"',
+          () async {
+        final h =
+            makeClient((_, __) => ok(jobJson()), download: (_, __) => audio());
+        final path = await h.client
+            .downloadTo('https://storage.example.com/tts/$name', dir.path);
+        expect(path, '${dir.path}/download');
+        expect(dir.listSync().map((e) => e.path), ['${dir.path}/download']);
+      });
+    }
+
     test('a retried download restarts the file', () async {
       final h = makeClient((_, __) => ok(jobJson()),
           download: (_, index) =>
