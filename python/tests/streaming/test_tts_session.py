@@ -509,6 +509,28 @@ def test_handshake_rejections_are_not_retried(
     assert len(server.attempts) == 1
 
 
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("elsewhere", [True, False], ids=["cross-origin", "same-origin"])
+def test_handshake_redirects_are_never_followed(
+    server: MockServer, mode: str, bridge: Bridge | None, status: int, elsewhere: bool
+) -> None:
+    target = MockServer().start()
+    try:
+        location = (target.url if elsewhere else server.url) + "/v1/text-to-speech/stream"
+        server.rejections.append(Rejection(status, "Found", json_body=False, location=location))
+        opts = options_for(server, headers=lambda: {"Authorization": f"Bearer {TEST_KEY}", "X-Session": "s3cret"})
+        with pytest.raises(ProtocolError) as info:
+            open_tts(mode, opts, bridge, voice_id="v1")
+        assert info.value.status_code == status
+        assert info.value.transport == "websocket"
+        assert info.value.may_have_executed is False
+        assert "redirects are not followed" in str(info.value)
+        assert len(server.attempts) == 1  # neither followed nor retried
+        assert target.attempts == []
+    finally:
+        target.stop()
+
+
 @pytest.mark.parametrize(
     "rejection",
     [

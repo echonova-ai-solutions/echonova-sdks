@@ -13,7 +13,18 @@ from typing import Any, Self, TypeVar, cast, overload
 
 import httpx
 
-from ._base_client import NOT_GIVEN, BaseClient, RequestSpec, _Limits, _Pool, _Sink, check_options, public_signature
+from ._base_client import (
+    NOT_GIVEN,
+    BaseClient,
+    RequestSpec,
+    _Limits,
+    _Pool,
+    _Sink,
+    aread_error_body,
+    check_options,
+    public_signature,
+    read_error_body,
+)
 from ._config import DEFAULT_MAX_RETRIES, DEFAULT_STREAM_KEEPALIVE, Runtime, Timeout
 from ._response import ApiResponse, raw_mode
 from ._transport import Action, Authenticate, Call, Failure, Flow, Send, Sleep
@@ -207,18 +218,17 @@ class EchoNova(BaseClient[httpx.Client]):
             if self._on_request is not None:
                 self._on_request(action.request)
         try:
-            if action.sink is None:
-                response = client.send(action.request, follow_redirects=action.download)
-            else:
-                response = client.send(action.request, stream=True, follow_redirects=True)
-                try:
-                    if response.is_success:
-                        for chunk in response.iter_bytes():
-                            action.sink.write(chunk)
-                    else:
-                        response.read()
-                finally:
-                    response.close()
+            response = client.send(action.request, stream=True, follow_redirects=action.download)
+            try:
+                if not response.is_success:
+                    read_error_body(response)  # capped: an error body is only read for its message
+                elif action.sink is None:
+                    response.read()
+                else:
+                    for chunk in response.iter_bytes():
+                        action.sink.write(chunk)
+            finally:
+                response.close()
         except httpx.HTTPError as exc:
             return exc
         if not action.download and self._on_response is not None:
@@ -401,18 +411,17 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
             client = self._pool.http
             await _call_hook(self._on_request, action.request)
         try:
-            if action.sink is None:
-                response = await client.send(action.request, follow_redirects=action.download)
-            else:
-                response = await client.send(action.request, stream=True, follow_redirects=True)
-                try:
-                    if response.is_success:
-                        async for chunk in response.aiter_bytes():
-                            action.sink.write(chunk)
-                    else:
-                        await response.aread()
-                finally:
-                    await response.aclose()
+            response = await client.send(action.request, stream=True, follow_redirects=action.download)
+            try:
+                if not response.is_success:
+                    await aread_error_body(response)  # capped: an error body is only read for its message
+                elif action.sink is None:
+                    await response.aread()
+                else:
+                    async for chunk in response.aiter_bytes():
+                        action.sink.write(chunk)
+            finally:
+                await response.aclose()
         except httpx.HTTPError as exc:
             return exc
         if not action.download:

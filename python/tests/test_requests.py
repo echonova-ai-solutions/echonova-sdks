@@ -370,6 +370,29 @@ def test_path_parameters_are_escaped() -> None:
     assert recorder.last.url.raw_path == b"/v1/agents/..%2Fx/sessions/s%2F1/end"
 
 
+@pytest.mark.parametrize("value", [".", ".."])
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda c, v: c.text_to_speech.jobs.get(v),
+        lambda c, v: c.speech_to_text.jobs.delete(v),
+        lambda c, v: c.sound_cleaning.jobs.get(v),
+        lambda c, v: c.widgets.create_ticket(v),
+        lambda c, v: c.agents.sessions.get(AGENT_ID, v),
+        lambda c, v: c.agents.sessions.end(v, JOB_ID),
+    ],
+)
+def test_dot_segment_ids_are_refused_before_sending(call: Callable[[Any, str], Any], value: str) -> None:
+    from echonova import UsageError
+
+    recorder = Recorder(respond)
+    with pytest.raises(UsageError, match="not a valid ID"):
+        call(make_client(recorder), value)
+    with pytest.raises(UsageError, match="not a valid ID"):
+        asyncio.run(call(make_async_client(recorder), value))
+    assert recorder.requests == []
+
+
 @pytest.mark.parametrize(
     "call",
     [

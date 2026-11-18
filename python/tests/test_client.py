@@ -327,3 +327,87 @@ def test_plain_http_with_a_key_logs_a_warning(caplog: pytest.LogCaptureFixture) 
     assert "unencrypted" not in caplog.text
     EchoNova(api_key=TEST_KEY, base_url="http://proxy.example.com")
     assert "unencrypted" in caplog.text
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "127.8.9.10", "[::1]"])
+def test_plain_http_to_loopback_is_silent(caplog: pytest.LogCaptureFixture, host: str) -> None:
+    caplog.set_level("WARNING", logger="echonova")
+    EchoNova(api_key=TEST_KEY, base_url=f"http://{host}:8080")
+    EchoNova(base_url=f"http://{host}:8080", auth=lambda: {"X-Session": "s"})
+    AsyncEchoNova(base_url=f"http://{host}:8080", auth=lambda: {"X-Session": "s"})
+    assert "unencrypted" not in caplog.text
+
+
+@pytest.mark.parametrize("host", ["proxy.example.com", "10.0.0.5", "[fd00::1]", "localhost.example.com"])
+def test_plain_http_with_an_auth_hook_logs_a_warning(caplog: pytest.LogCaptureFixture, host: str) -> None:
+    caplog.set_level("WARNING", logger="echonova")
+    EchoNova(base_url=f"http://{host}", auth=lambda: {"X-Session": "s"})
+    assert "auth hook's headers would be sent unencrypted" in caplog.text
+    assert "API key" not in caplog.text
+    caplog.clear()
+    AsyncEchoNova(base_url=f"https://{host}", auth=lambda: {"X-Session": "s"})
+    assert "unencrypted" not in caplog.text
+
+
+class _EndlessBody:
+    """A 1 MiB error body, counting the chunks the client pulls from it."""
+
+    def __init__(self, prefix: bytes = b"") -> None:
+        self.prefix = prefix
+        self.pulled = 0
+
+    def chunks(self) -> Any:
+        yield self.prefix
+        for _ in range(1024):
+            self.pulled += 1
+            yield b"x" * 1024
+
+    async def achunks(self) -> Any:
+        for chunk in self.chunks():
+            yield chunk
+
+
+def test_error_bodies_are_read_up_to_64_kib() -> None:
+    from echonova import NotFoundError
+    from echonova._base_client import ERROR_BODY_LIMIT
+
+    endless = _EndlessBody(b"<html>")
+    client = make_client(lambda r: httpx.Response(404, content=endless.chunks()))
+    with pytest.raises(NotFoundError) as caught:
+        client.text_to_speech.jobs.get(JOB_ID)
+    assert endless.pulled <= ERROR_BODY_LIMIT // 1024
+    assert caught.value.raw_body is not None
+    assert caught.value.raw_body.startswith("<html>")
+
+    endless = _EndlessBody()
+    downloads = make_client(job_handler, download=lambda r: httpx.Response(404, content=endless.chunks()))
+    with pytest.raises(NotFoundError):
+        downloads.download("https://storage.example.com/out.wav?sig=x")
+    assert endless.pulled <= ERROR_BODY_LIMIT // 1024
+
+
+def test_async_error_bodies_are_read_up_to_64_kib() -> None:
+    from echonova import NotFoundError
+    from echonova._base_client import ERROR_BODY_LIMIT
+
+    endless = _EndlessBody(b"<html>")
+    client = make_async_client(lambda r: httpx.Response(404, content=endless.achunks()))
+    with pytest.raises(NotFoundError):
+        asyncio.run(client.text_to_speech.jobs.get(JOB_ID))
+    assert endless.pulled <= ERROR_BODY_LIMIT // 1024
+
+    endless = _EndlessBody()
+    downloads = make_async_client(job_handler, download=lambda r: httpx.Response(404, content=endless.achunks()))
+    with pytest.raises(NotFoundError):
+        asyncio.run(downloads.download("https://storage.example.com/out.wav?sig=x"))
+    assert endless.pulled <= ERROR_BODY_LIMIT // 1024
+
+
+def test_an_error_envelope_under_the_cap_keeps_its_message() -> None:
+    from echonova import NotFoundError
+
+    padded = {"data": None, "success": False, "statusCode": 404, "errorMessage": "Job not found", "pad": "p" * 60_000}
+    client = make_client(lambda r: httpx.Response(404, json=padded))
+    with pytest.raises(NotFoundError) as caught:
+        client.text_to_speech.jobs.get(JOB_ID)
+    assert caught.value.error_message == "Job not found"

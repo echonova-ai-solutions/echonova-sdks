@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus, InvalidURI
@@ -13,14 +14,34 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidSta
 from ..errors import UsageError
 from ._aio import wait_event
 from ._errors import CloseInfo
-from ._link import PING_FRAME, AttemptLimiter, HandshakeRetry, Liveness, connect_kwargs, encode_json
+from ._link import (
+    PING_FRAME,
+    AttemptLimiter,
+    HandshakeRetry,
+    Liveness,
+    connect_kwargs,
+    encode_json,
+)
 from ._options import StreamOptions, resolve_headers_async, split_user_agent
+from ._ws_redirect import HandshakeRedirect
 
 logger = logging.getLogger("echonova.streaming")
 
 
 class LinkClosed(Exception):
     """Internal: a send was attempted on a socket that is closed or closing."""
+
+
+class _NoRedirectConnection(ClientConnection):
+    """A connection whose handshake never follows a redirect (see ``HandshakeRedirect``)."""
+
+    async def handshake(self, *args: Any, **kwargs: Any) -> None:
+        try:
+            await super().handshake(*args, **kwargs)
+        except InvalidStatus as exc:
+            if 300 <= exc.response.status_code < 400:
+                raise HandshakeRedirect(exc.response) from exc
+            raise
 
 
 async def open_websocket(
@@ -51,8 +72,9 @@ async def open_websocket(
         limiter.record(clock())
         headers, user_agent = split_user_agent(await resolve_headers_async(options), options.user_agent)
         try:
-            return await connect(url, **connect_kwargs(options, connect, headers, user_agent))
-        except InvalidStatus as exc:
+            kwargs = connect_kwargs(options, connect, headers, user_agent)
+            return await connect(url, create_connection=_NoRedirectConnection, **kwargs)
+        except (InvalidStatus, HandshakeRedirect) as exc:
             response = exc.response
             delay = retry.on_status(response.status_code, response.headers, bytes(response.body or b""), clock())
         except InvalidURI as exc:

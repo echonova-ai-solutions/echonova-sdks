@@ -79,13 +79,13 @@ class DeleteResult(Model):
 # --- Text to Speech -----------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, repr=False)  # Model.__repr__ redacts the link
 class TtsResult(Model):
     """The result of ``text_to_speech.generate()``. ``audio_url`` is a signed WAV link that expires."""
 
     job_id: str = api_field("jobId", to_str, required=True)
     status: str = api_field("status", to_str, required=True)
-    audio_url: str | None = api_field("audioUrl", to_str)
+    audio_url: str | None = api_field("audioUrl", to_str, link=True)
     duration_seconds: float | None = api_field("durationSeconds", to_float)
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
 
@@ -94,14 +94,14 @@ class TtsResult(Model):
         return self.job_id
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, repr=False)  # Model.__repr__ redacts the link
 class Voice(Model):
     id: str = api_field("id", to_str, required=True)
     name: str | None = api_field("name", to_str)
     display_name: str | None = api_field("displayName", to_str)
     language: str | None = api_field("language", to_str)
     gender: str | None = api_field("gender", to_str)
-    preview_url: str | None = api_field("previewUrl", to_str)
+    preview_url: str | None = api_field("previewUrl", to_str, link=True)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -138,7 +138,7 @@ class TtsJobStream(Model):
     audio_dropped: bool | None = api_field("audioDropped", to_bool)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, repr=False)  # Model.__repr__ redacts the link
 class TtsJob(Model):
     """A Text to Speech job. ``audio_url`` is re-signed on every get; it expires, so don't store it.
 
@@ -149,7 +149,7 @@ class TtsJob(Model):
     status: str = api_field("status", to_str, required=True)
     text: str | None = api_field("text", to_str)
     voice_id: str | None = api_field("voiceId", to_str)
-    audio_url: str | None = api_field("audioUrl", to_str)
+    audio_url: str | None = api_field("audioUrl", to_str, link=True)
     duration_seconds: float | None = api_field("durationSeconds", to_float)
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
     error: str | None = api_field("error", to_str)
@@ -247,7 +247,7 @@ class SttJobStream(Model):
     session_id: str | None = api_field("sessionId", to_str)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, repr=False)  # Model.__repr__ redacts the link
 class SttJob(Model):
     """A Speech to Text job. ``transcription`` is missing until it completes.
 
@@ -269,7 +269,7 @@ class SttJob(Model):
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
     error: str | None = api_field("error", to_str)
     created_at: datetime | None = api_field("createdAt", to_datetime)
-    audio_url: str | None = api_field("audioUrl", to_str)
+    audio_url: str | None = api_field("audioUrl", to_str, link=True)
     stream: SttJobStream | None = api_field("stream", to_model(SttJobStream))
 
 
@@ -327,14 +327,14 @@ class CleanMetrics(Model):
     true_peak_dbfs: float | None = api_field("truePeakDbfs", to_float)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, repr=False)  # Model.__repr__ redacts the link
 class CleanJob(Model):
     """A Sound Cleaning job. ``output_url`` is a signed link to the cleaned WAV; it expires."""
 
     id: str = api_field("id", to_str, required=True)
     status: str = api_field("status", to_str, required=True)
     file_name: str | None = api_field("fileName", to_str)
-    output_url: str | None = api_field("outputUrl", to_str)
+    output_url: str | None = api_field("outputUrl", to_str, link=True)
     duration_seconds: float | None = api_field("durationSeconds", to_float)
     credits_consumed: int | None = api_field("creditsConsumed", to_int)
     options: CleanJobOptions | None = api_field("options", to_model(CleanJobOptions))

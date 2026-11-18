@@ -56,6 +56,42 @@ def test_download_to_a_directory_keeps_the_link_name(tmp_path: Path) -> None:
     assert result == tmp_path / "out.wav"
 
 
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("..%2F..%2Fpwned.txt", "pwned.txt"),
+        ("%2Fetc%2Fx", "x"),
+        ("%5C..%5Cx", "x"),
+        ("..%5C..%5Cpwned.txt", "pwned.txt"),
+        ("%2e%2e", "download"),
+        ("%2E", "download"),
+        ("a%2F..", "download"),
+        ("%2F", "download"),
+        ("x%00.wav", "download"),
+        ("x%0A.wav", "download"),
+        ("%D8%B5%D9%88%D8%AA.wav", "صوت.wav"),
+    ],
+)
+def test_download_to_a_directory_never_leaves_it(tmp_path: Path, path: str, expected: str) -> None:
+    inside = tmp_path / "inside"
+    inside.mkdir()
+    url = f"https://storage.example.com/tts/{path}?sv=2024&sig=REDACTED-secret-signature"
+    result = make_client(api, download=storage()).download(url, to=inside)
+    assert result == inside / expected
+    assert result.read_bytes() == AUDIO
+    assert list(tmp_path.iterdir()) == [inside]
+    assert list(inside.iterdir()) == [result]
+
+
+def test_async_download_to_a_directory_never_leaves_it(tmp_path: Path) -> None:
+    inside = tmp_path / "inside"
+    inside.mkdir()
+    client = make_async_client(api, download=storage())
+    result = asyncio.run(client.download("https://storage.example.com/a/..%2F..%2Fpwned.txt?sig=x", to=inside))
+    assert result == inside / "pwned.txt"
+    assert list(tmp_path.iterdir()) == [inside]
+
+
 def test_expired_link_is_explained_and_leaves_no_file(tmp_path: Path) -> None:
     files = storage(httpx.Response(403, text="<Error><Code>AuthenticationFailed</Code></Error>"))
     with pytest.raises(DownloadExpiredError) as info:

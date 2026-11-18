@@ -12,20 +12,41 @@ import socket
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus, InvalidURI
 from websockets.sync.client import ClientConnection, connect
 
 from ..errors import UsageError
 from ._errors import CloseInfo
-from ._link import PING_FRAME, AttemptLimiter, HandshakeRetry, Liveness, connect_kwargs, encode_json
+from ._link import (
+    PING_FRAME,
+    AttemptLimiter,
+    HandshakeRetry,
+    Liveness,
+    connect_kwargs,
+    encode_json,
+)
 from ._options import StreamOptions, resolve_headers_sync, split_user_agent
+from ._ws_redirect import HandshakeRedirect
 
 logger = logging.getLogger("echonova.streaming")
 
 
 class LinkClosed(Exception):
     """Internal: a send was attempted on a socket that is closed or closing."""
+
+
+class _NoRedirectConnection(ClientConnection):
+    """A connection whose handshake never follows a redirect (see ``HandshakeRedirect``)."""
+
+    def handshake(self, *args: Any, **kwargs: Any) -> None:
+        try:
+            super().handshake(*args, **kwargs)
+        except InvalidStatus as exc:
+            if 300 <= exc.response.status_code < 400:
+                raise HandshakeRedirect(exc.response) from exc
+            raise
 
 
 def open_websocket_sync(
@@ -56,9 +77,10 @@ def open_websocket_sync(
         limiter.record(clock())
         headers, user_agent = split_user_agent(resolve_headers_sync(options), options.user_agent)
         try:
-            ws: ClientConnection = connect(url, **connect_kwargs(options, connect, headers, user_agent))
+            kwargs = connect_kwargs(options, connect, headers, user_agent)
+            ws: ClientConnection = connect(url, create_connection=_NoRedirectConnection, **kwargs)
             return ws
-        except InvalidStatus as exc:
+        except (InvalidStatus, HandshakeRedirect) as exc:
             response = exc.response
             delay = retry.on_status(response.status_code, response.headers, bytes(response.body or b""), clock())
         except InvalidURI as exc:
