@@ -11,10 +11,10 @@ Official Python SDK for the [EchoNova API](https://echonova.ai/docs/developers):
 ## Install
 
 ```bash
-pip install echonova-ai          # or: uv add echonova-ai
+pip install echonova          # or: uv add echonova
 ```
 
-The package is `echonova-ai`; you import it as `echonova`. Python 3.11 or later.
+Python 3.11 or later.
 
 ## Quick start
 

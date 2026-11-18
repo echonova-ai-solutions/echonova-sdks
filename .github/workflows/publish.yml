@@ -1,7 +1,7 @@
 name: Publish SDKs
 
 # Publishes one SDK when its release tag is pushed:
-#   py-vX.Y.Z    ->  PyPI     echonova-ai    (environment "pypi")
+#   py-vX.Y.Z    ->  PyPI     echonova       (environment "pypi")
 #   js-vX.Y.Z    ->  npm      @echonova/ai   (environment "npm")
 #   dart-vX.Y.Z  ->  pub.dev  echonova_ai    (environment "pubdev")
 # Every registry trusts this workflow file (publish.yml) through OIDC trusted

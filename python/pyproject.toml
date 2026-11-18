@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "echonova-ai"
+name = "echonova"
 dynamic = ["version"]
 description = "Official Python SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning."
 readme = "README.md"

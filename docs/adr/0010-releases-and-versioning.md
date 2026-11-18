@@ -38,7 +38,7 @@ The API is versioned by its path (`/v1`) and changes additively within a version
   - npm trusted publishing, with provenance;
   - pub.dev automated publishing from GitHub Actions.
 - Publishing runs in a protected `release` environment that needs maintainer approval.
-- *Amended 2026-11-15:* the packages are `echonova-ai` on PyPI (imported as `echonova`), `@echonova/ai` on npm and `echonova_ai` on pub.dev, licensed MIT, starting at `0.0.1`. One workflow, `publish.yml`, publishes each from its tag (`py-v*`, `js-v*`, `dart-v*`) in its own environment (`pypi`, `npm`, `pubdev`), matching the registries' trusted-publisher settings. See [RELEASING.md](../RELEASING.md).
+- *Amended 2026-11-15:* the packages are `echonova` on PyPI (*amended again 2026-11-18*: the PyPI project EchoNova already owns, matching the import), `@echonova/ai` on npm and `echonova_ai` on pub.dev, licensed MIT, starting at `0.0.1`. One workflow, `publish.yml`, publishes each from its tag (`py-v*`, `js-v*`, `dart-v*`) in its own environment (`pypi`, `npm`, `pubdev`), matching the registries' trusted-publisher settings. See [RELEASING.md](../RELEASING.md).
 - The release workflow **builds once**, installs the built artifact in a clean environment, runs a live smoke test, verifies attestations and provenance, and only then publishes.
 - Registry organisations and the GitHub organisation require two-factor authentication. Actions are pinned by commit SHA and kept current by Renovate.
 

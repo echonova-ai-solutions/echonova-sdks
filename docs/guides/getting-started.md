@@ -6,7 +6,7 @@ Install an EchoNova SDK, put your API key in the environment, and turn text into
 
 | SDK | Package | Requires | Runs on |
 | --- | --- | --- | --- |
-| Python | `echonova-ai` on PyPI (import `echonova`) | CPython 3.11 or later | Any OS. A blocking client (`EchoNova`) and an asyncio client (`AsyncEchoNova`) with the same methods. |
+| Python | `echonova` on PyPI | CPython 3.11 or later | Any OS. A blocking client (`EchoNova`) and an asyncio client (`AsyncEchoNova`) with the same methods. |
 | JavaScript / TypeScript | `@echonova/ai` on npm | Node.js 22 or later, Bun, or Deno 2 | ESM and CommonJS, with type definitions. Cloudflare Workers runs REST and streaming (file paths only with `nodejs_compat`); Vercel Edge runs REST only, without file paths. Browsers use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps) only. |
 | Dart / Flutter | `echonova_ai` on pub.dev | Dart 3.5 or later (Flutter 3.24 or later) | Server-side Dart with an API key. Flutter apps on Android, iOS, desktop and the web use [proxy mode](authentication.md#proxy-mode-for-web-and-mobile-apps). |
 
@@ -17,7 +17,7 @@ Each SDK supports every language version that is still maintained upstream. A ve
 **Python**
 
 ```bash
-pip install echonova-ai       # or: uv add echonova-ai (import it as echonova)
+pip install echonova          # or: uv add echonova
 ```
 
 **TypeScript**

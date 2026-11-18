@@ -4,7 +4,7 @@ Each SDK is released on its own, by pushing a tag. The [publish workflow](../.gi
 
 | SDK | Tag | Registry package | Version lives in | GitHub environment |
 | --- | --- | --- | --- | --- |
-| Python | `py-vX.Y.Z` | PyPI `echonova-ai` (imported as `echonova`) | `python/src/echonova/_version.py` (read by `pyproject.toml`) | `pypi` |
+| Python | `py-vX.Y.Z` | PyPI `echonova` | `python/src/echonova/_version.py` (read by `pyproject.toml`) | `pypi` |
 | JavaScript / TypeScript | `js-vX.Y.Z` | npm `@echonova/ai` | `js/package.json` (and `src/version.ts`) | `npm` |
 | Dart / Flutter | `dart-vX.Y.Z` | pub.dev `echonova_ai` | `dart/pubspec.yaml` (and `lib/src/version.dart`), plus `dart/CHANGELOG.md` | `pubdev` |
 
@@ -15,7 +15,7 @@ Versions follow [SemVer](https://semver.org) ([ADR 0010](adr/0010-releases-and-v
 Done once by a maintainer with admin rights on the GitHub organization and each registry account. Use company-owned accounts with two-factor authentication, keep their recovery codes in the company password manager, and give each registry a second owner so access never depends on one person. Every registry trusts the same workflow file, `publish.yml`, in `echonova-ai-solutions/echonova-sdks`.
 
 1. **GitHub:** the environments `pypi`, `npm` and `pubdev` (Settings → Environments) each allow only their own tag pattern (`py-v*`, `js-v*`, `dart-v*`) to deploy. Add required reviewers (the code owners) once the repository is public: the free plan doesn't offer them on private repositories.
-2. **PyPI:** a trusted publisher for the project `echonova-ai`: owner `echonova-ai-solutions`, repository `echonova-sdks`, workflow `publish.yml`, environment `pypi`. For a project that doesn't exist yet this is a pending publisher, which doesn't reserve the name: the first tagged release creates the project.
+2. **PyPI:** a trusted publisher for the project `echonova`: owner `echonova-ai-solutions`, repository `echonova-sdks`, workflow `publish.yml`, environment `pypi`. For a project that doesn't exist yet this is a pending publisher, which doesn't reserve the name: the first tagged release creates the project.
 3. **npm:** the `echonova` organization owns the `@echonova` scope. On the `@echonova/ai` package, a trusted publisher: GitHub Actions, `echonova-ai-solutions`, `echonova-sdks`, workflow `publish.yml`, environment `npm`; and under Publishing access, require two-factor authentication and disallow tokens. If npm only allows that on a package that exists, publish `0.0.1` by hand once: `cd js && npm ci && npm run build && npm publish --access public`. npm adds provenance only when the repository is public.
 4. **pub.dev:** the package `echonova_ai`, owned by the `echonova.ai` verified publisher, with automated publishing from GitHub Actions: repository `echonova-ai-solutions/echonova-sdks`, tag pattern `dart-v{{version}}`, required environment `pubdev`. Automated publishing is set up on a package that exists, so its first version may need to go up by hand: `cd dart && dart pub publish`. A pub.dev version can't be deleted, only retracted within 7 days.
 5. **When the repository is made public:**

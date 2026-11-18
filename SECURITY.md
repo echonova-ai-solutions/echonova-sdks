@@ -36,7 +36,7 @@ Security fixes are released as patch releases on the latest minor version of eac
 
 | SDK | Package | Supported |
 | --- | --- | --- |
-| Python | `echonova-ai` on PyPI | latest minor of the current major |
+| Python | `echonova` on PyPI | latest minor of the current major |
 | JavaScript/TypeScript | `@echonova/ai` on npm | latest minor of the current major |
 | Dart/Flutter | `echonova_ai` on pub.dev | latest minor of the current major |
 

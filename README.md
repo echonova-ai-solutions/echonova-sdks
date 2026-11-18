@@ -3,7 +3,7 @@
 <img src="docs/assets/banner.svg" alt="EchoNova SDKs: Text to Speech, Speech to Text and Sound Cleaning for Python, TypeScript and Dart" width="100%">
 
 <p>
-  <a href="https://pypi.org/project/echonova-ai/"><img src="https://img.shields.io/pypi/v/echonova-ai?label=PyPI&color=6E665C&labelColor=171310" alt="PyPI: echonova-ai"></a>
+  <a href="https://pypi.org/project/echonova/"><img src="https://img.shields.io/pypi/v/echonova?label=PyPI&color=6E665C&labelColor=171310" alt="PyPI: echonova"></a>
   <a href="https://www.npmjs.com/package/@echonova/ai"><img src="https://img.shields.io/npm/v/@echonova/ai?label=npm&color=6E665C&labelColor=171310" alt="npm: @echonova/ai"></a>
   <a href="https://pub.dev/packages/echonova_ai"><img src="https://img.shields.io/pub/v/echonova_ai?label=pub.dev&color=6E665C&labelColor=171310" alt="pub.dev: echonova_ai"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E665C?labelColor=171310" alt="License: MIT"></a>
@@ -33,7 +33,7 @@ Three SDKs, one behaviour. Each wraps every endpoint of the [EchoNova API](https
 
 | SDK | Install | Import | Runs on |
 | :--- | :--- | :--- | :--- |
-| 🐍 [Python](python/README.md) | `pip install echonova-ai` | `from echonova import EchoNova` | Python 3.11+, blocking and asyncio |
+| 🐍 [Python](python/README.md) | `pip install echonova` | `from echonova import EchoNova` | Python 3.11+, blocking and asyncio |
 | 🟦 [TypeScript / JavaScript](js/README.md) | `npm install @echonova/ai` | `import EchoNova from '@echonova/ai'` | Node.js 22+, Bun, Deno, Cloudflare Workers; browsers through a proxy |
 | 🎯 [Dart / Flutter](dart/README.md) | `dart pub add echonova_ai` | `import 'package:echonova_ai/echonova_ai.dart';` | Dart 3.5+: server, mobile, desktop; Flutter web through a proxy |
 
@@ -118,7 +118,7 @@ The [getting-started guide](docs/guides/getting-started.md) continues with Speec
 ## 🗂️ Repository layout
 
 ```text
-python/          Python SDK                      (PyPI: echonova-ai)
+python/          Python SDK                      (PyPI: echonova)
 js/              TypeScript / JavaScript SDK      (npm: @echonova/ai)
 dart/            Dart / Flutter SDK               (pub.dev: echonova_ai)
 spec/            The shared contract every SDK is tested against
@@ -177,7 +177,7 @@ Each SDK is published by pushing its tag; the [publish workflow](.github/workflo
 
 | SDK | Bump the version in | Then |
 | :--- | :--- | :--- |
-| Python (`echonova-ai`) | `python/src/echonova/_version.py` | `git tag py-vX.Y.Z && git push origin py-vX.Y.Z` |
+| Python (`echonova`) | `python/src/echonova/_version.py` | `git tag py-vX.Y.Z && git push origin py-vX.Y.Z` |
 | npm (`@echonova/ai`) | `js/package.json` and `js/src/version.ts` | `git tag js-vX.Y.Z && git push origin js-vX.Y.Z` |
 | Dart (`echonova_ai`) | `dart/pubspec.yaml`, `dart/lib/src/version.dart` and `dart/CHANGELOG.md` | `git tag dart-vX.Y.Z && git push origin dart-vX.Y.Z` |
 

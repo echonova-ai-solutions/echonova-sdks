@@ -102,7 +102,7 @@ wheels = [
 ]
 
 [[package]]
-name = "echonova-ai"
+name = "echonova"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
