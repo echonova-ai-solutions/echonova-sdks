@@ -164,6 +164,15 @@ The same event can arrive more than once: when your server processes a delivery 
 
 Record the key **before** you do the work, in a store that every instance of your server shares and that survives restarts: a unique column in your database, or Redis `SET key value NX` with an expiry. Skip the event when the key was already there. The recipes below use an in-memory set to stay short; don't use one in production.
 
+## Confirm before you act on a failure or a spending event
+
+The signature covers the timestamp and the body, but not the `X-Webhook-Event` header. Someone who obtains a signed delivery, for example from a log, could send it again within the timestamp tolerance under a different event name.
+
+As SDK policy, `verify` refuses a `job.completed` whose body has no result (`audioUrl` for Text to Speech, `transcription` for Speech to Text), with the reason `payload`. That stops a failed job's delivery from being passed off as a completed one. The other events can't be told apart by their bodies alone:
+
+- Before you act on a `job.failed`, for example by refunding a customer or retrying, get the job (`jobs.get`) and check that its status is `failed`.
+- Before you act on a `spending.warning` or `spending.exhausted`, for example by blocking a key, check the key's usage in the portal or your own records.
+
 ## Acknowledge fast
 
 EchoNova waits only a few seconds for your answer (10 seconds when this was written; see [Delivery, retries and failures](https://echonova.ai/docs/developers/webhooks-retries)). A late answer counts as a failure, even a `200`, and the delivery is retried. After several deliveries in a row fail, the webhook is disabled, and events that happen while it is disabled are never sent.
@@ -429,6 +438,7 @@ Future<void> main() async {
 - [ ] The secret lives in your secrets manager or environment, never in source control.
 - [ ] The webhook route reads the raw body.
 - [ ] Dedupe keys go into a shared, durable store before the work starts.
+- [ ] A `job.failed` or spending event is confirmed with the API or your records before anything irreversible happens.
 - [ ] The endpoint answers `2xx` within seconds and does slow work afterwards.
 - [ ] Jobs whose event never arrives are checked once by polling.
 - [ ] Webhooks go straight to your server, not through the [reference proxies](../../proxy-examples/README.md).
