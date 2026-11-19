@@ -16,7 +16,7 @@ import httpx
 import pytest
 import uvicorn
 
-from echonova_proxy import Settings, create_app
+from echonova_proxy import InMemoryJobOwners, Settings, create_app
 
 API_KEY = "ek_REDACTED_proxy_test_key_0001"  # made up; must never reach the app side
 USER_TOKEN = "user-token-1"
@@ -220,6 +220,7 @@ class Harness:
     upstream: Server
     proxy: Server
     client: httpx.AsyncClient
+    jobs: InMemoryJobOwners
 
     @property
     def base(self) -> str:
@@ -253,14 +254,15 @@ def start_proxy() -> StartProxy:
     @contextlib.asynccontextmanager
     async def start(*, authenticate: Any = None, quota: Any = None, **overrides: Any) -> AsyncIterator[Harness]:
         fake = FakeUpstream()
+        jobs = InMemoryJobOwners()
         async with Server(fake) as upstream:
             settings = make_settings(overrides.pop("upstream_url", upstream.url), **overrides)
-            app = create_app(settings, authenticate=authenticate, quota=quota)
+            app = create_app(settings, authenticate=authenticate, quota=quota, jobs=jobs)
             async with (
                 Server(app) as proxy,
                 httpx.AsyncClient(timeout=30, headers={"authorization": f"Bearer {USER_TOKEN}"}) as client,
             ):
-                yield Harness(fake, upstream, proxy, client)
+                yield Harness(fake, upstream, proxy, client, jobs)
 
     return start
 

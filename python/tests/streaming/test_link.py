@@ -142,6 +142,17 @@ def retry(**kwargs: object) -> HandshakeRetry:
     return HandshakeRetry(FastRetry(rng=lambda: 0.0), **defaults)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("status", [200, 204, 302, 304, 399])
+def test_handshake_with_an_unexpected_status_is_a_protocol_error(status: int) -> None:
+    policy = retry()
+    with pytest.raises(ProtocolError) as info:
+        policy.on_status(status, {"Location": "wss://elsewhere.example.com/", "X-Request-Id": "r3"}, b"", 0.0)
+    assert info.value.status_code == status
+    assert info.value.request_id == "r3"
+    assert info.value.transport == "websocket"
+    assert policy.retries == 0
+
+
 def test_handshake_401_is_not_retried() -> None:
     with pytest.raises(AuthenticationError) as info:
         retry().on_status(401, {"X-Request-Id": "r1"}, envelope(401, "Unauthorized"), 0.0)
@@ -212,6 +223,15 @@ def test_network_errors_retry_twice_then_raise() -> None:
     assert policy.on_network(OSError("refused"), "ws://x/stream?k=v") >= 0
     with pytest.raises(APIConnectionError, match="ws://x/stream: refused"):
         policy.on_network(OSError("refused"), "ws://x/stream?k=v")
+
+
+def test_network_errors_hide_url_credentials() -> None:
+    policy = retry()
+    policy.retries = 2
+    with pytest.raises(APIConnectionError) as info:
+        policy.on_network(OSError("refused"), "wss://user:pa55@proxy.example.com/v1/stream")
+    assert "pa55" not in str(info.value)
+    assert "wss://proxy.example.com/v1/stream" in str(info.value)
 
 
 def test_handshake_timeouts_raise_api_timeout_error() -> None:

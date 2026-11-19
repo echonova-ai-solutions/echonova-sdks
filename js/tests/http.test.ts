@@ -361,6 +361,40 @@ describe('DELETE', () => {
     expect(await caught(transport.request(DELETE))).toBeInstanceOf(errors.JobNotFoundError);
   });
 
+  it('reads at most 64 KiB of an error body', async () => {
+    let pulled = 0;
+    let cancelled = false;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 16 * 1024;
+        controller.enqueue(new Uint8Array(16 * 1024).fill(0x61));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const { transport } = setup([new Response(endless, { status: 400 })]);
+    const error = (await caught(transport.request(GET))) as errors.APIStatusError;
+    expect(error).toBeInstanceOf(errors.InvalidRequestError);
+    expect(pulled).toBeLessThanOrEqual(64 * 1024 + 2 * 16 * 1024); // the cap plus what the stream buffered ahead
+    expect(cancelled).toBe(true);
+    expect(error.rawBody!.length).toBeLessThanOrEqual(4096);
+  });
+
+  it('keeps the message of an error body under the cap whole', async () => {
+    const message = 'x'.repeat(60 * 1024);
+    const { transport } = setup([fail(400, message)]);
+    const error = (await caught(transport.request(GET))) as errors.APIStatusError;
+    expect(error.errorMessage).toBe(message);
+  });
+
+  it('reads a success body in full, whatever its size', async () => {
+    const big = new Uint8Array(1024 * 1024).fill(7);
+    const { transport } = setup([new Response(big, { status: 200 })]);
+    const result = await transport.request({ ...GET, responseType: 'bytes' });
+    expect(result.data).toEqual(big);
+  });
+
   it('retries a failed storage delete', async () => {
     const { transport, sent } = setup([fail(503, 'The stored file could not be deleted. Try again.'), ok({ deleted: true })]);
     await transport.request(DELETE);

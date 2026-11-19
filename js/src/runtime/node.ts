@@ -37,6 +37,7 @@ export interface NodePath {
   basename(path: string): string;
   dirname(path: string): string;
   join(...parts: string[]): string;
+  resolve(...parts: string[]): string;
   extname(path: string): string;
 }
 

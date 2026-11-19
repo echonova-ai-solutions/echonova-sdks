@@ -92,7 +92,7 @@ print(done.transcription);
 | `maxRetries` | `2` | |
 | `rateLimitPreflight` | `true` | Wait for the rate-limit window instead of sending a request that would be refused. |
 | `defaultHeaders` | none | Sent with every API request (not with downloads). |
-| `httpClient` | SDK-owned | Your own `package:http` client (proxies, certificates, cookies). `close()` leaves it open. |
+| `httpClient` | SDK-owned | Your own `package:http` client (proxies, certificates, cookies). `close()` leaves it open. Streams don't use it: outside the browser they connect with the platform's default proxy and certificate settings. |
 | `downloadHttpClient` | SDK-owned | The client for signed download links. It must not add credentials. |
 | `streamKeepalive` | 30 s | How long a stream may send nothing before it sends a keepalive ping. `null` turns keepalive and the connection checks off. |
 

@@ -9,6 +9,8 @@
  * derives one from them: connect + upload + read (`attemptTimeout`).
  */
 
+import { UsageError } from '../errors.js';
+
 export interface Operation {
   readonly name: string;
   readonly method: 'GET' | 'POST' | 'DELETE';
@@ -88,11 +90,18 @@ export function attemptTimeout(operation: Operation, uploadBytes?: number | null
   return (CONNECT_TIMEOUT_SECONDS + upload + operation.read) * 1000;
 }
 
-/** Fill `{name}` placeholders, percent-encoding each value. */
+/**
+ * Fill `{name}` placeholders, percent-encoding each value. `encodeURIComponent`
+ * keeps "." and "..", which the URL parser would resolve into another route
+ * (`/sessions/../x` is `/x`), so those are refused, like an empty value.
+ */
 export function buildPath(path: string, params: Readonly<Record<string, string>> = {}): string {
   return path.replace(/\{(\w+)\}/g, (_, name: string) => {
     const value = params[name];
     if (value === undefined) throw new TypeError(`missing path parameter ${name}`);
+    if (value === '' || value === '.' || value === '..') {
+      throw new UsageError(`${name} must be an ID, not ${JSON.stringify(value)}`);
+    }
     return encodeURIComponent(value);
   });
 }

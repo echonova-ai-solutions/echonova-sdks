@@ -56,6 +56,11 @@ const String _apiHost = 'api.echonova.ai';
 /// How long connecting may take before it counts as a connect failure.
 const Duration connectTimeout = Duration(seconds: 10);
 
+/// At most this much of an error response's body is read: plenty for an
+/// error message, without buffering whatever a misbehaving server or proxy
+/// sends.
+const int maxErrorBodyBytes = 64 * 1024;
+
 /// The slowest upload rate the default upload deadlines allow for, in bytes
 /// per second. The API itself stops waiting for a body after 300 s.
 const int minimumUploadRate = 512 * 1024;
@@ -747,7 +752,10 @@ final class HttpTransport {
   Future<_Attempt> _exchange(http.BaseRequest request) async {
     final response = await _open(_client, request);
     try {
-      final body = await response.stream.toBytes();
+      final status = response.statusCode;
+      final body = status >= 200 && status < 300
+          ? await response.stream.toBytes()
+          : await _readAtMost(response.stream, maxErrorBodyBytes);
       return _Attempt(
         statusCode: response.statusCode,
         headers: response.headers,
@@ -759,6 +767,24 @@ final class HttpTransport {
       // The server answered, so the request ran; only the body was lost.
       throw _TransportFailure.noResponse(error);
     }
+  }
+
+  /// The first [limit] bytes of [stream]. Stops reading there, which closes
+  /// the connection.
+  static Future<Uint8List> _readAtMost(
+    Stream<List<int>> stream,
+    int limit,
+  ) async {
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in stream) {
+      final room = limit - builder.length;
+      if (chunk.length >= room) {
+        builder.add(chunk.sublist(0, room));
+        break;
+      }
+      builder.add(chunk);
+    }
+    return builder.takeBytes();
   }
 
   static Future<http.StreamedResponse> _open(

@@ -8,11 +8,12 @@ Only the fields the SDK itself relies on (IDs and status) are required.
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field, fields
+from dataclasses import Field, dataclass, field, fields
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, TypeVar
 
 from .._core._envelope import MalformedEnvelopeError
+from .._logging import redact_url
 
 M = TypeVar("M", bound="Model")
 Converter = Callable[[Any], Any]
@@ -37,6 +38,11 @@ class Model:
                 raise MalformedEnvelopeError(f"{cls.__name__} is missing '{api}'")
             values[name] = value
         return cls(raw=data, request_id=request_id, **values)
+
+    def __repr__(self) -> str:
+        """The dataclass ``repr()``, with signed links (``link`` fields) shown without their query string."""
+        shown = (f"{f.name}={_shown(f, getattr(self, f.name))!r}" for f in fields(self) if f.repr)
+        return f"{type(self).__qualname__}({', '.join(shown)})"
 
     def to_dict(self) -> dict[str, Any]:
         """The parsed fields as plain Python values (nested models become dicts)."""
@@ -65,9 +71,18 @@ def _plain(value: Any) -> Any:
     return value
 
 
-def api_field(api: str, convert: Converter = lambda v: v, *, required: bool = False, secret: bool = False) -> Any:
-    """Declare a model field read from the API key ``api``. A ``secret`` field is left out of ``repr()``."""
-    metadata = {"api": api, "convert": convert, "required": required}
+def _shown(f: Field[Any], value: Any) -> Any:
+    return redact_url(value) if f.metadata.get("link") and isinstance(value, str) else value
+
+
+def api_field(
+    api: str, convert: Converter = lambda v: v, *, required: bool = False, secret: bool = False, link: bool = False
+) -> Any:
+    """Declare a model field read from the API key ``api``. A ``secret`` field is left out of ``repr()``.
+
+    A ``link`` field is a signed link: ``repr()`` shows it without the query string that carries the signature.
+    """
+    metadata = {"api": api, "convert": convert, "required": required, "link": link}
     if required:
         return field(metadata=metadata, repr=not secret)
     return field(default=None, metadata=metadata, repr=not secret)

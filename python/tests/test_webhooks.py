@@ -155,3 +155,54 @@ def test_nan_now_is_rejected() -> None:
     v = _vector("job.failed")
     with pytest.raises(ValueError, match="finite"):
         webhooks.verify(v["body"], v["headers"], v["secrets"], now=float("nan"))
+
+
+def _signed(event: str, body: dict[str, Any], *, timestamp: str | None = None) -> tuple[str, dict[str, str], str]:
+    """A body and headers signed with the vectors' secret, for cases the shared vectors don't cover."""
+    import hashlib
+    import hmac
+    import json
+
+    v = _vector("job.failed")
+    text = json.dumps(body)
+    stamp = timestamp or v["headers"]["X-Webhook-Timestamp"]
+    signature = hmac.new(v["secrets"][0].encode(), f"{stamp}.{text}".encode(), hashlib.sha256).hexdigest()
+    headers = {"X-Webhook-Event": event, "X-Webhook-Timestamp": stamp, "X-Webhook-Signature": signature}
+    return text, headers, v["secrets"][0]
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"service": "tts"},
+        {"service": "tts", "audioUrl": ""},
+        {"service": "tts", "audioUrl": 7},
+        {"service": "stt"},
+        {"service": "stt", "transcription": ""},
+        {"service": "stt", "transcription": None},
+    ],
+)
+def test_completed_job_without_its_result_is_a_payload_error(result: dict[str, Any]) -> None:
+    body, headers, secret = _signed("job.completed", {"jobId": "000000000000000000000003", **result})
+    with pytest.raises(WebhookVerificationError) as caught:
+        webhooks.verify(body, headers, secret, now=_vector("job.failed")["now"])
+    assert caught.value.reason == "payload"
+
+
+def test_completed_job_of_another_service_needs_no_result_field() -> None:
+    body, headers, secret = _signed("job.completed", {"jobId": "000000000000000000000003", "service": "clean"})
+    event = webhooks.verify(body, headers, secret, now=_vector("job.failed")["now"])
+    assert isinstance(event, webhooks.JobCompleted)
+    assert (event.service, event.audio_url, event.transcription) == ("clean", None, None)
+
+
+def test_timestamp_length_limit() -> None:
+    v = _vector("job.failed")
+    padded = v["headers"]["X-Webhook-Timestamp"].rjust(webhooks.MAX_TIMESTAMP_DIGITS, "0")
+    body, headers, secret = _signed("job.failed", {"jobId": "1", "service": "stt"}, timestamp=padded)
+    assert isinstance(webhooks.verify(body, headers, secret, now=v["now"]), webhooks.JobFailed)
+
+    body, headers, secret = _signed("job.failed", {"jobId": "1", "service": "stt"}, timestamp="0" + padded)
+    with pytest.raises(WebhookVerificationError) as caught:
+        webhooks.verify(body, headers, secret, now=v["now"])
+    assert caught.value.reason == "timestamp"

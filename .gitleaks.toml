@@ -30,7 +30,9 @@ regexes = [
 
 # An Idempotency-Key is a request identifier, not a credential: the tests use
 # made-up UUIDs as keys, which the generic-api-key rule takes for secrets.
+# Only that rule: an API key or webhook secret on such a line is still a leak.
 [[allowlists]]
 description = "Idempotency keys are request identifiers, not secrets"
+targetRules = ["generic-api-key"]
 regexTarget = "line"
 regexes = ['''(?i)idempotency[-_ ]?key''']

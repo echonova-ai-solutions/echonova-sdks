@@ -23,7 +23,7 @@ app (your user's session)  ──►  your proxy  ──►  api.echonova.ai (yo
 ```
 
 1. The app calls the proxy with **its own credentials**: your session cookie or your access token.
-2. The proxy checks the user (the `authenticate` hook) and their quota (the `quota` hook).
+2. The proxy checks the user (the `authenticate` hook), their quota (the `quota` hook) and, on a job's routes, that the job is theirs (the `jobs` store).
 3. It removes the app's credentials, adds `Authorization: Bearer <API key>` and forwards the call. Uploads, downloads and WebSocket frames are streamed, never held in memory.
 4. It relays EchoNova's answer: the same status code and body, and only a short list of safe headers.
 
@@ -88,7 +88,8 @@ Apps that can set headers (server-side, mobile, desktop) just send their `Author
 ## What the proxy does
 
 **Forwards only the EchoNova speech API (an allow-list, never an open proxy).**
-- The 16 REST routes of Text to Speech, Speech to Text and Sound Cleaning, each with its own method. A test checks the list against [`spec/openapi.json`](../spec/openapi.json).
+- 13 REST routes of Text to Speech, Speech to Text and Sound Cleaning, each with its own method. A test checks the list against [`spec/openapi.json`](../spec/openapi.json).
+- The three job lists (`GET /v1/text-to-speech/jobs`, `/v1/speech-to-text/jobs`, `/v1/sound-cleaning/jobs`) are left out on purpose: every user's calls reach EchoNova with the same key, so a list would show each user everyone's jobs. `jobs.list()` and `find_candidates()` / `findCandidates()` therefore get `404` through the proxy. `generate`, `transcribe` and `clean` still retry safely, with their `Idempotency-Key`. To show a user their jobs, list them from your own records (see the `jobs` store below).
 - The 2 streams: `/v1/text-to-speech/stream` and `/v1/speech-to-text/stream`. Only the documented Speech to Text query parameters (`sample_rate`, `language`, `encoding`) are passed on.
 - Widget tickets (`POST /v1/widgets/{publicId}/tickets`) and agent sessions (`/v1/agents/{agentId}/sessions...`) are left out on purpose. Your backend calls them directly, after deciding which of your users may start a session: starting one spends workspace credits and returns a room token for that user.
 - Anything else is `404`. A known route with the wrong method is `405`, with an `Allow` header. Path parameters must be a single plain segment (`[A-Za-z0-9_-]`), so an encoded `../` can't reach another route.
@@ -97,15 +98,21 @@ Apps that can set headers (server-side, mobile, desktop) just send their `Author
 - `authenticate(request)` returns your user's id, or nothing for `401`. The demo version accepts one static token (`PROXY_DEMO_TOKEN`) as a Bearer header or a cookie. **Replace it.**
 - `quota` allows N requests a minute per user (`429` with `Retry-After`) and caps concurrent streams per user and in total (`429 Too many concurrent streams`). Your EchoNova workspace allows **10 concurrent streams in total** (TTS and STT combined), across everything that uses it.
 
+**Keeps each user's jobs to that user.** EchoNova sees one workspace, not your users, so the proxy keeps track itself:
+- When a call that creates a job succeeds (`POST /v1/text-to-speech`, `/v1/text-to-speech/sync`, `/v1/speech-to-text`, `/v1/speech-to-text/sync`, `/v1/sound-cleaning`, including a `202` that is still processing), the proxy records the job's id as the caller's before it relays the answer. So does a Speech to Text stream, from its `session.started` and `session.saved` messages.
+- Reading, exporting or deleting a job that isn't the caller's gets `404` with the API's own message for an unknown job (`TTS Job not found`, `STT Job not found`, `Clean Job not found`), so a user can't even tell that someone else's job exists. Nothing is sent to EchoNova.
+- The records live in the `jobs` store you pass in. The default, `InMemoryJobOwners`, is a demo: it keeps the 100,000 newest jobs in one process and forgets them on restart, after which those jobs are `404` for their owners too. **Replace it** with a table in your database (the store has three methods: `record`, `isOwner` / `is_owner` and `forget`).
+- The app's `Idempotency-Key` is scoped to the user before it is forwarded: EchoNova receives the hex HMAC-SHA256 of the user's id and the key, signed with `PROXY_STREAM_TOKEN_SECRET`. The same user retrying with the same key gets the first result; another user sending the same key can't. A key the API would refuse (more than 200 characters, spaces, non-ASCII) is passed on unchanged, so the app gets the API's own `400`.
+
 **Handles the key.**
 - The key comes only from `ECHONOVA_API_KEY`. It is never accepted from the app, never returned and never logged.
-- Request headers are copied from an allow-list (`Accept`, `Content-Type`, `Content-Length`, `Idempotency-Key`, the app's `User-Agent`). `Idempotency-Key` lets the SDKs retry a synthesis, transcription or cleaning safely through the proxy. The app's `Authorization`, `Cookie`, hop-by-hop and any other headers are dropped.
+- Request headers are copied from an allow-list (`Accept`, `Content-Type`, `Content-Length`, `Idempotency-Key`, the app's `User-Agent`). `Idempotency-Key` lets the SDKs retry a synthesis, transcription or cleaning safely through the proxy; it is scoped to the user (see above). The app's `Authorization`, `Cookie`, hop-by-hop and any other headers are dropped.
 - Response headers are copied from an allow-list: `Content-Type`, `Content-Disposition`, `Retry-After`, `X-RateLimit-*` and `X-Request-Id`. The proxy adds `Cache-Control: no-store`.
 - The proxy refuses to start if `ECHONOVA_UPSTREAM_URL` isn't `https://` (local test servers excepted), so the key never travels in clear text. It never follows redirects.
 
 **Streams everything.**
 - Request bodies go upstream as they arrive, so a 150 MiB upload never sits in memory. The tests send 150 MiB and check both chunked transfer and memory use. Uploads larger than `PROXY_MAX_UPLOAD_BYTES` (160 MiB by default) are refused with `413`.
-- Responses stream back with EchoNova's status code. If EchoNova's answer is cut off midway, the proxy drops the app's connection, so a partial download can never look complete.
+- Responses stream back with EchoNova's status code. The exception is the answer to a job-creating call, a small JSON body, which is read whole (up to 8 MiB) so that its job is recorded before the app can ask for it. If EchoNova's answer is cut off midway, the proxy drops the app's connection, so a partial download can never look complete.
 - Upstream timeouts: 10 s to connect, 600 s to read. **Synchronous calls (`…/sync`, Sound Cleaning) can take several minutes on long audio.** Make sure your load balancer and your app's HTTP client allow that, or use the async job routes for long files.
 
 **Relays WebSockets faithfully.**
@@ -129,6 +136,7 @@ Errors the proxy produces itself use the EchoNova error shape, `{"data": null, "
 | 401 | `Unauthorized` | `authenticate` returned nothing, or a stream token is invalid or expired |
 | 403 | `Origin not allowed` | the request's `Origin` isn't in `PROXY_ALLOWED_ORIGINS` |
 | 404 | `Route not found` | not on the allow-list |
+| 404 | `TTS Job not found`, `STT Job not found`, `Clean Job not found` | the job isn't the caller's (or the `jobs` store doesn't know it) |
 | 405 | `Method not allowed` | known route, wrong method (see `Allow`) |
 | 413 | `Request body too large` | over `PROXY_MAX_UPLOAD_BYTES` |
 | 426 | `This route needs a WebSocket upgrade` | a stream route called without an upgrade |
@@ -149,7 +157,7 @@ Errors the proxy produces itself use the EchoNova error shape, `{"data": null, "
 | `PROXY_ALLOWED_ORIGINS` | none | Comma-separated web origins allowed to call the proxy from a browser, e.g. `https://app.example.com`. Include the proxy's own origin if your web app is served from it. |
 | `PROXY_DEMO_TOKEN` | none | Demo auth only. Without it (and without your own `authenticate` hook) the proxy refuses to start. |
 | `PROXY_SESSION_COOKIE` | `session` | Cookie name the demo auth reads. |
-| `PROXY_STREAM_TOKEN_SECRET` | random per process | Signs stream tokens. Set the same value on every instance. |
+| `PROXY_STREAM_TOKEN_SECRET` | random per process | Signs stream tokens and scopes `Idempotency-Key` to each user. Set the same value on every instance, and keep it across restarts: with a new secret, a retried create runs (and is charged) again. |
 | `PROXY_REQUESTS_PER_MINUTE` | `60` | Demo quota: requests per user per minute (streams count too). |
 | `PROXY_MAX_STREAMS_PER_USER` | `2` | Demo quota: concurrent streams per user. |
 | `PROXY_MAX_STREAMS_TOTAL` | `10` | Demo quota: concurrent streams for the whole proxy. |
@@ -162,12 +170,13 @@ Before you deploy:
 
 - [ ] **Allow-list:** delete the routes your app doesn't use from the route table. Never add a catch-all route.
 - [ ] **User auth:** replace the demo `authenticate` hook with your real session or token check. Unset `PROXY_DEMO_TOKEN`.
+- [ ] **Job ownership:** replace `InMemoryJobOwners` with a store in your database, so every instance knows who owns each job and nothing is forgotten on restart. Never add the job list routes back: list a user's jobs from your own records.
 - [ ] **Quotas:** set limits that match what one user should be able to spend. With more than one proxy instance, move the counters to a shared store (Redis, your database). Remember the workspace-wide limit of 10 concurrent streams.
 - [ ] **Origins:** list your exact web origins in `PROXY_ALLOWED_ORIGINS`. Never use a wildcard. Set session cookies with `Secure`, `HttpOnly` and `SameSite=Lax` (or `Strict`).
 - [ ] **HTTPS only:** serve the proxy over HTTPS and the streams over `wss://`, behind a load balancer or reverse proxy that terminates TLS. Allow long requests (several minutes) and long-lived WebSockets (up to 30 minutes) there.
 - [ ] **Logging:** keep the proxy's logs as they are: no bodies, no query strings, no headers. Don't turn on debug logging for the HTTP or WebSocket libraries in production; they print headers, including the API key.
 - [ ] **The key:** keep it only in the server's environment or secrets manager, give it access only to the services you use and a spending limit, and **rotate it**: create a new key, deploy it, then delete the old one. Rotate at once if it may have leaked.
-- [ ] **Stream tokens:** keep the lifetime short (60 s) and set `PROXY_STREAM_TOKEN_SECRET` from your secrets manager.
+- [ ] **Stream tokens and idempotency keys:** keep the stream token lifetime short (60 s) and set `PROXY_STREAM_TOKEN_SECRET` from your secrets manager, the same on every instance. It also scopes `Idempotency-Key` to each user, so don't rotate it while retries may be in flight.
 - [ ] **Webhooks** don't go through this proxy: receive them on your server and verify their signature with the SDK.
 
 ## Running the tests

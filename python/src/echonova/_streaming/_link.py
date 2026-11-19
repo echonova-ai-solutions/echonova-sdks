@@ -17,8 +17,10 @@ from collections.abc import Mapping
 from typing import Any, Literal
 
 from .._core._classifier import build_status_error, classify_response
+from .._core._envelope import header
 from .._core._retry import RetryPolicy
-from ..errors import APIConnectionError, APITimeoutError, EchoNovaError, UsageError
+from .._logging import redact_url
+from ..errors import APIConnectionError, APITimeoutError, EchoNovaError, ProtocolError, UsageError
 from ._options import StreamOptions
 
 MAX_JSON_FRAME_BYTES = 65_536
@@ -177,6 +179,15 @@ class HandshakeRetry:
 
     def on_status(self, status: int, headers: Mapping[str, str], body: bytes, now: float) -> float:
         """Return the delay before the next attempt, or raise the handshake's error."""
+        if not 400 <= status <= 599:  # a redirect (never followed) or another unexpected status: not retried
+            raise ProtocolError(
+                status_code=status,
+                error_message=f"unexpected HTTP {status} answer to the stream handshake; redirects are not followed",
+                request_id=header(headers, "x-request-id"),
+                headers=dict(headers.items()),
+                transport="websocket",
+                may_have_executed=False,
+            )
         error = build_status_error(status, headers, body, method="WS", transport="websocket")
         rule, retry_after = classify_response(status, headers, body)
         decision = self.policy.decide_status(
@@ -211,7 +222,7 @@ class HandshakeRetry:
 
 
 def network_error(exc: BaseException, url: str) -> EchoNovaError:
-    where = url.split("?", 1)[0]
+    where = redact_url(url)
     if isinstance(exc, TimeoutError) or type(exc).__name__ == "TimeoutError":
         return APITimeoutError(f"timed out opening the stream at {where}", kind="connect", may_have_executed=False)
     return APIConnectionError(f"could not open the stream at {where}: {exc or type(exc).__name__}")

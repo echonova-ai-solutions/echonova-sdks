@@ -111,6 +111,26 @@ async def test_upstream_gets_the_key_and_only_the_documented_query(harness: Harn
     assert harness.fake.ws_handshakes[-1].query == ""  # the TTS stream takes no query
 
 
+async def test_a_speech_to_text_sessions_job_is_recorded_before_the_app_sees_its_id(harness: Harness) -> None:
+    async with open_ws(harness, STT) as ws:
+        assert json.loads(await ws.recv())["type"] == "session.started"
+        assert not await harness.jobs.is_owner("speech-to-text", "stt-stream-1", "demo-user")
+        # The fake API echoes text frames, so this comes back from upstream like the real message.
+        await ws.send(json.dumps({"type": "session.saved", "jobId": "stt-stream-1", "status": "saved"}))
+        assert json.loads(await ws.recv())["jobId"] == "stt-stream-1"
+        assert await harness.jobs.is_owner("speech-to-text", "stt-stream-1", "demo-user")
+        # Frames keep their order around the one held for the record.
+        await ws.send(json.dumps({"type": "session.started", "jobId": "stt-stream-2"}))
+        await ws.send("after")
+        assert json.loads(await ws.recv())["jobId"] == "stt-stream-2"
+        assert await ws.recv() == "after"
+    # The app's own frames going up are never taken as a job id.
+    async with open_ws(harness, TTS) as tts:
+        await tts.send(json.dumps({"type": "session.saved", "jobId": "tts-stream-1"}))
+        await tts.recv()
+    assert not await harness.jobs.is_owner("speech-to-text", "tts-stream-1", "demo-user")
+
+
 async def test_user_auth_on_the_upgrade(harness: Harness) -> None:
     for headers in ({}, {"Authorization": "Bearer wrong-token"}, {"Authorization": f"Bearer {API_KEY}"}):
         error = await refused(harness, TTS, headers)

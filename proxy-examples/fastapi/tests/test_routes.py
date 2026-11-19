@@ -7,17 +7,28 @@ from pathlib import Path
 
 import pytest
 
-from echonova_proxy.routes import REST_ROUTES, STREAM_ROUTES, match_rest
+from echonova_proxy.routes import (
+    JOB_CREATING_ROUTES,
+    REST_ROUTES,
+    STREAM_ROUTES,
+    created_job_id,
+    job_id_of,
+    match_rest,
+    product_of,
+    session_job_id,
+)
 from echonova_proxy.tokens import mint_stream_token, verify_stream_token
 
 SPEC = Path(__file__).resolve().parents[3] / "spec"
 needs_spec = pytest.mark.skipif(not (SPEC / "openapi.json").exists(), reason="run inside the SDK repo (needs spec/)")
 
 SPEECH_PREFIXES = ("/v1/text-to-speech", "/v1/speech-to-text", "/v1/sound-cleaning")
+# Left out on purpose: with one workspace key behind every user, a list would show everyone's jobs.
+JOB_LISTS = {("GET", "/v1/text-to-speech/jobs"), ("GET", "/v1/speech-to-text/jobs"), ("GET", "/v1/sound-cleaning/jobs")}
 
 
 @needs_spec
-def test_rest_allow_list_is_exactly_the_speech_routes_of_the_spec() -> None:
+def test_rest_allow_list_is_exactly_the_speech_routes_of_the_spec_without_the_job_lists() -> None:
     spec = json.loads((SPEC / "openapi.json").read_text(encoding="utf-8"))
     operations = {
         (method.upper(), path)
@@ -26,8 +37,9 @@ def test_rest_allow_list_is_exactly_the_speech_routes_of_the_spec() -> None:
         if method in {"get", "post", "put", "patch", "delete"}
     }
     speech = {op for op in operations if op[1].startswith(SPEECH_PREFIXES)}
-    assert set(REST_ROUTES) == speech
-    assert len(REST_ROUTES) == 16
+    assert speech >= JOB_LISTS
+    assert set(REST_ROUTES) == speech - JOB_LISTS
+    assert len(REST_ROUTES) == 13
     # Everything else in the spec stays server-side only: widget tickets and agent sessions, which
     # your backend calls for the app, and the agent-management API, which only your backend uses.
     server_side = {
@@ -97,3 +109,32 @@ def test_stream_token_round_trip_and_shared_vector() -> None:
     assert verify_stream_token(token, b"other-secret", now=1_700_000_000) is None  # forged
     assert verify_stream_token(token.replace("dXNlci00Mg", "dXNlci00Mw"), b"vector-secret", now=0) is None
     assert verify_stream_token("garbage", b"vector-secret") is None
+
+
+@pytest.mark.parametrize("path", ["/v1/text-to-speech/jobs", "/v1/speech-to-text/jobs", "/v1/sound-cleaning/jobs"])
+def test_the_job_lists_are_not_routes(path: str) -> None:
+    assert match_rest("GET", path).allowed == ()
+
+
+def test_every_job_creating_route_is_an_allowed_post() -> None:
+    assert set(REST_ROUTES) >= JOB_CREATING_ROUTES
+    assert {method for method, _ in JOB_CREATING_ROUTES} == {"POST"}
+
+
+def test_job_ids_are_read_from_routes_answers_and_stream_messages() -> None:
+    assert product_of("/v1/speech-to-text/jobs/abc/export") == "speech-to-text"
+    assert job_id_of("/v1/speech-to-text/jobs/{jobId}/export", "/v1/speech-to-text/jobs/abc/export") == "abc"
+    assert job_id_of("/v1/text-to-speech/voices", "/v1/text-to-speech/voices") is None
+
+    def answer(data: object) -> bytes:
+        return json.dumps({"data": data, "success": True}).encode()
+
+    assert created_job_id(answer({"jobId": "job-1", "status": "processing"})) == "job-1"
+    assert created_job_id(answer({"id": "clean-1", "status": "completed"})) == "clean-1"
+    assert created_job_id(answer({"jobId": "../widgets"})) is None
+    assert created_job_id(answer(None)) is None
+    assert created_job_id(b"not json") is None
+    assert session_job_id(json.dumps({"type": "session.started", "jobId": "stt-1"})) == "stt-1"
+    assert session_job_id(json.dumps({"type": "session.saved", "jobId": "stt-1", "status": "saved"})) == "stt-1"
+    assert session_job_id(json.dumps({"type": "transcript.final", "jobId": "stt-1", "text": "session."})) is None
+    assert session_job_id(json.dumps({"type": "session.started"})) is None

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
 
 import 'package:echonova_ai/echonova_ai.dart';
 import 'package:echonova_ai/src/core/rate_limit.dart';
@@ -405,6 +406,65 @@ void main() {
             .having((e) => e.message, 'message', contains('r-5'))),
       );
       expect(Harness.requests, hasLength(1));
+    });
+  });
+
+  group('response bodies', () {
+    // A streamed body of [total] bytes (endless when null) that counts what
+    // was read and whether reading stopped early.
+    ({http.Client client, int Function() read, bool Function() cancelled})
+        streaming(int status, {int? total}) {
+      var read = 0;
+      var cancelled = false;
+      final client = MockClient.streaming((request, _) async {
+        late StreamController<List<int>> body;
+        body = StreamController<List<int>>(
+          onListen: () async {
+            const chunk = 4000; // not a divisor of 64 KiB
+            while (!cancelled && (total == null || read < total)) {
+              final size = total == null ? chunk : min(chunk, total - read);
+              read += size;
+              body.add(List.filled(size, 0x61));
+              await Future<void>.delayed(Duration.zero);
+            }
+            if (!cancelled) await body.close();
+          },
+          onCancel: () => cancelled = true,
+        );
+        return http.StreamedResponse(body.stream, status);
+      });
+      return (client: client, read: () => read, cancelled: () => cancelled);
+    }
+
+    HttpTransport transportWith(http.Client client) => HttpTransport(
+          baseUrl: Uri.parse('https://api.example.com'),
+          authHeaders: () => const {},
+          client: client,
+          ownsClient: true,
+          maxRetries: 0,
+        );
+
+    test('an error body is read up to 64 KiB, then the read stops', () async {
+      final server = streaming(500);
+      await expectLater(
+        transportWith(server.client)
+            .send(const ApiRequest(method: 'POST', path: '/v1/x')),
+        throwsA(isA<APIStatusException>()
+            .having((e) => e.statusCode, 'statusCode', 500)
+            .having((e) => e.rawBody?.length, 'rawBody length',
+                lessThanOrEqualTo(4096))),
+      );
+      expect(server.cancelled(), isTrue);
+      expect(server.read(), lessThan(maxErrorBodyBytes + 4000));
+    });
+
+    test('a success body is read whole, however large', () async {
+      const size = 3 * maxErrorBodyBytes + 123;
+      final server = streaming(200, total: size);
+      final response = await transportWith(server.client).send(const ApiRequest(
+          method: 'GET', path: '/v1/x', expectEnvelope: false));
+      expect(response.body, hasLength(size));
+      expect(server.read(), size);
     });
   });
 

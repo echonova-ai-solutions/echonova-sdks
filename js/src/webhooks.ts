@@ -111,6 +111,8 @@ export interface VerifyWebhookOptions {
   now?: Date | number | undefined;
 }
 
+const MAX_TIMESTAMP_LENGTH = 15;
+
 const encoder = new TextEncoder();
 
 function toBytes(payload: WebhookPayload): Uint8Array {
@@ -180,7 +182,9 @@ export async function verifyWebhook(
   }
 
   const timestampText = strip(timestampHeader);
-  if (!/^[0-9]+$/.test(timestampText)) {
+  // Unix seconds fit in 15 digits for millions of years; refuse anything longer
+  // before parsing, so a huge header can't cost anything before the signature check.
+  if (timestampText.length > MAX_TIMESTAMP_LENGTH || !/^[0-9]+$/.test(timestampText)) {
     throw new WebhookVerificationError('webhook timestamp is not a number', { reason: 'timestamp' });
   }
   const timestamp = Number(timestampText);
@@ -220,13 +224,18 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
   switch (name) {
     case 'job.completed': {
       const jobId = requiredStr(raw, 'jobId');
+      const service = requiredStr(raw, 'service');
+      // A completed job carries its result. Without it the body is not a
+      // completion (for example a job.failed body sent under this event name).
+      if (service === 'tts') requiredStr(raw, 'audioUrl');
+      else if (service === 'stt') requiredStr(raw, 'transcription');
       const terminology = raw['terminology'];
       return Object.freeze({
         type: 'job.completed',
         event: 'job.completed',
         jobId,
         apiKeyId: str(raw['apiKeyId']),
-        service: requiredStr(raw, 'service'),
+        service,
         durationSeconds: num(raw['durationSeconds']),
         text: str(raw['text']),
         audioUrl: str(raw['audioUrl']),

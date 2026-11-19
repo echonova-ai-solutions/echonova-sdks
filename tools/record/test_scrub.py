@@ -13,11 +13,11 @@ SAS = "https://acct123.blob.core.windows.net/tts/out.wav?sv=2024-01-01&se=2026-1
 
 def test_secrets_and_signed_links_are_removed() -> None:
     s = Scrubber()
-    out = s.value({"auth": f"Bearer {KEY}", "audioUrl": SAS, "secret": "whsec_" + "x" * 43})
+    out = s.value({"auth": f"Bearer {KEY}", "audioUrl": SAS, "note": "whsec_" + "x" * 43})
     assert out == {
         "auth": "Bearer ek_REDACTED",
         "audioUrl": "https://storage.example.com/files/1.wav?signature=REDACTED",
-        "secret": "whsec_REDACTED",
+        "note": "whsec_REDACTED",
     }
     assert find_leaks(str(out)) == []
 
@@ -106,3 +106,80 @@ def test_placeholder_signatures_in_documentation_are_not_leaks() -> None:
     assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=..."') == []
     assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=…"') == []
     assert find_leaks('"https://storage.echonova.ai/recordings/abc.wav?sig=aB3dE5"') == ["signed URL query"]
+
+
+# A made-up token, joined at runtime so the secret scan doesn't see a JWT in the source.
+JWT = ".".join(["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "eyJzdWIiOiJ1c2VyLTQyIiwicm9vbSI6InIxIn0", "c2lnbmF0dXJlLW1hZGUtdXA"])
+
+
+def test_sensitive_names_match_any_case_and_any_part_of_the_name() -> None:
+    s = Scrubber()
+    out = s.value(
+        {
+            "accessToken": "abc",
+            "roomToken": "abc",
+            "ownerEmail": "abc",
+            "ACCESS_TOKEN": "abc",
+            "clientSecret": "abc",
+            "userPassword": "abc",
+            "x-api-key": "abc",
+            "ApiKey": "abc",
+            "WorkspaceName": "Acme",
+            "secrets": ["one", "two"],
+            "nested": {"Authorization": "Basic abc"},
+        }
+    )
+    assert all(v == "REDACTED" for k, v in out.items() if k not in ("secrets", "nested")), out
+    assert out["secrets"] == ["REDACTED", "REDACTED"]
+    assert out["nested"] == {"Authorization": "REDACTED"}
+
+
+def test_harmless_fields_the_fixtures_rely_on_are_kept() -> None:
+    s = Scrubber()
+    # The recorder's own note of which credential it sent: the replay tests read it.
+    for marker in ("none", "set", "test key", "other key"):
+        assert s.value({"authorization": marker}) == {"authorization": marker}
+    kept = {"maxTokens": 256, "status": "completed", "voiceName": "Layla", "type": "session.started", "text": "hi"}
+    assert s.value(kept) == kept
+    assert s.value({"tokenCount": 12, "isSecret": False}) == {"tokenCount": 12, "isSecret": False}
+
+
+def test_dict_keys_are_scrubbed() -> None:
+    s = Scrubber()
+    out = s.value({"66e5f0c2a1b2c3d4e5f60718": {"by": "owner@acme.io"}, "owner@acme.io": 1, KEY: "x"})
+    assert out == {"000000000000000000000001": {"by": "user@example.com"}, "user@example.com": 1, "ek_REDACTED": "x"}
+    assert find_leaks(str(out), fixture=True) == []
+
+
+def test_stream_links_are_scrubbed() -> None:
+    s = Scrubber()
+    room = "wss://media-7.rtc.internal-host.net/rtc?token=" + JWT
+    assert s.text(room) == "wss://stream.example.com?token=REDACTED"
+    api = "wss://api.echonova.ai/v1/speech-to-text/stream?sample_rate=16000&access_token=abc.def&ticket=t1"
+    assert s.text(api) == (
+        "wss://api.echonova.ai/v1/speech-to-text/stream?sample_rate=16000&access_token=REDACTED&ticket=REDACTED"
+    )
+    plain = "wss://api.echonova.ai/v1/speech-to-text/stream?sample_rate=16000&language=ar"
+    assert s.text(plain) == plain
+    assert s.text("https://api.echonova.ai/v1/text-to-speech/jobs?limit=5") == (
+        "https://api.echonova.ai/v1/text-to-speech/jobs?limit=5"
+    )
+    assert find_leaks(s.text(room), fixture=True) == []
+
+
+def test_jwts_and_emails_are_scrubbed_in_free_text() -> None:
+    s = Scrubber()
+    out = s.text(f"room {JWT} for Owner.Name+tag@acme.co.uk")
+    assert out == "room REDACTED_JWT for user@example.com"
+    assert find_leaks(out, fixture=True) == []
+
+
+def test_find_leaks_catches_jwts_and_emails() -> None:
+    assert find_leaks(JWT) == ["JWT"]
+    assert find_leaks(f"Authorization: Bearer {JWT}") == ["JWT", "bearer token"]
+    assert find_leaks('{"ownerEmail": "someone@acme.io"}', fixture=True) == ["email address"]
+    # Only recorded traffic is checked for addresses: the packages' metadata names a maintainer.
+    assert find_leaks('{"ownerEmail": "someone@acme.io"}') == []
+    assert find_leaks('{"by": "user@example.com", "cc": "a@docs.example.org"}', fixture=True) == []
+    # Truncated or made-up tokens in tests and docs are not JWTs.
+    assert find_leaks("eyJhbGciOiJIUzI1NiJ9.room-token-secret eyJ-SECRET-ROOM-TOKEN eyJhbGciOi..") == []

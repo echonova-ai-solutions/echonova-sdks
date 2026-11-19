@@ -9,11 +9,19 @@
 // The whitespace characters the reference implementation trims (JavaScript's
 // trim() differs slightly: it also removes U+FEFF and keeps U+001C-U+001F, U+0085).
 const WS = '\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
-const STRIP = new RegExp(`^[${WS}]+|[${WS}]+$`, 'g');
+const SPACE = new RegExp(`[${WS}]`);
 
-/** Trim leading and trailing whitespace. */
+/**
+ * Trim leading and trailing whitespace. A loop over single characters, not a
+ * `^[…]+|[…]+$` regex: that one is quadratic on a long whitespace run, and this
+ * runs on webhook headers before the signature is checked.
+ */
 export function strip(text: string): string {
-  return text.replace(STRIP, '');
+  let start = 0;
+  let end = text.length;
+  while (start < end && SPACE.test(text[start]!)) start += 1;
+  while (end > start && SPACE.test(text[end - 1]!)) end -= 1;
+  return text.slice(start, end);
 }
 
 const DIGITS = '[0-9](?:_?[0-9])*';

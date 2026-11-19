@@ -26,9 +26,9 @@ All settings are environment variables; see [Configuration](../README.md#configu
 
 `python -m echonova_proxy` runs uvicorn with the settings the proxy expects: JSON logs, no access log (it would print query strings), uvicorn's default WebSocket implementation (`websockets-sansio`), a 1 MiB WebSocket frame limit (the API's own), and no WebSocket compression. If you start uvicorn yourself, keep those settings (`--ws websockets-sansio --ws-max-size 1048576 --ws-per-message-deflate false --no-access-log`). Run it behind a TLS-terminating load balancer or reverse proxy.
 
-## Plug in your authentication and quota
+## Plug in your authentication, quota and job store
 
-<!-- snippet: skip (my_sessions stands for your own session store) -->
+<!-- snippet: skip (my_sessions and my_jobs stand for your own session store and database) -->
 ```python
 from starlette.requests import HTTPConnection
 
@@ -41,15 +41,30 @@ async def authenticate(conn: HTTPConnection) -> str | None:
     return session.user_id if session else None
 
 
+class DatabaseJobOwners:
+    """Who owns which job, in your database (a table of product, job id and user id)."""
+
+    async def record(self, product: str, job_id: str, user_id: str) -> None:
+        await my_jobs.insert(product=product, job_id=job_id, user_id=user_id)
+
+    async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
+        return await my_jobs.exists(product=product, job_id=job_id, user_id=user_id)
+
+    async def forget(self, product: str, job_id: str) -> None:
+        await my_jobs.delete(product=product, job_id=job_id)
+
+
 app = create_app(
     Settings.from_env(),
     authenticate=authenticate,
     quota=InMemoryQuota(requests_per_minute=30, max_streams_per_user=1),
+    jobs=DatabaseJobOwners(),
 )
 ```
 
 - `authenticate` runs for every REST call and every WebSocket upgrade. On upgrades, a valid `?access_token=` stream token is accepted before your hook is called.
 - `quota` is any object with `allow_request(user_id)`, `acquire_stream(user_id)` and `release_stream(user_id)` (see `hooks.py`). `InMemoryQuota` keeps its counters in one process: with several workers or instances, implement the same three methods on Redis or your database.
+- `jobs` is any object with `record`, `is_owner` and `forget` (the `JobOwners` protocol in `hooks.py`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, `is_owner` before it forwards a job's get, delete or export (`False` is a `404`), and `forget` after a delete. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
 - With your own hook, `PROXY_DEMO_TOKEN` isn't needed. Without either, `create_app` refuses to build the app.
 
 You can serve `app` on its own, or mount it at `/` inside an existing FastAPI app, after your own routes: `my_app.mount("/", app)`.
@@ -58,10 +73,10 @@ You can serve `app` on its own, or mount it at `/` inside an existing FastAPI ap
 
 | File | What it holds |
 |---|---|
-| `echonova_proxy/routes.py` | The allow-list. Delete the routes you don't use. |
-| `echonova_proxy/hooks.py` | The demo `authenticate` hook (**replace it**) and `InMemoryQuota`. |
-| `echonova_proxy/http_proxy.py` | REST relay: checks, key injection, streaming in both directions. |
-| `echonova_proxy/ws_proxy.py` | WebSocket relay: handshake mirroring, frames, close codes. |
+| `echonova_proxy/routes.py` | The allow-list, and which routes create a job. Delete the routes you don't use. |
+| `echonova_proxy/hooks.py` | The demo `authenticate` hook and the demo `InMemoryJobOwners` store (**replace both**), and `InMemoryQuota`. |
+| `echonova_proxy/http_proxy.py` | REST relay: checks, job ownership, key injection, streaming in both directions. |
+| `echonova_proxy/ws_proxy.py` | WebSocket relay: handshake mirroring, frames, close codes, the job a stream creates. |
 | `echonova_proxy/app.py` | `create_app`, CORS and the cross-site origin check, `/healthz`, `/stream-token`. |
 | `echonova_proxy/tokens.py` | Short-lived stream tokens (same format as the Express proxy). |
 | `echonova_proxy/config.py` | Settings and their checks. |
@@ -80,4 +95,4 @@ You can serve `app` on its own, or mount it at `/` inside an existing FastAPI ap
 uv run ruff check . && uv run ruff format --check . && uv run pytest
 ```
 
-The tests run the proxy and a fake EchoNova API (HTTP and WebSocket) as real servers on `127.0.0.1`. They cover the allow-list (checked against `spec/openapi.json` and `spec/asyncapi.json`), key injection, header filtering, user auth, quotas, a 150 MiB upload (chunked, with peak memory checked), a 64 MiB download, WebSocket relaying in both directions with backpressure, close codes, refused handshakes, CORS, shutdown, mounting inside another app, and logs without secrets.
+The tests run the proxy and a fake EchoNova API (HTTP and WebSocket) as real servers on `127.0.0.1`. They cover the allow-list (checked against `spec/openapi.json` and `spec/asyncapi.json`), key injection, header filtering, user auth, quotas, job ownership (another user's job is `404`), per-user idempotency keys, a 150 MiB upload (chunked, with peak memory checked), a 64 MiB download, WebSocket relaying in both directions with backpressure, close codes, refused handshakes, CORS, shutdown, mounting inside another app, and logs without secrets.

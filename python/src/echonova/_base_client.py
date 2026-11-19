@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import io
+import ipaddress
 import json
 import math
 import os
@@ -62,6 +63,7 @@ HttpT = TypeVar("HttpT", httpx.Client, httpx.AsyncClient)
 _OPTION_KEYS = frozenset({"timeout", "max_retries", "deadline", "extra_headers"})
 IDEMPOTENCY_HEADER = "Idempotency-Key"
 IN_PROGRESS_INTERVAL = 5.0  # seconds between resends while the first request with the key still runs (ADR 0014)
+ERROR_BODY_LIMIT = 65_536  # bytes of a non-2xx body read for its error; the rest is never buffered
 
 
 def public_signature(init: F) -> F:
@@ -108,6 +110,26 @@ class RequestSpec:
     options: Mapping[str, Any] = field(default_factory=dict)
     idempotency_key: str | None = None  # the caller's key; None makes a new one when the operation accepts keys
     processing: Processing | None = None  # how to wait out a 202, for an operation that can answer one
+
+
+def read_error_body(response: httpx.Response) -> None:
+    """Read at most ``ERROR_BODY_LIMIT`` bytes of a streamed non-2xx response, as its ``content``."""
+    body = bytearray()
+    for chunk in response.iter_bytes():
+        body += chunk
+        if len(body) >= ERROR_BODY_LIMIT:
+            break
+    response._content = bytes(body[:ERROR_BODY_LIMIT])
+
+
+async def aread_error_body(response: httpx.Response) -> None:
+    """``read_error_body()`` for the async client."""
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        body += chunk
+        if len(body) >= ERROR_BODY_LIMIT:
+            break
+    response._content = bytes(body[:ERROR_BODY_LIMIT])
 
 
 class _Pool(Generic[HttpT]):
@@ -159,8 +181,11 @@ class _Sink:
             return
         target = Path(os.fspath(to))
         if target.is_dir():
-            name = unquote(Path(urlsplit(url).path).name) or "download"
-            target = target / name
+            directory, name = target, _link_file_name(url)
+            target = directory / name
+            # Defence in depth: the file must land in the directory the caller named.
+            if target.name != name or target.parent.resolve() != directory.resolve():
+                raise UsageError(f"the download link's file name would leave the directory {os.fspath(to)!r}")
         handle, temp = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".part", dir=target.parent or ".")
         self.target, self.temp = target, Path(temp)
         self.file = os.fdopen(handle, "w+b")
@@ -182,6 +207,31 @@ class _Sink:
         if self.temp is not None:
             self.file.close()
             self.temp.unlink(missing_ok=True)
+
+
+def _is_loopback(host: str | None) -> bool:
+    """``localhost``, 127.0.0.0/8 or ``::1``: plain http there never leaves the machine."""
+    if host is None:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _link_file_name(url: str) -> str:
+    """The file name of a signed link: its decoded last path segment, never a path of its own.
+
+    ``%2F`` and ``%5C`` decode to separators, so only the text after the last one is
+    kept. A name that is empty, a dot segment or has control characters becomes "download".
+    """
+    name = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
+    name = name.replace("\\", "/").rsplit("/", 1)[-1]
+    if name in ("", ".", "..") or not name.isprintable():
+        return "download"
+    return name
 
 
 def job_id_of(job: Any) -> str:
@@ -248,8 +298,11 @@ class BaseClient(Generic[HttpT]):
         parts = urlsplit(self._base_url)
         if parts.path.rstrip("/").endswith("/v1"):
             logger.warning("base_url ends with /v1, but request paths already start with /v1")
-        if self._api_key and parts.scheme == "http" and parts.hostname not in ("localhost", "127.0.0.1", "::1"):
-            logger.warning("base_url uses plain http, so the API key would be sent unencrypted")
+        if parts.scheme == "http" and not _is_loopback(parts.hostname):
+            if self._api_key:
+                logger.warning("base_url uses plain http, so the API key would be sent unencrypted")
+            if auth is not None:
+                logger.warning("base_url uses plain http, so the auth hook's headers would be sent unencrypted")
         if isinstance(max_retries, bool) or not isinstance(max_retries, int) or max_retries < 0:
             raise UsageError("max_retries must be a non-negative integer")
         if stream_keepalive is not None and (
@@ -286,7 +339,8 @@ class BaseClient(Generic[HttpT]):
 
     def __repr__(self) -> str:
         auth = ", auth=<hook>" if self._auth is not None else ""
-        return f"{type(self).__name__}(base_url={self._base_url!r}, api_key={redact_key(self._api_key)!r}{auth})"
+        base_url = redact_url(self._base_url)  # without any user:password@
+        return f"{type(self).__name__}(base_url={base_url!r}, api_key={redact_key(self._api_key)!r}{auth})"
 
     # --- For the streaming layer ------------------------------------------------------------------
 
@@ -473,6 +527,9 @@ class BaseClient(Generic[HttpT]):
         timeout = self._timeout_for(op.write_timeout, op.read_timeout, options.get("timeout"))
         path = op.path
         for name, value in spec.path_params.items():
+            # quote() leaves "." and ".." as they are, and an HTTP client may resolve them as dot-segments.
+            if value in ("", ".", ".."):
+                raise UsageError(f"{name} {value!r} is not a valid ID")
             path = path.replace("{" + name + "}", quote(value, safe=""))
         url = self._base_url + path
 

@@ -105,6 +105,15 @@ def main() -> None:
                reason="timestamp"),
         vector("signature with a sha256= prefix is not the gateway's format", "job.failed", FAILED,
                signature="sha256=" + sign(SECRET, str(NOW), compact(FAILED)), expect="invalid", reason="signature"),
+        # X-Webhook-Event is not covered by the signature, so a captured delivery can be replayed under another
+        # event name. A completed job must carry its result, which a failed job's body never has.
+        vector("stt job.failed body sent as job.completed", "job.completed", FAILED, expect="invalid",
+               reason="payload"),
+        vector("tts job.failed body sent as job.completed", "job.completed", {**FAILED, "service": "tts"},
+               expect="invalid", reason="payload"),
+        # Seconds since the epoch never need more than 15 digits; a longer value is refused before it is parsed.
+        vector("timestamp with thousands of leading zeros", "job.failed", FAILED, timestamp="0" * 4990 + str(NOW),
+               expect="invalid", reason="timestamp"),
     ]
     missing_headers = vector("missing signature header", "job.failed", FAILED, expect="invalid", reason="headers")
     del missing_headers["headers"]["X-Webhook-Signature"]

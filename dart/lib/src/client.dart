@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -67,7 +68,10 @@ class EchoNova {
   ///   `speechToText.transcribe` and `soundCleaning.clean`: they send an
   ///   `Idempotency-Key`, so a repeat returns the first result.
   /// * [httpClient] lets you configure proxies, certificates or connection
-  ///   pooling. You keep ownership: [close] doesn't close it.
+  ///   pooling. You keep ownership: [close] doesn't close it. Streams don't
+  ///   use it: on Android, iOS, desktop and servers they open their own
+  ///   connection with the platform's default proxy and certificate
+  ///   settings.
   /// * [downloadHttpClient] is used for signed download links, which point
   ///   at storage, not at EchoNova. It must not add credentials. By default
   ///   the SDK creates one.
@@ -119,6 +123,7 @@ class EchoNova {
             ? defaultBaseUrl
             : Uri.parse(fromEnvironment.trim()));
     _validate(url, maxRetries, timeout, deadline, streamKeepalive);
+    _warnIfCleartext(url, 'the API key');
     final authorization = {'Authorization': 'Bearer $key'};
     return EchoNova._(
       baseUrl: url,
@@ -176,6 +181,7 @@ class EchoNova {
     Duration? streamKeepalive = const Duration(seconds: 30),
   }) {
     _validate(baseUrl, maxRetries, timeout, deadline, streamKeepalive);
+    _warnIfCleartext(baseUrl, 'the auth headers');
     return EchoNova._(
       baseUrl: baseUrl,
       apiKey: null,
@@ -264,6 +270,21 @@ class EchoNova {
       );
     }
   }
+
+  /// Warns, once per origin, when [baseUrl] is plain `http` to a host
+  /// other than this machine: [credentials] would cross the network
+  /// unencrypted. Loopback addresses stay silent, for local proxies and
+  /// tests.
+  static void _warnIfCleartext(Uri baseUrl, String credentials) {
+    if (baseUrl.scheme != 'http' || isLoopbackHost(baseUrl.host)) return;
+    if (!_cleartextWarned.add(baseUrl.origin)) return;
+    logWarning(
+      'baseUrl ${baseUrl.origin} uses plain http, so $credentials would be '
+      'sent unencrypted. Use https.',
+    );
+  }
+
+  static final _cleartextWarned = <String>{};
 
   final String? _apiKey;
   final AuthHeaders _authHeaders;
@@ -406,17 +427,28 @@ class EchoNova {
   }
 
   static String _fileName(Uri uri) {
-    final segments = uri.pathSegments.where((s) => s.isNotEmpty);
+    final Iterable<String> segments;
+    try {
+      segments = uri.pathSegments.where((s) => s.isNotEmpty);
+    } on FormatException {
+      return 'download'; // Percent-encoded bytes that aren't UTF-8.
+    }
     final name = segments.isEmpty ? '' : segments.last;
+    // A colon names an alternate data stream (or a drive) on Windows, and
+    // control characters, NUL included, have no place in a file name.
     if (name.isEmpty ||
         name == '.' ||
         name == '..' ||
         name.contains('/') ||
-        name.contains(r'\')) {
+        name.contains(r'\') ||
+        name.contains(':') ||
+        name.contains(_controlCharacter)) {
       return 'download';
     }
     return name;
   }
+
+  static final _controlCharacter = RegExp(r'[\x00-\x1f\x7f-\x9f]');
 
   // ---------------------------------------------------------------------------
   // For the streaming layer. Not part of the public API.
@@ -576,4 +608,30 @@ String redactApiKey(String key) {
   final start = hasPrefix ? prefix : '';
   if (rest.length < 16) return '$start…';
   return '$start…${rest.substring(rest.length - 4)}';
+}
+
+/// Logs a warning about how the client is configured (visible in DevTools
+/// and to `dart:developer` listeners). Internal: tests replace it.
+@visibleForTesting
+void Function(String message) logWarning =
+    (message) => developer.log(message, name: 'echonova', level: 900);
+
+/// Whether [host] is this machine: `localhost`, `127.0.0.0/8` or `::1`.
+bool isLoopbackHost(String host) {
+  final name = host.toLowerCase();
+  if (name == 'localhost') return true;
+  final octets = name.split('.');
+  if (octets.length == 4 && octets.first == '127') {
+    return octets.every((octet) {
+      final value = int.tryParse(octet);
+      return value != null && value >= 0 && value <= 255;
+    });
+  }
+  if (!name.contains(':')) return false;
+  try {
+    final bytes = Uri.parseIPv6Address(name);
+    return bytes.take(15).every((byte) => byte == 0) && bytes[15] == 1;
+  } on FormatException {
+    return false;
+  }
 }

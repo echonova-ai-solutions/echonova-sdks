@@ -1,4 +1,4 @@
-// REST relay: allow-list, end-user auth, quota, key injection, streaming both ways.
+// REST relay: allow-list, end-user auth, quota, job ownership, key injection, streaming both ways.
 
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -17,15 +17,28 @@ import {
   failedToConnect,
   requestId,
   safeResponseHeaders,
+  scopedIdempotencyKey,
   splitUrl,
   stripPrefix,
   timedOut,
   userAgent,
 } from './common.js';
 import { errorName, levelFor } from './log.js';
-import { isStreamRoute, matchRest } from './routes.js';
+import {
+  JOB_CREATING_ROUTES,
+  JOB_NOT_FOUND,
+  createdJobId,
+  isStreamRoute,
+  jobIdOf,
+  matchRest,
+  productOf,
+} from './routes.js';
 
 class BodyTooLarge extends Error {}
+
+// A job-creating answer is read whole before it is relayed, to record its job for the user before
+// the app can ask for it. These answers are small JSON; a longer one is relayed unrecorded.
+const MAX_JOB_RESPONSE = 8 * 1024 * 1024;
 
 /**
  * @typedef {import('./app.js').ProxyContext} ProxyContext
@@ -103,11 +116,23 @@ export async function handleHttp(req, res, ctx) {
   const retryAfter = await ctx.quota.allowRequest(user);
   if (retryAfter !== null) return fail(429, { headers: { 'retry-after': String(retryAfter) } });
 
+  // One workspace key serves every user: a job is only its creator's to read, export or delete.
+  // Someone else's job gets the API's own answer for an unknown job, so its existence stays hidden.
+  const product = productOf(path);
+  const jobId = jobIdOf(route.template, path);
+  if (jobId !== null && !(await ctx.jobs.isOwner(product, jobId, user))) {
+    return fail(404, { message: JOB_NOT_FOUND[product], extra: { outcome: 'not_owner' } });
+  }
+  const createsJob = JOB_CREATING_ROUTES.has(`${method} ${route.template}`);
+
   /** @type {Record<string, string>} */
   const headers = {};
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const value = req.headers[name];
     if (typeof value === 'string') headers[name] = value;
+  }
+  if (headers['idempotency-key'] !== undefined) {
+    headers['idempotency-key'] = scopedIdempotencyKey(headers['idempotency-key'], user, settings.streamTokenSecret);
   }
   Object.assign(headers, {
     authorization: `Bearer ${settings.apiKey}`,
@@ -157,6 +182,37 @@ export async function handleHttp(req, res, ctx) {
     return fail(502, { extra });
   }
 
+  const ok = upstream.status >= 200 && upstream.status < 300;
+  /** @type {Buffer[] | null} the start of a job-creating answer, read before anything is relayed */
+  let kept = null;
+  let complete = false;
+  /** @type {AsyncIterator<Uint8Array> | null} */
+  let rest = null;
+  if (createsJob && ok && upstream.body) {
+    kept = [];
+    rest = Readable.fromWeb(/** @type {any} */ (upstream.body))[Symbol.asyncIterator]();
+    let size = 0;
+    try {
+      for (;;) {
+        const next = await rest.next();
+        if (next.done) {
+          complete = true;
+          break;
+        }
+        kept.push(Buffer.from(next.value));
+        size += next.value.length;
+        if (size > MAX_JOB_RESPONSE) break;
+      }
+    } catch (err) {
+      if (hangup.signal.aborted) return done(499, { outcome: 'client_closed' });
+      return fail(502, { extra: { upstream_error: errorName(err) } });
+    }
+    const created = complete ? createdJobId(Buffer.concat(kept)) : null;
+    if (created) await ctx.jobs.record(product, created, user);
+    else log('job.unrecorded', { route: fields.route, request_id: rid }, 'warning');
+  }
+  if (jobId !== null && method === 'DELETE' && ok) await ctx.jobs.forget(product, jobId);
+
   const responseHeaders = safeResponseHeaders(upstream.headers.entries());
   const upstreamRid = upstream.headers.get('x-request-id');
   if (upstreamRid === null) responseHeaders.push(['x-request-id', rid]);
@@ -165,12 +221,24 @@ export async function handleHttp(req, res, ctx) {
   res.statusCode = upstream.status;
   done(upstream.status, { upstream_request_id: upstreamRid ?? undefined });
 
+  if (kept && complete) {
+    res.end(Buffer.concat(kept));
+    return;
+  }
   if (!upstream.body) {
     res.end();
     return;
   }
+  const keptChunks = kept ?? [];
+  const remaining = rest;
+  const source = remaining
+    ? async function* () {
+        yield* keptChunks;
+        for (let next = await remaining.next(); !next.done; next = await remaining.next()) yield next.value;
+      }
+    : Readable.fromWeb(/** @type {any} */ (upstream.body));
   try {
-    await pipeline(Readable.fromWeb(/** @type {any} */ (upstream.body)), res);
+    await pipeline(source, res);
   } catch (err) {
     if (!hangup.signal.aborted) {
       log('http.upstream_cut', { route: fields.route, request_id: rid, error: errorName(err) }, 'warning');

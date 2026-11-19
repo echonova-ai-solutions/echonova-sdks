@@ -7,7 +7,7 @@ import net from 'node:net';
 
 import WebSocket, { WebSocketServer } from 'ws';
 
-import { createLogger, createProxy, makeSettings } from '../src/index.js';
+import { InMemoryJobOwners, createLogger, createProxy, makeSettings } from '../src/index.js';
 
 export const API_KEY = 'ek_REDACTED_proxy_test_key_0001'; // made up; must never reach the app side
 export const USER_TOKEN = 'user-token-1';
@@ -186,7 +186,7 @@ export async function closedPort() {
 /**
  * Start a fake upstream and a proxy in front of it.
  * @param {Record<string, unknown>} [overrides] settings
- * @param {{ authenticate?: import('../src/hooks.js').Authenticate, quota?: import('../src/hooks.js').Quota }} [hooks]
+ * @param {{ authenticate?: import('../src/hooks.js').Authenticate, quota?: import('../src/hooks.js').Quota, jobs?: import('../src/hooks.js').JobOwners }} [hooks]
  */
 export async function startProxy(overrides = {}, hooks = {}) {
   const fake = await new FakeUpstream().start();
@@ -202,13 +202,15 @@ export async function startProxy(overrides = {}, hooks = {}) {
     requestsPerMinute: 1000,
     ...overrides,
   });
-  const proxy = createProxy(settings, { ...hooks, logger: createLogger((line) => logs.push(line)) });
+  const jobs = hooks.jobs ?? new InMemoryJobOwners();
+  const proxy = createProxy(settings, { ...hooks, jobs, logger: createLogger((line) => logs.push(line)) });
   const server = await proxy.listen(0);
   const { port } = /** @type {net.AddressInfo} */ (server.address());
   const origin = `http://127.0.0.1:${port}`;
   return {
     fake,
     logs,
+    jobs,
     origin,
     base: `${origin}/echonova`,
     /** @param {string} path */

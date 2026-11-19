@@ -52,6 +52,7 @@ class Rejection:
     message: str
     retry_after: str | None = None
     json_body: bool = True
+    location: str | None = None  # sent as Location, to answer with a redirect
 
 
 @dataclass
@@ -215,6 +216,8 @@ class MockServer:
         response_headers["X-Request-Id"] = "req-" + uuid.uuid4().hex[:8]
         if rejection.retry_after is not None:
             response_headers["Retry-After"] = rejection.retry_after
+        if rejection.location is not None:
+            response_headers["Location"] = rejection.location
         return Response(rejection.status, "Error", response_headers, body)
 
     async def _handler(self, ws: ServerConnection) -> None:

@@ -10,13 +10,17 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   drift:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # only to open or update the drift issue
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # the token can write issues; keep it out of .git/config
       - name: Compare live specs with spec/spec-lock.json
         id: check
         run: |

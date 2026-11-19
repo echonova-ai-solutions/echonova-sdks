@@ -39,6 +39,7 @@ DEFAULT_TOLERANCE_SECONDS = 300
 EVENT_HEADER = "X-Webhook-Event"
 TIMESTAMP_HEADER = "X-Webhook-Timestamp"
 SIGNATURE_HEADER = "X-Webhook-Signature"
+MAX_TIMESTAMP_DIGITS = 15  # Unix seconds have 10 digits for centuries; a longer value is refused before int()
 
 
 class HeadersLike(Protocol):
@@ -170,6 +171,8 @@ def verify(
         )
 
     timestamp_text = timestamp_text.strip()
+    if len(timestamp_text) > MAX_TIMESTAMP_DIGITS:
+        raise WebhookVerificationError("webhook timestamp is too long", reason="timestamp")
     if not (timestamp_text.isascii() and timestamp_text.isdigit()):
         raise WebhookVerificationError("webhook timestamp is not a number", reason="timestamp")
     timestamp = int(timestamp_text)
@@ -214,10 +217,17 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
     if not isinstance(data, dict):
         return UnknownEvent(event=name, timestamp=timestamp, raw=data)
     if name == "job.completed":
+        job_id = _required_str(data, "jobId")
+        service = _required_str(data, "service")
+        # A completed job carries its result. Without it, the body may be a job.failed sent under this event name.
+        if service == "tts":
+            _required_str(data, "audioUrl")
+        elif service == "stt":
+            _required_str(data, "transcription")
         return JobCompleted(
-            job_id=_required_str(data, "jobId"),
+            job_id=job_id,
             api_key_id=_str(data.get("apiKeyId")),
-            service=_required_str(data, "service"),
+            service=service,
             duration_seconds=_number(data.get("durationSeconds")),
             text=_str(data.get("text")),
             audio_url=_str(data.get("audioUrl")),

@@ -293,7 +293,10 @@ WebhookEvent verifyWebhook(
   }
 
   final timestampText = timestampHeader.trim();
-  if (!_asciiDigits.hasMatch(timestampText)) {
+  // Unix seconds fit in far fewer digits. The cap keeps a header of
+  // thousands of digits from being parsed at all.
+  if (timestampText.length > _maxTimestampLength ||
+      !_asciiDigits.hasMatch(timestampText)) {
     throw WebhookVerificationException(
       'webhook timestamp is not a number',
       reason: WebhookFailure.timestamp,
@@ -339,6 +342,9 @@ WebhookEvent verifyWebhook(
 
 final _asciiDigits = RegExp(r'^[0-9]+$');
 
+/// The longest timestamp header accepted, after trimming.
+const _maxTimestampLength = 15;
+
 /// Compares two strings in time that depends only on their lengths.
 bool _constantTimeEquals(String a, String b) {
   if (a.length != b.length) return false;
@@ -356,10 +362,21 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
   switch (name) {
     case 'job.completed':
       final terminology = data['terminology'];
+      final jobId = _requiredString(data, 'jobId');
+      final service = _requiredString(data, 'service');
+      // The signature doesn't cover the event header, so a signed job.failed
+      // body could be replayed as job.completed. As SDK policy, a completed
+      // job must carry its result.
+      switch (service) {
+        case 'tts':
+          _requiredString(data, 'audioUrl');
+        case 'stt':
+          _requiredString(data, 'transcription');
+      }
       return JobCompleted(
-        jobId: _requiredString(data, 'jobId'),
+        jobId: jobId,
         apiKeyId: _string(data['apiKeyId']),
-        service: _requiredString(data, 'service'),
+        service: service,
         durationSeconds: _number(data['durationSeconds']),
         text: _string(data['text']),
         audioUrl: _string(data['audioUrl']),

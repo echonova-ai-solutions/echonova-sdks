@@ -154,6 +154,30 @@ describe('WebSocket relay', () => {
     assert.equal(h.fake.wsHandshakes.at(-1)?.query, ''); // the TTS stream takes no query
   });
 
+  test("a Speech to Text session's job is recorded as the user's before the app sees its id", async () => {
+    reset();
+    const ws = await openWs(h.wsUrl(STT));
+    const messages = inbox(ws);
+    assert.equal(JSON.parse((await messages.next()).data.toString()).type, 'session.started');
+    assert.equal(await h.jobs.isOwner('speech-to-text', 'stt-stream-1', 'demo-user'), false);
+    // The fake API echoes text frames, so this comes back from upstream like the real message.
+    ws.send(JSON.stringify({ type: 'session.saved', jobId: 'stt-stream-1', status: 'saved' }));
+    assert.equal(JSON.parse((await messages.next()).data.toString()).jobId, 'stt-stream-1');
+    assert.equal(await h.jobs.isOwner('speech-to-text', 'stt-stream-1', 'demo-user'), true);
+    // Frames keep their order around the one held for the record.
+    ws.send(JSON.stringify({ type: 'session.started', jobId: 'stt-stream-2' }));
+    ws.send('after');
+    assert.equal(JSON.parse((await messages.next()).data.toString()).jobId, 'stt-stream-2');
+    assert.equal((await messages.next()).data.toString(), 'after');
+    await closeWs(ws);
+    // The app's own frames going up are never taken as a job id.
+    const tts = await openWs(h.wsUrl(TTS));
+    tts.send(JSON.stringify({ type: 'session.saved', jobId: 'tts-stream-1' }));
+    await inbox(tts).next();
+    await closeWs(tts);
+    assert.equal(await h.jobs.isOwner('speech-to-text', 'tts-stream-1', 'demo-user'), false);
+  });
+
   test('user auth on the upgrade', async () => {
     reset();
     for (const headers of [{}, { authorization: 'Bearer wrong-token' }, { authorization: `Bearer ${API_KEY}` }]) {

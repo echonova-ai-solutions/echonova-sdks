@@ -33,9 +33,9 @@ def setup_from_env() -> None:
 
 
 def redact_url(url: str) -> str:
-    """Drop the query string and fragment, which carry a signed link's signature."""
+    """Drop the query string and fragment, which carry a signed link's signature, and any ``user:password@``."""
     try:
         parts = urlsplit(url)
     except ValueError:
         return "<invalid url>"
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    return urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, "", ""))

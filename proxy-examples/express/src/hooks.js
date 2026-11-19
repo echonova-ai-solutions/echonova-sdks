@@ -1,5 +1,5 @@
-// The two parts you replace: who the end user is, and how much they may use.
-// Pass your own versions to createProxy(settings, { authenticate, quota }).
+// The parts you replace: who the end user is, how much they may use, and which jobs are theirs.
+// Pass your own versions to createProxy(settings, { authenticate, quota, jobs }).
 
 import { timingSafeEqual } from 'node:crypto';
 
@@ -19,6 +19,22 @@ import { timingSafeEqual } from 'node:crypto';
  *   Reserve a concurrent-stream slot. false rejects the stream with 429.
  * @property {(userId: string) => Promise<void>} releaseStream
  *   Give back a slot reserved by acquireStream (always called once the stream ends).
+ */
+
+/**
+ * Which of your users owns which job.
+ *
+ * Every user's calls reach EchoNova with the same workspace key, so the API can't tell your users'
+ * jobs apart. The proxy records the job each successful create (and each Speech to Text stream)
+ * returns as the calling user's, and answers 404 when another user reads, exports or deletes it.
+ * Keep these records in your database, next to the rest of your user's data.
+ * @typedef {object} JobOwners
+ * @property {(product: string, jobId: string, userId: string) => Promise<void>} record
+ *   Remember that userId created the job. product is 'text-to-speech', 'speech-to-text' or 'sound-cleaning'.
+ * @property {(product: string, jobId: string, userId: string) => Promise<boolean>} isOwner
+ *   Did userId create the job? false makes the proxy answer 404.
+ * @property {(product: string, jobId: string) => Promise<void>} forget
+ *   The job was deleted.
  */
 
 /**
@@ -142,5 +158,50 @@ export class InMemoryQuota {
     for (const [user, window] of this.requests) {
       if (!window.length || window[window.length - 1] <= now - 60_000) this.requests.delete(user);
     }
+  }
+}
+
+/**
+ * DEMO ONLY - REPLACE THIS with a table in your database.
+ *
+ * Keeps job owners in this process, for the most recent maxJobs jobs. A job that falls out (or
+ * that was created before a restart, or on another instance) is 404 for everyone, its owner too:
+ * the store fails closed. Store (product, jobId, userId) rows in your database instead, and list a
+ * user's jobs from there.
+ *
+ * A job can have more than one owner: the API returns the same job for the same synthesis input
+ * within 24 hours, so two users who send the same text both get it.
+ *
+ * @implements {JobOwners}
+ */
+export class InMemoryJobOwners {
+  /** @param {{ maxJobs?: number }} [options] */
+  constructor({ maxJobs = 100_000 } = {}) {
+    this.maxJobs = maxJobs;
+    /** @type {Map<string, Set<string>>} oldest first */
+    this.owners = new Map();
+  }
+
+  /** @param {string} product @param {string} jobId @param {string} userId */
+  async record(product, jobId, userId) {
+    const key = `${product}/${jobId}`;
+    const owners = this.owners.get(key) ?? new Set();
+    owners.add(userId);
+    this.owners.delete(key); // move to the newest end
+    this.owners.set(key, owners);
+    for (const oldest of this.owners.keys()) {
+      if (this.owners.size <= this.maxJobs) break;
+      this.owners.delete(oldest);
+    }
+  }
+
+  /** @param {string} product @param {string} jobId @param {string} userId */
+  async isOwner(product, jobId, userId) {
+    return this.owners.get(`${product}/${jobId}`)?.has(userId) ?? false;
+  }
+
+  /** @param {string} product @param {string} jobId */
+  async forget(product, jobId) {
+    this.owners.delete(`${product}/${jobId}`);
   }
 }

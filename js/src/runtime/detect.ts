@@ -17,7 +17,7 @@ interface Globals {
   Deno?: { version?: { deno?: string }; build?: { os?: string } };
   window?: { document?: unknown };
   document?: unknown;
-  navigator?: { userAgent?: string };
+  navigator?: { userAgent?: string; product?: string };
   WorkerGlobalScope?: unknown;
   importScripts?: unknown;
   EdgeRuntime?: unknown;
@@ -46,6 +46,14 @@ export function isBrowserLike(): boolean {
   const page = typeof globals.window !== 'undefined' && typeof globals.document !== 'undefined' && typeof globals.navigator !== 'undefined';
   const worker = typeof globals.WorkerGlobalScope !== 'undefined' && typeof globals.importScripts === 'function';
   return page || worker;
+}
+
+/**
+ * True in a React Native app. It has no `document`, so `isBrowserLike()` misses
+ * it, but an API key bundled into a mobile app can be extracted just the same.
+ */
+export function isReactNative(): boolean {
+  return g().navigator?.product === 'ReactNative';
 }
 
 export interface RuntimeInfo {

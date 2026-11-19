@@ -24,7 +24,7 @@ curl -H "Authorization: Bearer change-me" http://127.0.0.1:8080/echonova/v1/text
 
 All settings are environment variables; see [Configuration](../README.md#configuration-both-proxies). Run it behind a TLS-terminating load balancer or reverse proxy.
 
-## Plug in your authentication and quota
+## Plug in your authentication, quota and job store
 
 ```js
 import { InMemoryQuota, createProxy, settingsFromEnv } from './src/index.js';
@@ -37,12 +37,19 @@ const proxy = createProxy(settingsFromEnv(), {
     return session?.userId ?? null;
   },
   quota: new InMemoryQuota({ requestsPerMinute: 30, maxStreamsPerUser: 1 }),
+  // Who owns which job, in your database (a table of product, job id and user id).
+  jobs: {
+    record: (product, jobId, userId) => myJobs.insert({ product, jobId, userId }),
+    isOwner: async (product, jobId, userId) => (await myJobs.find({ product, jobId, userId })) !== null,
+    forget: (product, jobId) => myJobs.remove({ product, jobId }),
+  },
 });
 await proxy.listen(8080, '0.0.0.0');
 ```
 
 - `authenticate` runs for every REST call and every WebSocket upgrade. On upgrades, a valid `?access_token=` stream token is accepted before your hook is called.
 - `quota` is any object with `allowRequest(userId)`, `acquireStream(userId)` and `releaseStream(userId)` (see `src/hooks.js`). `InMemoryQuota` keeps its counters in one process: with several instances, implement the same three methods on Redis or your database.
+- `jobs` is any object with `record`, `isOwner` and `forget` (the `JobOwners` type in `src/hooks.js`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, `isOwner` before it forwards a job's get, delete or export (`false` is a `404`), and `forget` after a delete. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
 - With your own hook, `PROXY_DEMO_TOKEN` isn't needed. Without either, `createProxy` throws.
 
 To add the proxy to an existing Express server instead of `proxy.listen`, add `proxy.app` after your own routes (it answers `404` for anything it doesn't relay) and hand it the WebSocket upgrades under the prefix:
@@ -60,10 +67,10 @@ Call `await proxy.close()` when the server stops: it closes open streams (`1012`
 
 | File | What it holds |
 |---|---|
-| `src/routes.js` | The allow-list. Delete the routes you don't use. |
-| `src/hooks.js` | The demo `authenticate` hook (**replace it**) and `InMemoryQuota`. |
-| `src/http-proxy.js` | REST relay: checks, key injection, streaming in both directions. |
-| `src/ws-proxy.js` | WebSocket relay: handshake mirroring, frames, backpressure, close codes. |
+| `src/routes.js` | The allow-list, and which routes create a job. Delete the routes you don't use. |
+| `src/hooks.js` | The demo `authenticate` hook and the demo `InMemoryJobOwners` store (**replace both**), and `InMemoryQuota`. |
+| `src/http-proxy.js` | REST relay: checks, job ownership, key injection, streaming in both directions. |
+| `src/ws-proxy.js` | WebSocket relay: handshake mirroring, frames, backpressure, close codes, the job a stream creates. |
 | `src/app.js` | `createProxy`, CORS and the cross-site origin check, `/healthz`, `/stream-token`. |
 | `src/tokens.js` | Short-lived stream tokens (same format as the FastAPI proxy). |
 | `src/config.js` | Settings and their checks. |
@@ -84,4 +91,4 @@ Call `await proxy.close()` when the server stops: it closes open streams (`1012`
 npm run typecheck && npm run format:check && npm test
 ```
 
-The tests (`node:test`) run the proxy and a fake EchoNova API (HTTP and WebSocket) as real servers on `127.0.0.1`. They cover the allow-list (checked against `spec/openapi.json` and `spec/asyncapi.json`), key injection, header filtering, user auth, quotas, a 150 MiB upload (chunked, with peak memory checked), a 64 MiB download, WebSocket relaying in both directions with backpressure, close codes, refused handshakes, CORS, shutdown, and logs without secrets.
+The tests (`node:test`) run the proxy and a fake EchoNova API (HTTP and WebSocket) as real servers on `127.0.0.1`. They cover the allow-list (checked against `spec/openapi.json` and `spec/asyncapi.json`), key injection, header filtering, user auth, quotas, job ownership (another user's job is `404`), per-user idempotency keys, a 150 MiB upload (chunked, with peak memory checked), a 64 MiB download, WebSocket relaying in both directions with backpressure, close codes, refused handshakes, CORS, shutdown, and logs without secrets.
