@@ -221,6 +221,20 @@ Use the same format for the pull request title.
 
 ## Pull requests
 
+`main` is protected: every change reaches it through a pull request, and nobody can push to it directly or force-push it.
+
+- **With write access** (maintainers): create a branch in this repository, push it and open a pull request against `main`:
+
+  ```bash
+  git switch -c fix/short-description
+  git push -u origin fix/short-description
+  gh pr create --fill          # or open it on GitHub
+  ```
+
+- **Without write access:** fork the repository and open the pull request from your fork. CI runs on it the same way, without access to any secret.
+- **Before it can merge:** the `CI passed` check must pass, and a code owner ([CODEOWNERS](.github/CODEOWNERS)) must approve it. Review comments must be resolved. A new push dismisses an earlier approval. `CI passed` sums up the CI jobs: it fails if any of them failed, while jobs that a change doesn't need are skipped and don't count.
+- **Merging:** squash, merge or rebase, whichever keeps the history readable. Delete the branch afterwards.
+
 - Keep a pull request to one change. Split unrelated changes.
 - Fill in the pull request template and its checklist.
 - Update docs and examples with the code. Every code sample in the READMEs and guides is type-checked in CI (`tools/check_snippets.py`), because a sample that no longer compiles goes stale unnoticed.

@@ -18,10 +18,10 @@ Done once by a maintainer with admin rights on the GitHub organization and each 
 2. **PyPI:** a trusted publisher for the project `echonova`: owner `echonova-ai-solutions`, repository `echonova-sdks`, workflow `publish.yml`, environment `pypi`. For a project that doesn't exist yet this is a pending publisher, which doesn't reserve the name: the first tagged release creates the project.
 3. **npm:** the `echonova` organization owns the `@echonova` scope. On the `@echonova/ai` package, a trusted publisher: GitHub Actions, `echonova-ai-solutions`, `echonova-sdks`, workflow `publish.yml`, environment `npm`; and under Publishing access, require two-factor authentication and disallow tokens. If npm only allows that on a package that exists, publish `0.0.1` by hand once: `cd js && npm ci && npm run build && npm publish --access public`. npm adds provenance only when the repository is public.
 4. **pub.dev:** the package `echonova_ai`, owned by the `echonova.ai` verified publisher, with automated publishing from GitHub Actions: repository `echonova-ai-solutions/echonova-sdks`, tag pattern `dart-v{{version}}`, required environment `pubdev`. Automated publishing is set up on a package that exists, so its first version may need to go up by hand: `cd dart && dart pub publish`. A pub.dev version can't be deleted, only retracted within 7 days.
-5. **When the repository is made public:**
-   - Turn on private vulnerability reporting in the repository settings, or with `gh api -X PUT repos/echonova-ai-solutions/echonova-sdks/private-vulnerability-reporting`. [SECURITY.md](../SECURITY.md) sends every report there, and GitHub offers it only on public repositories.
-   - Protect `main` with a ruleset: require a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)), require the CI checks to pass, and block force pushes and deletion. The free plan offers rulesets only on public repositories too.
-   - Add required reviewers to the three environments (step 1).
+5. **After the repository was made public** (done on 2026-11-19, except where noted):
+   - Private vulnerability reporting is on. [SECURITY.md](../SECURITY.md) sends every report there.
+   - The "Protect main" ruleset requires a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)) and the `CI passed` check, which sums up every CI job but the iOS build (macOS runners can queue for a long time). It also blocks force pushes and deletion. Repository admins may merge their own pull requests without a second approval, but can't push to `main` directly.
+   - Still to do, optionally: required reviewers on the three environments (step 1), so each release waits for an approval.
 
 ## Releasing a version
 
