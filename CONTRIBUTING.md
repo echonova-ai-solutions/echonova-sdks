@@ -232,7 +232,7 @@ Use the same format for the pull request title.
   ```
 
 - **Without write access:** fork the repository and open the pull request from your fork. CI runs on it the same way, without access to any secret.
-- **Before it can merge:** the CI checks must pass, and a code owner ([CODEOWNERS](.github/CODEOWNERS)) must approve it. Review comments must be resolved. A new push dismisses an earlier approval. Jobs that a change doesn't need are skipped, and a skipped job counts as passed.
+- **Before it can merge:** the `CI passed` check must pass, and a code owner ([CODEOWNERS](.github/CODEOWNERS)) must approve it. Review comments must be resolved. A new push dismisses an earlier approval. `CI passed` sums up the CI jobs: it fails if any of them failed, while jobs that a change doesn't need are skipped and don't count.
 - **Merging:** squash, merge or rebase, whichever keeps the history readable. Delete the branch afterwards.
 
 - Keep a pull request to one change. Split unrelated changes.

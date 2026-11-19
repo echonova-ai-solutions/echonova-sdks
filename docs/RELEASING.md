@@ -20,7 +20,7 @@ Done once by a maintainer with admin rights on the GitHub organization and each 
 4. **pub.dev:** the package `echonova_ai`, owned by the `echonova.ai` verified publisher, with automated publishing from GitHub Actions: repository `echonova-ai-solutions/echonova-sdks`, tag pattern `dart-v{{version}}`, required environment `pubdev`. Automated publishing is set up on a package that exists, so its first version may need to go up by hand: `cd dart && dart pub publish`. A pub.dev version can't be deleted, only retracted within 7 days.
 5. **After the repository was made public** (done on 2026-11-19, except where noted):
    - Private vulnerability reporting is on. [SECURITY.md](../SECURITY.md) sends every report there.
-   - The "Protect main" ruleset requires a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)) and the CI checks (all but the iOS build, which can queue for a long time). It also blocks force pushes and deletion. Repository admins may merge their own pull requests without a second approval, but can't push to `main` directly.
+   - The "Protect main" ruleset requires a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)) and the `CI passed` check, which sums up every CI job but the iOS build (macOS runners can queue for a long time). It also blocks force pushes and deletion. Repository admins may merge their own pull requests without a second approval, but can't push to `main` directly.
    - Still to do, optionally: required reviewers on the three environments (step 1), so each release waits for an approval.
 
 ## Releasing a version
