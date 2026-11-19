@@ -395,3 +395,41 @@ jobs:
       - run: npm run typecheck
       - run: npm run format:check
       - run: npm test
+
+  # The one check the "Protect main" ruleset requires. A job that a change doesn't need is
+  # skipped, and GitHub reports a skipped matrix job under its unexpanded name, so the jobs
+  # themselves can't be required checks. This job always runs and fails if any job it waits
+  # for failed or was cancelled; skipped jobs are fine. The iOS build is left out: macOS
+  # runners can queue for a long time, and its result still shows on the pull request.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs:
+      - changes
+      - workflows
+      - spec
+      - secrets
+      - python
+      - python-lowest
+      - js
+      - js-runtimes
+      - dart
+      - docs
+      - flutter-sample
+      - flutter-android
+      - proxy-fastapi
+      - proxy-express
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | python3 -c '
+          import json, sys
+          results = {job: info["result"] for job, info in json.load(sys.stdin).items()}
+          for job, result in sorted(results.items()):
+              print(f"{result:>9}  {job}")
+          bad = [job for job, result in results.items() if result not in ("success", "skipped")]
+          sys.exit("not passed: " + ", ".join(sorted(bad)) if bad else 0)
+          '
