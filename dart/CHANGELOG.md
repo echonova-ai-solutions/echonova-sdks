@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.2
+
+Security fixes. Upgrading is recommended.
+
+- `verifyWebhook` checks that a delivery's body matches its event. The signature doesn't cover the `X-Webhook-Event` header, so a signed delivery could otherwise be replayed under another event name:
+  - a `job.completed` must carry its result (`audioUrl` or `transcription`);
+  - a `job.failed` must not carry one;
+  - `spending.warning` and `spending.exhausted` must carry finite `creditsUsed` and `creditLimit`. These two events share a body shape, so one can still be relabelled as the other until the API signs the event name.
+- `verifyWebhook` refuses a timestamp header longer than 15 characters before parsing it.
+- A path ID of `.` or `..` throws `UsageException` before any request is sent, like an empty one.
+- When `downloadTo` is given a directory, it names the file `download` if the link's file name contains `:` or a control character.
+- A plain `http` base URL to a host other than this machine logs a warning once, because the API key or auth headers would cross the network unencrypted.
+- At most 64 KiB of an error response's body is read.
+- The `httpClient` documentation says that streams don't use it: they open their own connection with the platform's proxy and certificate settings.
+
 ## 0.0.1
 
 - `EchoNova(apiKey:)` for server-side Dart and `EchoNova.proxy(baseUrl:, auth:)` for Flutter apps, which call your own backend so the API key never ships in the app.

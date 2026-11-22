@@ -2,7 +2,7 @@
 
 Official Python SDK for the [EchoNova API](https://echonova.ai/docs/developers): Text to Speech, Speech to Text and Sound Cleaning.
 
-> **Status: pre-release.** Not yet published to PyPI; the first release will be `0.0.1`.
+> **Status: early release.** Before `1.0.0`, a new version may still change the interface. The [changelog](https://github.com/echonova-ai-solutions/echonova-sdks/releases) lists what changed.
 
 - Blocking (`EchoNova`) and asyncio (`AsyncEchoNova`) clients with the same methods.
 - Typed results, with the API's JSON kept on every result as `.raw`.

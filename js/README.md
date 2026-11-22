@@ -2,7 +2,7 @@
 
 Official JavaScript and TypeScript SDK for the [EchoNova API](https://echonova.ai/docs/developers): Text to Speech, Speech to Text, Sound Cleaning and agent sessions.
 
-> **Status: pre-release.** Not yet published to npm; the first release will be `0.0.1`.
+> **Status: early release.** Before `1.0.0`, a new version may still change the interface. The [changelog](https://github.com/echonova-ai-solutions/echonova-sdks/releases) lists what changed.
 
 - Typed results that mirror the API's JSON, with the request ID on every result.
 - Retries that never charge you twice, client-side rate limiting, job polling and safe downloads.
