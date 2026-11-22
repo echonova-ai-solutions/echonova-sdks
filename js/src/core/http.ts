@@ -204,7 +204,10 @@ const CONNECT_ERROR_CODES = new Set([
   'ConnectionRefused', // Bun
   'FailedToOpenSocket', // Bun
 ]);
-const TLS_ERROR_CODE = /^(?:ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/;
+// Only certificate checks and a handshake timeout prove nothing was sent. Other TLS and SSL errors (a bad record,
+// an alert) can happen on a reused HTTP/2 connection after the request went out.
+const TLS_ERROR_CODE =
+  /^(?:CERT_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_|HOSTNAME_MISMATCH$|ERR_TLS_CERT_ALTNAME_INVALID$|ERR_TLS_HANDSHAKE_TIMEOUT$)/;
 /** Deno's fetch errors have no `code`; DNS, TCP and TLS failures say "client error (Connect)". */
 const DENO_CONNECT_ERROR = /\bclient error \(Connect\)/;
 
