@@ -2,7 +2,7 @@
 
 Official Dart and Flutter SDK for the [EchoNova API](https://echonova.ai/docs/developers): Text to Speech, Speech to Text and Sound Cleaning, plus website widget tickets and agent sessions.
 
-> **Status: pre-release.** This package is under active development and is not yet published to pub.dev.
+> **Status: early release.** Before `1.0.0`, a new version may still change the interface. See the [changelog](https://pub.dev/packages/echonova_ai/changelog).
 
 - One pure-Dart package for server-side Dart and for Flutter on Android, iOS, desktop and the web.
 - Proxy mode for apps: your backend keeps the API key; the app never holds it.
