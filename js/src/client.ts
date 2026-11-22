@@ -123,6 +123,8 @@ interface Limits {
 export interface InternalClientOptions extends ClientOptions {
   _runtime?: Partial<Runtime> | undefined;
   _shared?: { lifecycle: AbortController; limits: Limits | undefined } | undefined;
+  /** The key came from ECHONOVA_API_KEY, here or in the client this one was copied from. */
+  _keyFromEnv?: boolean | undefined;
 }
 
 /** Show a key as `ek_…c21d`: enough to tell keys apart, useless to an attacker. Short keys are hidden entirely. */
@@ -249,7 +251,13 @@ export class EchoNova {
     const internal = options as InternalClientOptions;
     const auth = options.auth;
     // With an auth hook the environment key is not used: it must never reach a custom proxy by accident.
-    const keyOption = options.apiKey === undefined && auth === undefined ? readEnv('ECHONOVA_API_KEY') : options.apiKey;
+    // That includes an environment key carried over from the client this one was copied from.
+    const keyOption =
+      internal._keyFromEnv && auth !== undefined
+        ? null
+        : options.apiKey === undefined && auth === undefined
+          ? readEnv('ECHONOVA_API_KEY')
+          : options.apiKey;
     if (keyOption != null && typeof keyOption !== 'string') throw new Errors.UsageError('apiKey must be a string');
     const apiKey = keyOption?.trim() || null;
     const baseURL = normalizeBaseURL(options.baseURL?.trim() || readEnv('ECHONOVA_BASE_URL')?.trim() || DEFAULT_BASE_URL);
@@ -307,7 +315,12 @@ export class EchoNova {
     const shared = internal._shared;
     this.#apiKey = apiKey;
     this.#auth = auth;
-    this.#options = { ...options, apiKey, baseURL };
+    this.#options = {
+      ...options,
+      apiKey,
+      baseURL,
+      _keyFromEnv: apiKey !== null && (internal._keyFromEnv === true || options.apiKey === undefined),
+    };
     this.#lifecycle = shared?.lifecycle ?? new AbortController();
     this.#ownsLifecycle = shared === undefined;
     this.#limits = shared?.limits ?? {
@@ -382,6 +395,7 @@ export class EchoNova {
   withOptions(options: ClientOptions = {}): EchoNova {
     const changes = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined)) as ClientOptions;
     const merged: InternalClientOptions = { ...this.#options, ...changes };
+    if (changes.apiKey !== undefined) merged._keyFromEnv = false;
     const sameIdentity =
       merged.apiKey === this.#options.apiKey && merged.baseURL === this.#options.baseURL && merged.auth === this.#options.auth;
     merged._runtime = this.#runtime;

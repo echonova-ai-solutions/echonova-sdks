@@ -116,6 +116,7 @@ class EchoNova(BaseClient[httpx.Client]):
         stream_keepalive: float | None = DEFAULT_STREAM_KEEPALIVE,
         _runtime: Runtime | None = None,
         _limits: _Limits | None = None,
+        _api_key_from_env: bool = False,
         _pool: _Pool[httpx.Client] | None = None,
     ) -> None:
         if auth is not None and inspect.iscoroutinefunction(auth):
@@ -134,6 +135,7 @@ class EchoNova(BaseClient[httpx.Client]):
             runtime=_runtime,
             limits=_limits,
             stream_keepalive=stream_keepalive,
+            api_key_from_env=_api_key_from_env,
         )
         if http_client is not None and not isinstance(http_client, httpx.Client):
             raise UsageError("http_client must be an httpx.Client (use httpx.AsyncClient with AsyncEchoNova)")
@@ -311,6 +313,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
         stream_keepalive: float | None = DEFAULT_STREAM_KEEPALIVE,
         _runtime: Runtime | None = None,
         _limits: _Limits | None = None,
+        _api_key_from_env: bool = False,
         _pool: _Pool[httpx.AsyncClient] | None = None,
     ) -> None:
         super().__init__(
@@ -327,6 +330,7 @@ class AsyncEchoNova(BaseClient[httpx.AsyncClient]):
             runtime=_runtime,
             limits=_limits,
             stream_keepalive=stream_keepalive,
+            api_key_from_env=_api_key_from_env,
         )
         if http_client is not None and not isinstance(http_client, httpx.AsyncClient):
             raise UsageError("http_client must be an httpx.AsyncClient (use httpx.Client with EchoNova)")

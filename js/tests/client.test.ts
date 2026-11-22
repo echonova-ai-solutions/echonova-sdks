@@ -68,6 +68,29 @@ describe('configuration', () => {
     expect(JSON.stringify(client)).not.toContain('c21d');
   });
 
+  it('never carries the environment key into a withOptions() copy with an auth hook', async () => {
+    vi.stubEnv('ECHONOVA_API_KEY', TEST_KEY);
+    const { fetch, calls } = recordingFetch();
+    const client = new EchoNova({ fetch });
+    const auth = () => ({ 'X-Session': 's1' });
+    const proxied = client.withOptions({ baseURL: 'https://api.myapp.example.com', auth });
+    await transportOf(proxied).request({ method: 'GET', path: '/v1/x', bucket: 'x' });
+    expect(calls[0]!.headers.has('authorization')).toBe(false);
+    expect(String(proxied)).toContain('apiKey=null');
+    // Also through a copy made before the auth hook was added, and after the variable is gone.
+    const copy = client.withOptions({ maxRetries: 1 });
+    vi.stubEnv('ECHONOVA_API_KEY', '');
+    expect(String(copy)).not.toContain('apiKey=null');
+    expect(String(copy.withOptions({ auth }))).toContain('apiKey=null');
+  });
+
+  it('keeps an explicit key in a withOptions() copy with an auth hook', () => {
+    vi.stubEnv('ECHONOVA_API_KEY', TEST_KEY);
+    const auth = () => ({ 'X-Extra': '1' });
+    expect(String(new EchoNova({ apiKey: TEST_KEY }).withOptions({ auth }))).not.toContain('apiKey=null');
+    expect(String(new EchoNova().withOptions({ apiKey: TEST_KEY, auth }))).not.toContain('apiKey=null');
+  });
+
   it('warns when baseURL ends with /v1', () => {
     const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
     new EchoNova({ apiKey: TEST_KEY, baseURL: 'https://api.echonova.ai/v1/', logLevel: 'warn', logger });

@@ -265,6 +265,35 @@ def test_with_options_shares_pool_and_rate_limit_state() -> None:
     assert not client._pool.http.is_closed
 
 
+def test_with_options_never_carries_the_env_key_into_proxy_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ECHONOVA_API_KEY", TEST_KEY)
+    client = EchoNova()
+    proxied = client.with_options(base_url="https://proxy.example.com", auth=lambda: {"X-App-Token": "abc"})
+    assert proxied._api_key is None
+    assert proxied._auth_headers() == {"X-App-Token": "abc"}
+    # Also through a copy made before the auth hook was added, and after the variable is gone.
+    copy = client.with_options(max_retries=1)
+    monkeypatch.delenv("ECHONOVA_API_KEY")
+    assert copy._api_key == TEST_KEY
+    assert copy.with_options(auth=lambda: {"X-App-Token": "abc"})._api_key is None
+
+
+def test_with_options_keeps_an_explicit_key_with_an_auth_hook(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ECHONOVA_API_KEY", TEST_KEY)
+    explicit = EchoNova(api_key=TEST_KEY).with_options(auth=lambda: {"X-Extra": "1"})
+    assert explicit._api_key == TEST_KEY
+    replaced = EchoNova().with_options(api_key=TEST_KEY, auth=lambda: {"X-Extra": "1"})
+    assert replaced._api_key == TEST_KEY
+
+
+def test_async_with_options_never_carries_the_env_key_into_proxy_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ECHONOVA_API_KEY", TEST_KEY)
+    client = AsyncEchoNova()
+    proxied = client.with_options(base_url="https://proxy.example.com", auth=lambda: {"X-App-Token": "abc"})
+    assert proxied._api_key is None
+    asyncio.run(client.close())
+
+
 def test_with_options_rejects_unknown_arguments() -> None:
     with pytest.raises(TypeError):
         make_client(job_handler).with_options(retries=3)  # type: ignore[call-arg]
