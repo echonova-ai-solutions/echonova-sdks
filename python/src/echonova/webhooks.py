@@ -237,6 +237,8 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             raw=data,
         )
     if name == "job.failed":
+        # A failed job has no result. With one, the body may be a job.completed sent under this event name.
+        _refuse_keys(data, ("audioUrl", "transcription"))
         return JobFailed(
             job_id=_required_str(data, "jobId"),
             api_key_id=_str(data.get("apiKeyId")),
@@ -246,22 +248,27 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             raw=data,
         )
     if name == "spending.warning":
+        # A spending event carries its credits. Without them, the body may be a job event sent under this name.
+        credits_used = _required_number(data, "creditsUsed")
+        credit_limit = _required_number(data, "creditLimit")
         percentage = _number(data.get("percentageUsed"))
         return SpendingWarning(
             api_key_id=_required_str(data, "apiKeyId"),
             api_key_name=_str(data.get("apiKeyName")),
-            credits_used=_number(data.get("creditsUsed")),
-            credit_limit=_number(data.get("creditLimit")),
+            credits_used=credits_used,
+            credit_limit=credit_limit,
             percentage_used=round(percentage) if percentage is not None else None,
             timestamp=timestamp,
             raw=data,
         )
     if name == "spending.exhausted":
+        credits_used = _required_number(data, "creditsUsed")
+        credit_limit = _required_number(data, "creditLimit")
         return SpendingExhausted(
             api_key_id=_required_str(data, "apiKeyId"),
             api_key_name=_str(data.get("apiKeyName")),
-            credits_used=_number(data.get("creditsUsed")),
-            credit_limit=_number(data.get("creditLimit")),
+            credits_used=credits_used,
+            credit_limit=credit_limit,
             timestamp=timestamp,
             raw=data,
         )
@@ -273,6 +280,21 @@ def _required_str(data: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise WebhookVerificationError(f"webhook payload is missing {key}", reason="payload")
     return value
+
+
+def _required_number(data: dict[str, Any], key: str) -> float:
+    value = _number(data.get(key))
+    if value is None:
+        raise WebhookVerificationError(f"webhook payload is missing {key}", reason="payload")
+    return value
+
+
+def _refuse_keys(data: dict[str, Any], keys: tuple[str, ...]) -> None:
+    """Refuses a body that carries any of these keys as a non-empty string (null or empty is allowed)."""
+    for key in keys:
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            raise WebhookVerificationError(f"webhook payload has an unexpected {key}", reason="payload")
 
 
 def _str(value: Any) -> str | None:

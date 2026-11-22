@@ -291,6 +291,86 @@
       "reason": "payload"
     },
     {
+      "name": "tts job.completed body sent as job.failed",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "f5a64f1a25117a7a223a7c54a7b1d0eac687150a947797c96b52dd2981b1fa8e"
+      },
+      "body": "{\"jobId\":\"000000000000000000000001\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"tts\",\"durationSeconds\":3.4,\"text\":\"مرحبا بكم في إيكونوفا\",\"audioUrl\":\"https://storage.example.com/tts/out.wav?sig=redacted\"}",
+      "expect": "invalid",
+      "reason": "payload"
+    },
+    {
+      "name": "stt job.completed body sent as job.failed",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "e038e9cabc0981cfc0c2cbb50233c252b4bedb6ac604da23f692657d295d06ff"
+      },
+      "body": "{\"jobId\":\"000000000000000000000002\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"durationSeconds\":12.5,\"transcription\":\"hello from the KYC team\",\"terminology\":{\"raw\":\"hello from the kyc team\",\"corrected\":\"hello from the KYC team\",\"edits\":[],\"nearMisses\":[],\"warnings\":[],\"mapperStatus\":\"applied\",\"mapperVersion\":\"1\"}}",
+      "expect": "invalid",
+      "reason": "payload"
+    },
+    {
+      "name": "job.failed body sent as spending.exhausted",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "spending.exhausted",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "291476e9e15b25e0491744d8f0e8e3bd222104a0a50a93f9f9c5d2ac4cc23ad5"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\"}",
+      "expect": "invalid",
+      "reason": "payload"
+    },
+    {
+      "name": "tts job.completed body sent as spending.warning",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "spending.warning",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "f5a64f1a25117a7a223a7c54a7b1d0eac687150a947797c96b52dd2981b1fa8e"
+      },
+      "body": "{\"jobId\":\"000000000000000000000001\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"tts\",\"durationSeconds\":3.4,\"text\":\"مرحبا بكم في إيكونوفا\",\"audioUrl\":\"https://storage.example.com/tts/out.wav?sig=redacted\"}",
+      "expect": "invalid",
+      "reason": "payload"
+    },
+    {
+      "name": "job.failed with a null result still parses",
+      "secrets": [
+        "whsec_TEST0000000000000000000000000000000000000000"
+      ],
+      "now": 1762300800,
+      "tolerance_seconds": 300,
+      "headers": {
+        "X-Webhook-Event": "job.failed",
+        "X-Webhook-Timestamp": "1762300800",
+        "X-Webhook-Signature": "85b15ec86da761877f3fb0a19d9156ca459212abf63963e081d3d102110b8a08"
+      },
+      "body": "{\"jobId\":\"000000000000000000000003\",\"apiKeyId\":\"000000000000000000000a01\",\"service\":\"stt\",\"error\":\"Transcription failed. Try again.\",\"audioUrl\":null}",
+      "expect": "valid",
+      "expect_type": "JobFailed"
+    },
+    {
       "name": "timestamp with thousands of leading zeros",
       "secrets": [
         "whsec_TEST0000000000000000000000000000000000000000"

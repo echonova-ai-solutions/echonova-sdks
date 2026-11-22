@@ -386,6 +386,9 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         raw: data,
       );
     case 'job.failed':
+      // A failed job has no result. With one, the body may be a
+      // job.completed sent under this event name.
+      _refuseKeys(data, const ['audioUrl', 'transcription']);
       return JobFailed(
         jobId: _requiredString(data, 'jobId'),
         apiKeyId: _string(data['apiKeyId']),
@@ -395,22 +398,28 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         raw: data,
       );
     case 'spending.warning':
+      // A spending event carries its credits. Without them, the body may be
+      // a job event sent under this event name.
+      final creditsUsed = _requiredNumber(data, 'creditsUsed');
+      final creditLimit = _requiredNumber(data, 'creditLimit');
       final percentage = _number(data['percentageUsed']);
       return SpendingWarning(
         apiKeyId: _requiredString(data, 'apiKeyId'),
         apiKeyName: _string(data['apiKeyName']),
-        creditsUsed: _number(data['creditsUsed']),
-        creditLimit: _number(data['creditLimit']),
+        creditsUsed: creditsUsed,
+        creditLimit: creditLimit,
         percentageUsed: percentage == null ? null : _roundHalfEven(percentage),
         timestamp: timestamp,
         raw: data,
       );
     case 'spending.exhausted':
+      final creditsUsed = _requiredNumber(data, 'creditsUsed');
+      final creditLimit = _requiredNumber(data, 'creditLimit');
       return SpendingExhausted(
         apiKeyId: _requiredString(data, 'apiKeyId'),
         apiKeyName: _string(data['apiKeyName']),
-        creditsUsed: _number(data['creditsUsed']),
-        creditLimit: _number(data['creditLimit']),
+        creditsUsed: creditsUsed,
+        creditLimit: creditLimit,
         timestamp: timestamp,
         raw: data,
       );
@@ -428,6 +437,31 @@ String _requiredString(Map<String, Object?> data, String key) {
     );
   }
   return value;
+}
+
+double _requiredNumber(Map<String, Object?> data, String key) {
+  final value = _number(data[key]);
+  if (value == null) {
+    throw WebhookVerificationException(
+      'webhook payload is missing $key',
+      reason: WebhookFailure.payload,
+    );
+  }
+  return value;
+}
+
+/// Refuses a body that carries any of [keys] as a non-empty string (null or
+/// empty is allowed).
+void _refuseKeys(Map<String, Object?> data, List<String> keys) {
+  for (final key in keys) {
+    final value = data[key];
+    if (value is String && value.isNotEmpty) {
+      throw WebhookVerificationException(
+        'webhook payload has an unexpected $key',
+        reason: WebhookFailure.payload,
+      );
+    }
+  }
 }
 
 String? _string(Object? value) => value is String ? value : null;

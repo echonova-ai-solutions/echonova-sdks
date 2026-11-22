@@ -111,6 +111,17 @@ def main() -> None:
                reason="payload"),
         vector("tts job.failed body sent as job.completed", "job.completed", {**FAILED, "service": "tts"},
                expect="invalid", reason="payload"),
+        # The other relabellings: a failed job carries no result, and a spending event carries its credits.
+        vector("tts job.completed body sent as job.failed", "job.failed", TTS_DONE, expect="invalid",
+               reason="payload"),
+        vector("stt job.completed body sent as job.failed", "job.failed", STT_DONE, expect="invalid",
+               reason="payload"),
+        vector("job.failed body sent as spending.exhausted", "spending.exhausted", FAILED, expect="invalid",
+               reason="payload"),
+        vector("tts job.completed body sent as spending.warning", "spending.warning", TTS_DONE, expect="invalid",
+               reason="payload"),
+        vector("job.failed with a null result still parses", "job.failed", {**FAILED, "audioUrl": None},
+               expect_type="JobFailed"),
         # Seconds since the epoch never need more than 15 digits; a longer value is refused before it is parsed.
         vector("timestamp with thousands of leading zeros", "job.failed", FAILED, timestamp="0" * 4990 + str(NOW),
                expect="invalid", reason="timestamp"),
