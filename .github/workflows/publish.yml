@@ -143,8 +143,9 @@ jobs:
       - name: Publish (OIDC; no NODE_AUTH_TOKEN)
         env:
           DIST_TAG: ${{ needs.npm-build.outputs.dist-tag }}
+        # The ./ matters: npm reads "npm-dist/x.tgz" as a GitHub owner/repo shorthand, not a file.
         run: |
-          set -- npm-dist/*.tgz
+          set -- ./npm-dist/*.tgz
           test "$#" -eq 1 || { echo "expected one package tarball, found $#"; exit 1; }
           npm publish "$1" --access public --tag "$DIST_TAG"
 
