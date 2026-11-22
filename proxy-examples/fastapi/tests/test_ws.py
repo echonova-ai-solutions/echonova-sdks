@@ -227,6 +227,15 @@ async def test_refused_upstream_handshake_is_mirrored(
     assert "x-internal-trace" not in error.response.headers
 
 
+async def test_a_redirected_upstream_handshake_is_never_followed(harness: Harness) -> None:
+    # Following it would send the workspace key to wherever Location points.
+    harness.fake.ws_reject = (302, {}, {"location": "/elsewhere"})
+    error = await refused(harness, TTS)
+    assert error.response.status_code == 502
+    assert "unexpected redirect" in json.loads(error.response.body)["errorMessage"]
+    assert len(harness.fake.ws_handshakes) == 1
+
+
 async def test_upstream_unreachable_refuses_with_503(start_proxy: StartProxy) -> None:
     async with start_proxy(upstream_url="http://127.0.0.1:9") as h:
         error = await refused(h, TTS)
