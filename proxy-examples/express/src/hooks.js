@@ -33,8 +33,10 @@ import { timingSafeEqual } from 'node:crypto';
  *   Remember that userId created the job. product is 'text-to-speech', 'speech-to-text' or 'sound-cleaning'.
  * @property {(product: string, jobId: string, userId: string) => Promise<boolean>} isOwner
  *   Did userId create the job? false makes the proxy answer 404.
- * @property {(product: string, jobId: string) => Promise<void>} forget
- *   The job was deleted.
+ * @property {(product: string, jobId: string, userId: string) => Promise<boolean>} hasOtherOwners
+ *   Does anyone besides userId own the job? Then userId's delete leaves it at EchoNova for them.
+ * @property {(product: string, jobId: string, userId: string) => Promise<void>} release
+ *   userId deleted the job: stop counting them as an owner. Other owners keep it.
  */
 
 /**
@@ -200,8 +202,18 @@ export class InMemoryJobOwners {
     return this.owners.get(`${product}/${jobId}`)?.has(userId) ?? false;
   }
 
-  /** @param {string} product @param {string} jobId */
-  async forget(product, jobId) {
-    this.owners.delete(`${product}/${jobId}`);
+  /** @param {string} product @param {string} jobId @param {string} userId */
+  async hasOtherOwners(product, jobId, userId) {
+    const owners = this.owners.get(`${product}/${jobId}`);
+    return owners !== undefined && [...owners].some((owner) => owner !== userId);
+  }
+
+  /** @param {string} product @param {string} jobId @param {string} userId */
+  async release(product, jobId, userId) {
+    const key = `${product}/${jobId}`;
+    const owners = this.owners.get(key);
+    if (!owners) return;
+    owners.delete(userId);
+    if (owners.size === 0) this.owners.delete(key);
   }
 }

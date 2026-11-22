@@ -54,6 +54,15 @@ def proxy_error(status: int, rid: str, message: str | None = None, headers: dict
     )
 
 
+def _deleted(rid: str) -> Response:
+    """The API's own answer to a successful job delete."""
+    return Response(
+        b'{"success":true,"statusCode":200,"errorMessage":null,"data":{"deleted":true}}',
+        media_type="application/json",
+        headers={"x-request-id": rid, "cache-control": "no-store"},
+    )
+
+
 async def handle_http(request: Request) -> Response:
     proxy: Proxy = request.app.state.proxy
     settings = proxy.settings
@@ -94,6 +103,12 @@ async def handle_http(request: Request) -> Response:
     if job_id is not None and not await proxy.jobs.is_owner(product, job_id, user):
         return done(proxy_error(404, rid, JOB_NOT_FOUND[product]), outcome="not_owner")
     creates_job = (request.method, route.template) in JOB_CREATING_ROUTES
+    deletes_job = job_id is not None and request.method == "DELETE"
+    if deletes_job and await proxy.jobs.has_other_owners(product, job_id, user):
+        # Another user owns this job too (the API returned it for the same input), so it stays at
+        # EchoNova for them. For this user it is gone, as if the API had deleted it.
+        await proxy.jobs.release(product, job_id, user)
+        return done(_deleted(rid), outcome="released")
 
     headers = {name: request.headers[name] for name in FORWARDED_REQUEST_HEADERS if name in request.headers}
     if "idempotency-key" in headers:
@@ -179,8 +194,8 @@ async def handle_http(request: Request) -> Response:
             await proxy.jobs.record(product, created, user)
         else:
             log_event("job.unrecorded", logging.WARNING, route=fields["route"], request_id=rid)
-    if job_id is not None and request.method == "DELETE" and ok:
-        await proxy.jobs.forget(product, job_id)
+    if deletes_job and ok:
+        await proxy.jobs.release(product, job_id, user)
 
     response_headers = safe_response_headers(upstream.headers.multi_items())
     upstream_rid = upstream.headers.get("x-request-id")

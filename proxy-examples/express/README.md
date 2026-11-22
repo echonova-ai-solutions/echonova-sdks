@@ -41,7 +41,8 @@ const proxy = createProxy(settingsFromEnv(), {
   jobs: {
     record: (product, jobId, userId) => myJobs.insert({ product, jobId, userId }),
     isOwner: async (product, jobId, userId) => (await myJobs.find({ product, jobId, userId })) !== null,
-    forget: (product, jobId) => myJobs.remove({ product, jobId }),
+    hasOtherOwners: async (product, jobId, userId) => (await myJobs.count({ product, jobId, userId: { $ne: userId } })) > 0,
+    release: (product, jobId, userId) => myJobs.remove({ product, jobId, userId }),
   },
 });
 await proxy.listen(8080, '0.0.0.0');
@@ -49,7 +50,7 @@ await proxy.listen(8080, '0.0.0.0');
 
 - `authenticate` runs for every REST call and every WebSocket upgrade. On upgrades, a valid `?access_token=` stream token is accepted before your hook is called.
 - `quota` is any object with `allowRequest(userId)`, `acquireStream(userId)` and `releaseStream(userId)` (see `src/hooks.js`). `InMemoryQuota` keeps its counters in one process: with several instances, implement the same three methods on Redis or your database.
-- `jobs` is any object with `record`, `isOwner` and `forget` (the `JobOwners` type in `src/hooks.js`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, `isOwner` before it forwards a job's get, delete or export (`false` is a `404`), and `forget` after a delete. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
+- `jobs` is any object with `record`, `isOwner`, `hasOtherOwners` and `release` (the `JobOwners` type in `src/hooks.js`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, and `isOwner` before it forwards a job's get, delete or export (`false` is a `404`). A job can have several owners, because the API returns the same job when two users send the same input. On a delete, if `hasOtherOwners` is `true`, the proxy only calls `release` for this user and answers the delete itself, so the job stays for the others. Otherwise it forwards the delete and calls `release` once it succeeds. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
 - With your own hook, `PROXY_DEMO_TOKEN` isn't needed. Without either, `createProxy` throws.
 
 To add the proxy to an existing Express server instead of `proxy.listen`, add `proxy.app` after your own routes (it answers `404` for anything it doesn't relay) and hand it the WebSocket upgrades under the prefix:

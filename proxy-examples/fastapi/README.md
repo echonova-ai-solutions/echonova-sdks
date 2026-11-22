@@ -50,8 +50,11 @@ class DatabaseJobOwners:
     async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
         return await my_jobs.exists(product=product, job_id=job_id, user_id=user_id)
 
-    async def forget(self, product: str, job_id: str) -> None:
-        await my_jobs.delete(product=product, job_id=job_id)
+    async def has_other_owners(self, product: str, job_id: str, user_id: str) -> bool:
+        return await my_jobs.exists(product=product, job_id=job_id, user_id__ne=user_id)
+
+    async def release(self, product: str, job_id: str, user_id: str) -> None:
+        await my_jobs.delete(product=product, job_id=job_id, user_id=user_id)
 
 
 app = create_app(
@@ -64,7 +67,7 @@ app = create_app(
 
 - `authenticate` runs for every REST call and every WebSocket upgrade. On upgrades, a valid `?access_token=` stream token is accepted before your hook is called.
 - `quota` is any object with `allow_request(user_id)`, `acquire_stream(user_id)` and `release_stream(user_id)` (see `hooks.py`). `InMemoryQuota` keeps its counters in one process: with several workers or instances, implement the same three methods on Redis or your database.
-- `jobs` is any object with `record`, `is_owner` and `forget` (the `JobOwners` protocol in `hooks.py`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, `is_owner` before it forwards a job's get, delete or export (`False` is a `404`), and `forget` after a delete. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
+- `jobs` is any object with `record`, `is_owner`, `has_other_owners` and `release` (the `JobOwners` protocol in `hooks.py`). The proxy calls `record` when a call or a Speech to Text stream creates a job for the user, and `is_owner` before it forwards a job's get, delete or export (`False` is a `404`). A job can have several owners, because the API returns the same job when two users send the same input. On a delete, if `has_other_owners` is `True`, the proxy only calls `release` for this user and answers the delete itself, so the job stays for the others. Otherwise it forwards the delete and calls `release` once it succeeds. The default, `InMemoryJobOwners`, keeps the newest 100,000 jobs in one process and forgets them on restart: **replace it**.
 - With your own hook, `PROXY_DEMO_TOKEN` isn't needed. Without either, `create_app` refuses to build the app.
 
 You can serve `app` on its own, or mount it at `/` inside an existing FastAPI app, after your own routes: `my_app.mount("/", app)`.
