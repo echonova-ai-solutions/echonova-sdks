@@ -21,13 +21,13 @@ Done once by a maintainer with admin rights on the GitHub organization and each 
 5. **After the repository was made public** (done on 2026-11-19, except where noted):
    - Private vulnerability reporting is on. [SECURITY.md](../SECURITY.md) sends every report there.
    - The "Protect main" ruleset requires a pull request with an approving review from a code owner ([CODEOWNERS](../.github/CODEOWNERS)) and the `CI passed` check, which sums up every CI job but the iOS build (macOS runners can queue for a long time). It also blocks force pushes and deletion. Repository admins may merge their own pull requests without a second approval, but can't push to `main` directly.
-   - Still to do, optionally: required reviewers on the three environments (step 1), so each release waits for an approval.
+   - Still to do: required reviewers on the three environments (step 1), so each release waits for an approval, and a tag ruleset on `py-v*`, `js-v*` and `dart-v*` that lets only maintainers create, move or delete release tags.
 
 ## Releasing a version
 
 1. Make sure `main` is green, including the nightly spec-drift and live API jobs.
 2. Bump the version (table above). For Dart, add the version's entry to `dart/CHANGELOG.md`. Commit it on `main`.
-3. Tag that commit and push the tag:
+3. Tag that commit and push the tag. The workflow publishes only a commit that is on `main`; a tag on any other commit fails its first job and publishes nothing.
 
    ```bash
    git tag py-v0.0.1   && git push origin py-v0.0.1     # Python
