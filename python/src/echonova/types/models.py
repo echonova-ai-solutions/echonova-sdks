@@ -350,7 +350,7 @@ class CleanJob(Model):
 class WidgetTicket(Model):
     """A short-lived ticket that lets one visitor open a private widget."""
 
-    ticket: str = api_field("ticket", to_str, required=True)
+    ticket: str = api_field("ticket", to_str, required=True, secret=True)
     expires_at: datetime | None = api_field("expiresAt", to_datetime)
 
 
