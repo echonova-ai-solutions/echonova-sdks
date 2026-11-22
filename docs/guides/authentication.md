@@ -146,7 +146,7 @@ final client = EchoNova.proxy(
 - **API paths are appended to the base URL.** With the URL above, `text_to_speech.jobs.create()` sends `POST https://api.example.com/echonova/v1/text-to-speech`. Don't end the base URL with `/v1` (Python and TypeScript warn about it).
 - **`auth` runs before every attempt** and every stream connection (in browsers, only for REST calls: a WebSocket there can't carry its headers), so it can return a freshly refreshed token. In Python, `AsyncEchoNova` accepts an async `auth` function. In TypeScript, the hook receives the request's `method` and `url`.
 - **An error your `auth` or stream query function throws reaches you unchanged**, not as an EchoNova error, and the attempt it was preparing isn't sent. It is your code's error, so you can tell it from the API's.
-- **With `auth` set, `ECHONOVA_API_KEY` is not read** (Python and TypeScript), so a key in the environment can never reach your proxy by accident. `EchoNova.proxy` in Dart never reads it.
+- **With `auth` set, `ECHONOVA_API_KEY` is not read** (Python and TypeScript), so a key in the environment can never reach your proxy by accident. That includes a copy made with `with_options()` / `withOptions()` that adds `auth`: a key the original read from the environment is dropped. A key you passed yourself is kept. `EchoNova.proxy` in Dart never reads it.
 - **Errors from your proxy look like EchoNova errors** when the proxy answers in the API's error shape, as the reference proxies do: a `401` from your proxy raises `AuthenticationError`, a `429` with `Retry-After` raises `RateLimitError`, and so on.
 
 ### Cookies instead of a token (browsers)

@@ -57,7 +57,7 @@ Summary (the rules file is authoritative):
 | 500, 502, other 503, JSON 504 | retry | retry | **no** | unknown |
 | 504 that isn't JSON (hosting proxy timeout) | retry | retry | **no** | yes |
 
-The 503 rule for POST is an **allow-list** of known messages. A new 503 message from the API is not retried for POST until someone adds it, with a test vector, so a change on the server can never silently start double-charging.
+For a JSON 503, the rule for POST is an **allow-list** of known messages. A new 503 message from the API is not retried for POST until someone adds it, with a test vector, so a change on the server can never silently start double-charging. A 503 that isn't JSON is the exception: it is taken to come from the hosting proxy before the request reached the API, and is retried for POST too (rule R15). That holds only while the hosting proxy never answers 503 for a request it already passed on.
 
 ### `may_have_executed` and `sent_at`
 

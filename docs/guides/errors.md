@@ -175,7 +175,8 @@ Most EchoNova `POST` requests are paid: they synthesize, transcribe or clean aud
 
 Some details:
 
-- **The `503` rule for `POST` is an allow-list** of messages the API documents as temporary. A new `503` message is not retried for a `POST` without a key until the SDK learns it, so a change on the server can never quietly start double charges.
+- **For a JSON `503`, the rule for `POST` is an allow-list** of messages the API documents as temporary. A new `503` message is not retried for a `POST` without a key until the SDK learns it, so a change on the server can never quietly start double charges.
+- **A `503` that isn't JSON is retried for every method**, `POST` without a key included. The SDK treats it as an answer from the hosting proxy in front of the API, sent before the request reached the API. Send an idempotency key with paid calls if you can't rely on that.
 - **A request that is still running is waited for.** If the first attempt is still running when a retry arrives, the API answers `409` "A request with this Idempotency-Key is still running." The SDK sends the request again with the same key every 5 seconds until it gets the answer, within the call's wait budget (below). Past it, it raises `RequestInProgressError`.
 - **A key used for different input** gets `409` "This Idempotency-Key was already used for a different request.", an `InvalidRequestError`.
 - **A retried `DELETE` that then gets `404`** reports success with `already_deleted` / `alreadyDeleted` set: the first attempt removed the job.
