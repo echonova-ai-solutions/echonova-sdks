@@ -104,7 +104,7 @@ describe('REST relay', () => {
   test('every allowed route is forwarded', async () => {
     reset();
     for (const [method, path] of REST_ROUTES) {
-      if (path.includes('{jobId}')) await h.jobs.record(path.split('/')[2], JOB_ID, 'demo-user'); // DELETE forgets it
+      if (path.includes('{jobId}')) await h.jobs.record(path.split('/')[2], JOB_ID, 'demo-user'); // DELETE releases it
       const response = await call(`${h.base}${concrete(path)}?limit=5`, { method });
       assert.equal(response.status, 200, `${method} ${path}`);
       await response.arrayBuffer();
@@ -536,6 +536,31 @@ describe('job ownership', () => {
     await h.jobs.record('sound-cleaning', 'clean-del-1', 'alice');
     assert.equal((await send('/v1/sound-cleaning/jobs/clean-del-1', alice, 'DELETE')).status, 200);
     assert.equal(await h.jobs.isOwner('sound-cleaning', 'clean-del-1', 'alice'), false);
+  });
+
+  test("a co-owner's delete leaves the job for the other owner", async () => {
+    // The API returns the same job for the same input, so Alice and Bob both own it.
+    creates({ jobId: 'tts-shared-1', status: 'processing' });
+    await send('/v1/text-to-speech', alice, 'POST');
+    await send('/v1/text-to-speech', bob, 'POST');
+    h.fake.respond = null;
+    const path = '/v1/text-to-speech/jobs/tts-shared-1';
+    const before = h.fake.requests.length;
+    const deleted = await send(path, bob, 'DELETE');
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(JSON.parse(deleted.body), {
+      success: true,
+      statusCode: 200,
+      errorMessage: null,
+      data: { deleted: true },
+    });
+    assert.equal(h.fake.requests.length, before); // answered by the proxy: the job stays at EchoNova for Alice
+    assert.equal((await send(path, bob)).status, 404);
+    assert.equal((await send(path, alice)).status, 200);
+    // The last owner's delete reaches the API.
+    assert.equal((await send(path, alice, 'DELETE')).status, 200);
+    assert.equal(h.fake.requests.at(-1)?.method, 'DELETE');
+    assert.equal((await send(path, alice)).status, 404);
   });
 
   test('the job lists are not forwarded', async () => {

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from _support import example_for, openapi, resolve, response_schema, schema_properties
+from echonova import _operations as operations
 from echonova import types
 from echonova._core._envelope import MalformedEnvelopeError
 from echonova.types._base import Model, _api_fields, to_bool, to_datetime, to_float, to_int
@@ -145,6 +146,14 @@ def test_stream_jobs_say_where_they_came_from() -> None:
     assert stt.audio_url.startswith("https://storage.example.com/")
     rest = types.SttJob._from_json({"id": "j", "status": "completed"})  # a job from the REST endpoints
     assert (rest.stream, rest.audio_url) == (None, None)
+
+
+def test_widget_ticket_is_kept_out_of_repr() -> None:
+    ticket = types.WidgetTicket._from_json({"ticket": "wt-do-not-print", "expiresAt": "2026-11-07T10:05:00Z"})
+    assert ticket.ticket == "wt-do-not-print"
+    assert "wt-do-not-print" not in repr(ticket)
+    assert "wt-do-not-print" not in str(ticket)
+    assert operations.WIDGETS_CREATE_TICKET.secret_response
 
 
 def test_started_session_token_is_kept_out_of_repr() -> None:

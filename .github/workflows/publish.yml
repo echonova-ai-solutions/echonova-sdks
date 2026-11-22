@@ -17,12 +17,27 @@ permissions:
   contents: read
 
 jobs:
+  # A tag can be pushed on any commit, including one that never went through review. Only a commit
+  # that is already on main (merged through a pull request with CI passing) is published.
+  on-main:
+    name: The tagged commit is on main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+            { echo "$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main"; exit 1; }
+
   # Each registry gets two jobs, like the Dart pipeline below: one that checks, tests and builds
   # without an OIDC token, and a minimal one that publishes the built files with it. Code from the
   # dependencies, tests and build tools never runs in a job that can mint a publishing token.
   pypi-build:
     name: Build the Python package
     if: startsWith(github.ref, 'refs/tags/py-v')
+    needs: on-main
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -69,6 +84,7 @@ jobs:
   npm-build:
     name: Build the npm package
     if: startsWith(github.ref, 'refs/tags/js-v')
+    needs: on-main
     runs-on: ubuntu-latest
     outputs:
       dist-tag: ${{ steps.dist-tag.outputs.tag }}
@@ -135,6 +151,7 @@ jobs:
   dart-check:
     name: Check the Dart package
     if: startsWith(github.ref, 'refs/tags/dart-v')
+    needs: on-main
     runs-on: ubuntu-latest
     defaults:
       run:

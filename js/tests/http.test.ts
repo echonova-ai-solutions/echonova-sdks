@@ -456,6 +456,12 @@ describe('failurePhase', () => {
     [systemError('UND_ERR_CONNECT_TIMEOUT'), 'connect'],
     [systemError('CERT_HAS_EXPIRED'), 'connect'],
     [systemError('ERR_TLS_CERT_ALTNAME_INVALID'), 'connect'],
+    [systemError('SELF_SIGNED_CERT_IN_CHAIN'), 'connect'],
+    [systemError('ERR_TLS_HANDSHAKE_TIMEOUT'), 'connect'],
+    // Other TLS errors can come after the request went out on a reused HTTP/2 connection.
+    [systemError('ERR_SSL_DECRYPTION_FAILED_OR_BAD_RECORD_MAC'), 'no_response'],
+    [systemError('ERR_SSL_SSLV3_ALERT_BAD_RECORD_MAC'), 'no_response'],
+    [systemError('ERR_TLS_INVALID_STATE'), 'no_response'],
     [systemError('ECONNRESET'), 'no_response'],
     [systemError('UND_ERR_SOCKET'), 'no_response'],
     [new TypeError('Failed to fetch'), 'no_response'],

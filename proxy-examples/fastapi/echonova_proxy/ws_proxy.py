@@ -29,6 +29,7 @@ from .common import (
     MESSAGES,
     STREAM_TOKEN_SCOPE_KEY,
     TOO_MANY_STREAMS,
+    UNEXPECTED_REDIRECT,
     Proxy,
     error_body,
     request_id,
@@ -53,6 +54,13 @@ async def deny(websocket: WebSocket, status: int, rid: str, body: bytes, headers
         await websocket.send_denial_response(response)
     except RuntimeError:  # the ASGI server can't send HTTP responses to an upgrade; it answers 403
         await websocket.close(code=1008)
+
+
+class _ConnectWithoutRedirects(connect):
+    """connect() that never follows a redirect: it would send the workspace key to the new location."""
+
+    def process_redirect(self, exc: Exception) -> Exception | str:
+        return exc
 
 
 async def deny_error(websocket: WebSocket, status: int, rid: str, message: str | None = None, **headers: str) -> None:
@@ -103,7 +111,7 @@ async def handle_ws(websocket: WebSocket) -> None:
         ]
         url = settings.upstream_ws_url + path + (f"?{urlencode(params)}" if params else "")
         try:
-            upstream = await connect(
+            upstream = await _ConnectWithoutRedirects(
                 url,
                 additional_headers={"Authorization": f"Bearer {settings.api_key}", "X-Request-Id": rid},
                 user_agent_header=user_agent(websocket.headers.get("user-agent")),
@@ -112,6 +120,10 @@ async def handle_ws(websocket: WebSocket) -> None:
                 compression=None,
             )
         except InvalidStatus as exc:
+            if 300 <= exc.response.status_code < 400:
+                # The API doesn't redirect, and the proxy never follows one (it could lead the key elsewhere).
+                await deny_error(websocket, 502, rid, UNEXPECTED_REDIRECT)
+                return log("ws.rejected", status=502, upstream_status=exc.response.status_code)
             # EchoNova refused: give the app the same answer, so the SDK maps it to the same error.
             refused = exc.response
             body = bytes(refused.body or b"")[:MAX_REJECTION_BODY]

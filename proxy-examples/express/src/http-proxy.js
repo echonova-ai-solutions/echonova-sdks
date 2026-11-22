@@ -65,6 +65,18 @@ export function sendError(res, status, rid, message, headers = {}) {
   res.end(body);
 }
 
+/** The API's own answer to a successful job delete. @param {ServerResponse} res @param {string} rid */
+function sendDeleted(res, rid) {
+  const body = '{"success":true,"statusCode":200,"errorMessage":null,"data":{"deleted":true}}';
+  res.writeHead(200, {
+    'content-type': 'application/json',
+    'content-length': Buffer.byteLength(body),
+    'x-request-id': rid,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
 /**
  * @param {IncomingMessage} req
  * @param {ServerResponse} res
@@ -124,6 +136,14 @@ export async function handleHttp(req, res, ctx) {
     return fail(404, { message: JOB_NOT_FOUND[product], extra: { outcome: 'not_owner' } });
   }
   const createsJob = JOB_CREATING_ROUTES.has(`${method} ${route.template}`);
+  const deletesJob = jobId !== null && method === 'DELETE';
+  if (deletesJob && (await ctx.jobs.hasOtherOwners(product, jobId, user))) {
+    // Another user owns this job too (the API returned it for the same input), so it stays at
+    // EchoNova for them. For this user it is gone, as if the API had deleted it.
+    await ctx.jobs.release(product, jobId, user);
+    sendDeleted(res, rid);
+    return done(200, { outcome: 'released' });
+  }
 
   /** @type {Record<string, string>} */
   const headers = {};
@@ -211,7 +231,7 @@ export async function handleHttp(req, res, ctx) {
     if (created) await ctx.jobs.record(product, created, user);
     else log('job.unrecorded', { route: fields.route, request_id: rid }, 'warning');
   }
-  if (jobId !== null && method === 'DELETE' && ok) await ctx.jobs.forget(product, jobId);
+  if (deletesJob && ok) await ctx.jobs.release(product, jobId, user);
 
   const responseHeaders = safeResponseHeaders(upstream.headers.entries());
   const upstreamRid = upstream.headers.get('x-request-id');

@@ -62,7 +62,7 @@ CLEAN_JOBS_LIST = _op("sound_cleaning.jobs.list", "GET", "/v1/sound-cleaning/job
 CLEAN_JOBS_GET = _op("sound_cleaning.jobs.get", "GET", "/v1/sound-cleaning/jobs/{jobId}")
 CLEAN_JOBS_DELETE = _op("sound_cleaning.jobs.delete", "DELETE", "/v1/sound-cleaning/jobs/{jobId}")
 
-WIDGETS_CREATE_TICKET = _op("widgets.create_ticket", "POST", "/v1/widgets/{publicId}/tickets")
+WIDGETS_CREATE_TICKET = _op("widgets.create_ticket", "POST", "/v1/widgets/{publicId}/tickets", secret_response=True)
 
 # A start is a POST, so it is never resent once it may have reached the server: a retried start opens a second session.
 AGENT_SESSIONS_START = _op("agents.sessions.start", "POST", "/v1/agents/{agentId}/sessions", secret_response=True)

@@ -30,6 +30,7 @@ The API is versioned by its path (`/v1`) and changes additively within a version
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org/), with the SDK as the scope where it applies (`fix(python): …`, `feat(js): …`). See `CONTRIBUTING.md`.
 - release-please runs per package. It keeps a release pull request open for each package with the next version and a generated `CHANGELOG.md` in Keep a Changelog style. Merging that pull request tags the release with a per-package tag and creates a GitHub Release.
 - Changelogs are never edited by hand. The commit messages are the source.
+- *Amended 2026-11-22:* release-please isn't set up yet. Until it is, versions are bumped by hand and tagged as described in [RELEASING.md](../RELEASING.md).
 
 ### Publishing with OIDC trusted publishing and provenance
 
@@ -40,6 +41,7 @@ The API is versioned by its path (`/v1`) and changes additively within a version
 - Publishing runs in a protected `release` environment that needs maintainer approval.
 - *Amended 2026-11-15:* the packages are `echonova` on PyPI (*amended again 2026-11-18*: the PyPI project EchoNova already owns, matching the import), `@echonova/ai` on npm and `echonova_ai` on pub.dev, licensed MIT, starting at `0.0.1`. One workflow, `publish.yml`, publishes each from its tag (`py-v*`, `js-v*`, `dart-v*`) in its own environment (`pypi`, `npm`, `pubdev`), matching the registries' trusted-publisher settings. See [RELEASING.md](../RELEASING.md).
 - The release workflow **builds once**, installs the built artifact in a clean environment, runs a live smoke test, verifies attestations and provenance, and only then publishes.
+- *Amended 2026-11-22:* what `publish.yml` does today is narrower. There is no single `release` environment: each registry has its own (`pypi`, `npm`, `pubdev`), and they don't require an approval yet. A first job refuses a tag whose commit isn't on `main`. Each pipeline then checks that the tag matches the package version, runs the unit tests and builds once, in a job without an OIDC token. A separate job publishes those files. There is no live smoke test and no attestation check before publishing.
 - Registry organisations and the GitHub organisation require two-factor authentication. Actions are pinned by commit SHA and kept current by Renovate.
 
 ## Consequences

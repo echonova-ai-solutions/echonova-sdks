@@ -283,12 +283,17 @@ class BaseClient(Generic[HttpT]):
         runtime: Runtime | None,
         limits: _Limits | None,
         stream_keepalive: float | None,
+        api_key_from_env: bool = False,
     ) -> None:
         setup_from_env()
         self._base_url = resolve_base_url(base_url)
         self._auth = auth
         # With an auth hook the environment key is not used: it must never reach a custom proxy by accident.
+        # That includes an environment key carried over from the client this one was copied from.
+        if api_key_from_env and auth is not None:
+            api_key = None
         self._api_key = resolve_api_key(api_key, use_env=auth is None)
+        self._api_key_from_env = self._api_key is not None and (api_key_from_env or api_key is None)
         if self._api_key is None and auth is None:
             raise UsageError(
                 "No API key. Pass api_key=..., set ECHONOVA_API_KEY, or pass auth=... with base_url=... (proxy mode)."
@@ -424,6 +429,7 @@ class BaseClient(Generic[HttpT]):
         merged = {**current, **{k: v for k, v in changes.items() if v is not NOT_GIVEN and k != "http_client"}}
         same_identity = all(merged[k] == current[k] for k in ("api_key", "base_url", "auth"))
         merged["_runtime"] = self._runtime
+        merged["_api_key_from_env"] = self._api_key_from_env and changes.get("api_key", NOT_GIVEN) is NOT_GIVEN
         merged["_limits"] = self._limits if same_identity else None
         return merged
 

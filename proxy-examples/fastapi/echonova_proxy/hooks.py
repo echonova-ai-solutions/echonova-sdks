@@ -133,8 +133,11 @@ class JobOwners(Protocol):
     async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
         """Did user_id create the job? False makes the proxy answer 404."""
 
-    async def forget(self, product: str, job_id: str) -> None:
-        """The job was deleted."""
+    async def has_other_owners(self, product: str, job_id: str, user_id: str) -> bool:
+        """Does anyone besides user_id own the job? Then user_id's delete leaves it at EchoNova for them."""
+
+    async def release(self, product: str, job_id: str, user_id: str) -> None:
+        """user_id deleted the job: stop counting them as an owner. Other owners keep it."""
 
 
 class InMemoryJobOwners:
@@ -163,5 +166,13 @@ class InMemoryJobOwners:
     async def is_owner(self, product: str, job_id: str, user_id: str) -> bool:
         return user_id in self.owners.get((product, job_id), ())
 
-    async def forget(self, product: str, job_id: str) -> None:
-        self.owners.pop((product, job_id), None)
+    async def has_other_owners(self, product: str, job_id: str, user_id: str) -> bool:
+        return bool(self.owners.get((product, job_id), set()) - {user_id})
+
+    async def release(self, product: str, job_id: str, user_id: str) -> None:
+        key = (product, job_id)
+        owners = self.owners.get(key)
+        if owners is not None:
+            owners.discard(user_id)
+            if not owners:
+                del self.owners[key]

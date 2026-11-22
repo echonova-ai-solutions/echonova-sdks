@@ -161,13 +161,28 @@ void main() {
     expect(key(8000.5, 10000.0), 'spending.exhausted:k:8000.5:10000');
     expect(key(0.00001, '25'), 'spending.exhausted:k:1e-05:25');
     expect(key(1.5e-7, 0.0001), 'spending.exhausted:k:1.5e-07:0.0001');
-    expect(key(null, 'lots'), 'spending.exhausted:k:-:-');
     expect(key(1e20, -0.0), 'spending.exhausted:k:100000000000000000000:0');
+  });
+
+  test('a spending event without its credits fails as a payload problem', () {
+    for (final body in [
+      {'apiKeyId': 'k', 'creditLimit': 10},
+      {'apiKeyId': 'k', 'creditsUsed': 'lots', 'creditLimit': 10},
+      {'apiKeyId': 'k', 'creditsUsed': 1, 'creditLimit': null},
+    ]) {
+      expect(
+        () => verifySigned('spending.exhausted', body),
+        throwsA(isA<WebhookVerificationException>()
+            .having((e) => e.reason, 'reason', WebhookFailure.payload)),
+      );
+    }
   });
 
   test('percentages round half to even, like Python', () {
     int? percentage(Object value) => (verifySigned('spending.warning', {
           'apiKeyId': 'k',
+          'creditsUsed': 1,
+          'creditLimit': 2,
           'percentageUsed': value,
         }) as SpendingWarning)
             .percentageUsed;

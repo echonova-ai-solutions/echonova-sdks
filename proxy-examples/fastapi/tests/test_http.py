@@ -262,6 +262,27 @@ async def test_another_users_job_is_404_for_get_delete_and_export(start_proxy: S
         assert len(h.fake.requests) == before + 2
 
 
+async def test_a_co_owners_delete_leaves_the_job_for_the_other_owner(start_proxy: StartProxy) -> None:
+    async with start_proxy(authenticate=alice_or_bob) as h:
+        # The API returns the same job for the same input, so Alice and Bob both own it.
+        creates(h, {"jobId": "tts-shared-1", "status": "processing"})
+        await h.client.post(h.base + "/v1/text-to-speech", headers=ALICE)
+        await h.client.post(h.base + "/v1/text-to-speech", headers=BOB)
+        h.fake.respond = None
+        url = h.base + "/v1/text-to-speech/jobs/tts-shared-1"
+        before = len(h.fake.requests)
+        deleted = await h.client.delete(url, headers=BOB)
+        assert deleted.status_code == 200
+        assert deleted.json() == {"success": True, "statusCode": 200, "errorMessage": None, "data": {"deleted": True}}
+        assert len(h.fake.requests) == before  # answered by the proxy: the job stays at EchoNova for Alice
+        assert (await h.client.get(url, headers=BOB)).status_code == 404
+        assert (await h.client.get(url, headers=ALICE)).status_code == 200
+        # The last owner's delete reaches the API.
+        assert (await h.client.delete(url, headers=ALICE)).status_code == 200
+        assert h.fake.requests[-1].method == "DELETE"
+        assert (await h.client.get(url, headers=ALICE)).status_code == 404
+
+
 async def test_every_job_creating_route_records_its_job(start_proxy: StartProxy) -> None:
     async with start_proxy(authenticate=alice_or_bob) as h:
         creates(h, {"jobId": "tts-sync-1", "status": "completed", "audioUrl": "https://storage.example.com/a.wav"})

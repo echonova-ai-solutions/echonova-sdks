@@ -250,6 +250,8 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
       });
     }
     case 'job.failed': {
+      // A failed job has no result. With one, the body may be a job.completed sent under this event name.
+      refuseKeys(raw, ['audioUrl', 'transcription']);
       const jobId = requiredStr(raw, 'jobId');
       return Object.freeze({
         type: 'job.failed',
@@ -264,9 +266,10 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
       });
     }
     case 'spending.warning': {
+      // A spending event carries its credits. Without them, the body may be a job event sent under this name.
+      const creditsUsed = requiredNum(raw, 'creditsUsed');
+      const creditLimit = requiredNum(raw, 'creditLimit');
       const apiKeyId = requiredStr(raw, 'apiKeyId');
-      const creditsUsed = num(raw['creditsUsed']);
-      const creditLimit = num(raw['creditLimit']);
       const percentage = num(raw['percentageUsed']);
       return Object.freeze({
         type: 'spending.warning',
@@ -282,9 +285,9 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
       });
     }
     case 'spending.exhausted': {
+      const creditsUsed = requiredNum(raw, 'creditsUsed');
+      const creditLimit = requiredNum(raw, 'creditLimit');
       const apiKeyId = requiredStr(raw, 'apiKeyId');
-      const creditsUsed = num(raw['creditsUsed']);
-      const creditLimit = num(raw['creditLimit']);
       return Object.freeze({
         type: 'spending.exhausted',
         event: 'spending.exhausted',
@@ -308,6 +311,24 @@ function requiredStr(data: Raw, key: string): string {
     throw new WebhookVerificationError(`webhook payload is missing ${key}`, { reason: 'payload' });
   }
   return value;
+}
+
+function requiredNum(data: Raw, key: string): number {
+  const value = num(data[key]);
+  if (value === null || !Number.isFinite(value)) {
+    throw new WebhookVerificationError(`webhook payload is missing ${key}`, { reason: 'payload' });
+  }
+  return value;
+}
+
+/** Refuses a body that carries any of these keys as a non-empty string (null or empty is allowed). */
+function refuseKeys(data: Raw, keys: readonly string[]): void {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.length > 0) {
+      throw new WebhookVerificationError(`webhook payload has an unexpected ${key}`, { reason: 'payload' });
+    }
+  }
 }
 
 function str(value: unknown): string | null {

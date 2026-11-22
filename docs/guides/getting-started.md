@@ -33,8 +33,6 @@ deno add npm:@echonova/ai         # Deno
 dart pub add echonova_ai      # Flutter: flutter pub add echonova_ai
 ```
 
-> The packages are not on the registries yet. Until the first beta, install from a clone of this repository: `pip install ./python`; `cd js && npm ci && npm pack`, then `npm install` the `.tgz` it creates; for Dart, a `path:` dependency on `dart/` (see the [Dart README](../../dart/README.md#install)).
-
 ## Get an API key
 
 1. In the EchoNova portal, open **Developers**, then the **API Keys** tab, and select **Create Key**.

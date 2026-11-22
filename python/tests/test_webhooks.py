@@ -135,7 +135,7 @@ def test_non_ascii_signature_is_a_mismatch_not_a_crash() -> None:
     assert caught.value.reason == "signature"
 
 
-def test_non_finite_amounts_parse_as_none() -> None:
+def test_non_finite_amounts_are_refused() -> None:
     import hashlib
     import hmac
     import json
@@ -145,10 +145,9 @@ def test_non_finite_amounts_parse_as_none() -> None:
     timestamp = v["headers"]["X-Webhook-Timestamp"]
     signature = hmac.new(v["secrets"][0].encode(), f"{timestamp}.{body}".encode(), hashlib.sha256).hexdigest()
     headers = {**v["headers"], "X-Webhook-Signature": signature}
-    event = webhooks.verify(body, headers, v["secrets"], now=v["now"])
-    assert isinstance(event, webhooks.SpendingExhausted)
-    assert (event.credits_used, event.credit_limit) == (None, None)
-    assert event.dedupe_key.endswith(":-:-")
+    with pytest.raises(webhooks.WebhookVerificationError) as info:
+        webhooks.verify(body, headers, v["secrets"], now=v["now"])
+    assert info.value.reason == "payload"
 
 
 def test_nan_now_is_rejected() -> None:
