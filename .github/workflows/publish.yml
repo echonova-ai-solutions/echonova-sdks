@@ -7,6 +7,8 @@ name: Publish SDKs
 # Every registry trusts this workflow file (publish.yml) through OIDC trusted
 # publishing: no API token or secret is stored anywhere. Each pipeline first
 # checks that the tag's version equals the package's version, and runs the tests.
+# npm releases are staged: the version goes public only after a maintainer approves
+# it on npmjs.com with 2FA (docs/RELEASING.md).
 # How to release: README.md, "Releasing".
 
 on:
@@ -140,14 +142,16 @@ jobs:
           path: npm-dist
       - name: Use an npm with trusted publishing (11.5.1 or later)
         run: npm install -g "npm@11.21.2"
-      - name: Publish (OIDC; no NODE_AUTH_TOKEN)
+      # The trusted publisher on npm may only stage (npm's recommended setting): a maintainer then
+      # approves the staged version on npmjs.com with 2FA, so this workflow alone can't release.
+      - name: Stage the release (OIDC; no NODE_AUTH_TOKEN)
         env:
           DIST_TAG: ${{ needs.npm-build.outputs.dist-tag }}
         # The ./ matters: npm reads "npm-dist/x.tgz" as a GitHub owner/repo shorthand, not a file.
         run: |
           set -- ./npm-dist/*.tgz
           test "$#" -eq 1 || { echo "expected one package tarball, found $#"; exit 1; }
-          npm publish "$1" --access public --tag "$DIST_TAG"
+          npm stage publish "$1" --access public --tag "$DIST_TAG"
 
   dart-check:
     name: Check the Dart package

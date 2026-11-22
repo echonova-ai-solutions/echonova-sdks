@@ -173,7 +173,7 @@ Without a key only the free checks run. CI runs all three nightly ([live.yml](.g
 
 ## 🚀 Releasing
 
-Each SDK is published by pushing its tag; the [publish workflow](.github/workflows/publish.yml) checks the version, runs the tests and publishes with OIDC trusted publishing (no tokens). Details and the one-time registry setup: [docs/RELEASING.md](docs/RELEASING.md).
+Each SDK is published by pushing its tag; the [publish workflow](.github/workflows/publish.yml) checks the version, runs the tests and publishes with OIDC trusted publishing (no tokens). npm releases are staged and go public once a maintainer approves them with 2FA. Details and the one-time registry setup: [docs/RELEASING.md](docs/RELEASING.md).
 
 | SDK | Bump the version in | Then |
 | :--- | :--- | :--- |
