@@ -51,7 +51,7 @@ client = EchoNova()  # reads ECHONOVA_API_KEY
 voices = client.text_to_speech.voices.list()  # changes rarely: cache it
 voice = next(v for v in voices if v.language == "ar")
 
-speech = client.text_to_speech.generate("أهلاً بك في إيكونوفا", voice_id=voice.id)
+speech = client.text_to_speech.generate("أهلاً بك في إيكونوڤا", voice_id=voice.id)
 print(speech.duration_seconds, speech.credits_consumed, speech.request_id)
 client.download(speech.audio_url, to="speech.wav")
 ```
@@ -66,7 +66,7 @@ const client = new EchoNova(); // reads ECHONOVA_API_KEY
 const voices = await client.textToSpeech.voices.list(); // changes rarely: cache it
 const voice = voices.items.find((v) => v.language === 'ar')!;
 
-const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوفا', voiceId: voice.id });
+const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوڤا', voiceId: voice.id });
 console.log(speech.durationSeconds, speech.creditsConsumed, speech.requestId);
 await client.download(speech.audioUrl, { to: 'speech.wav' });
 ```
@@ -83,7 +83,7 @@ Future<void> main() async {
     final voice = voices.firstWhere((v) => v.language == 'ar');
 
     final speech =
-        await client.textToSpeech.generate('أهلاً بك في إيكونوفا', voiceId: voice.id);
+        await client.textToSpeech.generate('أهلاً بك في إيكونوڤا', voiceId: voice.id);
     print('${speech.durationSeconds} s, ${speech.creditsConsumed} credits');
     await client.downloadTo(speech.audioUrl!, 'speech.wav');
   } finally {

@@ -35,7 +35,7 @@ Future<void> main() async {
     final voice = voices.firstWhere((v) => v.language == 'ar');
 
     final speech =
-        await client.textToSpeech.generate('أهلاً بك في إيكونوفا', voiceId: voice.id);
+        await client.textToSpeech.generate('أهلاً بك في إيكونوڤا', voiceId: voice.id);
     print('${speech.durationSeconds} s, ${speech.creditsConsumed} credits, '
         'request ${speech.requestId}');
     await client.downloadTo(speech.audioUrl!, 'speech.wav');
@@ -129,7 +129,7 @@ Default time limits per attempt (`package:http` has one deadline per request, so
 import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 final speech = await client.textToSpeech.generate(text, voiceId: voiceId, speed: 1.1, numSteps: 64);
@@ -254,7 +254,7 @@ Every error the SDK throws is an `EchoNovaException`, a sealed class, so a `swit
 import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 try {

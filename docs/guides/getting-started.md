@@ -65,7 +65,7 @@ with EchoNova() as client:  # reads ECHONOVA_API_KEY
         print(voice.id, voice.display_name or voice.name, voice.language)
 
     voice = next(v for v in voices if v.language == "ar")
-    speech = client.text_to_speech.generate("أهلاً بك في إيكونوفا", voice_id=voice.id)
+    speech = client.text_to_speech.generate("أهلاً بك في إيكونوڤا", voice_id=voice.id)
     path = client.download(speech.audio_url, to="hello.wav")  # the link expires: download it now
     print(f"saved {path}: {speech.duration_seconds} s, {speech.credits_consumed} credits")
 ```
@@ -84,7 +84,7 @@ for (const voice of voices) console.log(voice.id, voice.displayName ?? voice.nam
 
 const voice = voices.items.find((v) => v.language === 'ar');
 if (!voice) throw new Error('no Arabic voice is available');
-const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوفا', voiceId: voice.id });
+const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوڤا', voiceId: voice.id });
 const path = await client.download(speech.audioUrl, { to: 'hello.wav' }); // the link expires: download it now
 console.log(`saved ${path}: ${speech.durationSeconds} s, ${speech.creditsConsumed} credits`);
 
@@ -107,7 +107,7 @@ Future<void> main() async {
     }
 
     final voice = voices.firstWhere((v) => v.language == 'ar');
-    final speech = await client.textToSpeech.generate('أهلاً بك في إيكونوفا', voiceId: voice.id);
+    final speech = await client.textToSpeech.generate('أهلاً بك في إيكونوڤا', voiceId: voice.id);
     final path = await client.downloadTo(speech.audioUrl!, 'hello.wav'); // the link expires: download it now
     print('saved $path: ${speech.durationSeconds} s, ${speech.creditsConsumed} credits');
   } finally {

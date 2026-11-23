@@ -29,7 +29,7 @@ Future<void> main() async {
 
     // Synthesize and download the WAV. The link expires: download it soon.
     final speech = await client.textToSpeech.generate(
-      'مرحبا بكم في إيكونوفا',
+      'مرحبا بكم في إيكونوڤا',
       voiceId: voice.id,
     );
     final audio = await client.download(speech.audioUrl!);

@@ -254,7 +254,7 @@ from echonova import APIConnectionError, EchoNova
 
 client = EchoNova()
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
-text = "مرحبا بكم في إيكونوفا"
+text = "مرحبا بكم في إيكونوڤا"
 
 try:
     job_id = client.text_to_speech.jobs.create(text, voice_id=voice_id).job_id
@@ -272,7 +272,7 @@ import EchoNova, { APIConnectionError } from '@echonova/ai';
 
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
-const text = 'مرحبا بكم في إيكونوفا';
+const text = 'مرحبا بكم في إيكونوڤا';
 
 try {
   const { jobId } = await client.textToSpeech.jobs.create({ text, voiceId });
@@ -290,7 +290,7 @@ import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
-const text = 'مرحبا بكم في إيكونوفا';
+const text = 'مرحبا بكم في إيكونوڤا';
 
 try {
   final job = await client.textToSpeech.jobs.create(text, voiceId: voiceId);

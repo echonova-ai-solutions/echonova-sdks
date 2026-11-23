@@ -57,7 +57,7 @@ BASE_URL = os.environ.get("ECHONOVA_BASE_URL", "https://api.echonova.ai").rstrip
 WS_URL = BASE_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
 USER_AGENT = "echonova-sdks-recorder/1"
 
-ARABIC_TEXT = "مرحبا بكم في إيكونوفا. هذا اختبار قصير لتحويل الكلام إلى نص."
+ARABIC_TEXT = "مرحبا بكم في إيكونوڤا. هذا اختبار قصير لتحويل الكلام إلى نص."
 ENGLISH_TEXT = "Welcome to EchoNova. This is a short speech to text test."
 LONG_TEXT = (
     "هذا نص طويل نسبيا لاختبار البث، نستخدمه لنتأكد من أن الصوت يصل على دفعات متتالية، "

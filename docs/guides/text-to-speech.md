@@ -162,7 +162,7 @@ from echonova import EchoNova
 client = EchoNova()
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 
-job = client.text_to_speech.jobs.create("مرحبا بكم في إيكونوفا", voice_id=voice_id)
+job = client.text_to_speech.jobs.create("مرحبا بكم في إيكونوڤا", voice_id=voice_id)
 print(job.job_id, job.status)  # keep the ID: everything after this is a GET
 
 done = client.text_to_speech.jobs.wait(job)  # raises JobFailedError if the job failed
@@ -177,7 +177,7 @@ import EchoNova from '@echonova/ai';
 const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
-const job = await client.textToSpeech.jobs.create({ text: 'مرحبا بكم في إيكونوفا', voiceId });
+const job = await client.textToSpeech.jobs.create({ text: 'مرحبا بكم في إيكونوڤا', voiceId });
 console.log(job.jobId, job.status); // keep the ID: everything after this is a GET
 
 const done = await client.textToSpeech.jobs.wait(job); // throws JobFailedError if the job failed
@@ -192,7 +192,7 @@ import 'package:echonova_ai/echonova_ai.dart';
 final client = EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
-final job = await client.textToSpeech.jobs.create('مرحبا بكم في إيكونوفا', voiceId: voiceId);
+final job = await client.textToSpeech.jobs.create('مرحبا بكم في إيكونوڤا', voiceId: voiceId);
 print('${job.jobId} ${job.status.value}'); // keep the ID: everything after this is a GET
 
 final done = await client.textToSpeech.jobs.wait(job.jobId); // throws JobFailedException if it failed
