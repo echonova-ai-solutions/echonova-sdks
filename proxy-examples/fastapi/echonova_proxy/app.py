@@ -33,6 +33,10 @@ from .ws_proxy import deny_error, handle_ws
 ALL_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
+# Example values from the docs, which anyone could guess.
+PLACEHOLDER_TOKENS = frozenset({"change-me", "changeme"})
+
+
 def create_app(
     settings: Settings,
     *,
@@ -44,6 +48,8 @@ def create_app(
     if authenticate is None:
         if not settings.demo_token:
             raise ConfigError("set PROXY_DEMO_TOKEN for the demo auth hook, or pass your own authenticate= (hooks.py)")
+        if settings.demo_token in PLACEHOLDER_TOKENS:
+            raise ConfigError("PROXY_DEMO_TOKEN is a placeholder anyone can guess: set it to `openssl rand -hex 32`")
         authenticate = demo_authenticate(settings.demo_token, settings.session_cookie)
     if quota is None:
         quota = InMemoryQuota(settings.requests_per_minute, settings.max_streams_per_user, settings.max_streams_total)

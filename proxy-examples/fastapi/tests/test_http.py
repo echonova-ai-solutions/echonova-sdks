@@ -589,6 +589,8 @@ def test_config_refuses_unsafe_settings() -> None:
         Settings(api_key=API_KEY, upstream_url="https://api.echonova.ai/v1")
     with pytest.raises(ConfigError):
         create_app(Settings(api_key=API_KEY))  # no auth hook and no demo token: fail closed
+    with pytest.raises(ConfigError, match="placeholder"):
+        create_app(Settings(api_key=API_KEY, demo_token="change-me"))  # the docs' example value
     assert API_KEY not in repr(Settings(api_key=API_KEY))
     env = {"ECHONOVA_API_KEY": API_KEY, "PROXY_ALLOWED_ORIGINS": "https://a.example.com/, https://b.example.com"}
     settings = Settings.from_env(env)
