@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.3
+
+Fixes webhook verification, which rejected every real delivery. Upgrade before you rely on `verifyWebhook`.
+
+- `verifyWebhook` verifies [Standard Webhooks](https://www.standardwebhooks.com) v1 signatures, as EchoNova has sent them since 2026-11-10: the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers, an HMAC-SHA256 of `{id}.{timestamp}.{body}` keyed with the base64-decoded secret, and one `v1,` entry per active secret. 0.0.2 expected the old `X-Webhook-Timestamp` and `X-Webhook-Signature` headers and failed with the reason `headers`.
+- A delivery is valid when any of its signatures matches any of your secrets, so a secret rotation in the portal works with only the new secret.
+- Secrets decode from either base64 alphabet, with or without the `whsec_` prefix. A secret that isn't base64 throws `ArgumentError`.
+- **Breaking:** every event has a `webhookId`, and `dedupeKey` is now that ID instead of a key built from the body. It stays the same when a delivery is retried. `UnknownWebhookEvent` has one too.
+
 ## 0.0.2
 
 Security fixes. Upgrading is recommended.

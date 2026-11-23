@@ -2,13 +2,13 @@
 //
 // Run:
 //
-//     ECHONOVA_API_KEY=... dart run example/tts_generate.dart "أهلاً بك في إيكونوفا" speech.wav
+//     ECHONOVA_API_KEY=... dart run example/tts_generate.dart "أهلاً بك في إيكونوڤا" speech.wav
 import 'dart:io';
 
 import 'package:echonova_ai/echonova_ai.dart';
 
 Future<void> main(List<String> args) async {
-  final text = args.isNotEmpty ? args[0] : 'أهلاً بك في إيكونوفا';
+  final text = args.isNotEmpty ? args[0] : 'أهلاً بك في إيكونوڤا';
   final output = args.length > 1 ? args[1] : 'speech.wav';
 
   final client = EchoNova(); // reads ECHONOVA_API_KEY

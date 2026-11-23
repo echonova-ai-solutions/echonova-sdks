@@ -31,7 +31,7 @@ The [Express](../../proxy-examples/express) or the [FastAPI](../../proxy-example
 cd proxy-examples/express
 npm ci
 export ECHONOVA_API_KEY=ek_...                         # your key: it stays here
-export PROXY_DEMO_TOKEN=change-me                      # demo sign-in shared by the app
+export PROXY_DEMO_TOKEN=$(openssl rand -hex 32)        # demo sign-in shared by the app
 export PROXY_ALLOWED_ORIGINS=http://localhost:3000     # for the web app below
 npm start                                              # http://127.0.0.1:8080/echonova
 ```
@@ -49,9 +49,9 @@ Then, for the platform you want (`PROXY_DEMO_TOKEN` is the proxy's demo token ab
 
 | Platform | Command |
 |---|---|
-| Web (Chrome) | `flutter run -d chrome --web-port 3000 --dart-define=PROXY_DEMO_TOKEN=change-me` |
-| Android emulator | `flutter run -d emulator --dart-define=PROXY_DEMO_TOKEN=change-me` |
-| iOS simulator | `flutter run -d iPhone --dart-define=PROXY_DEMO_TOKEN=change-me` |
+| Web (Chrome) | `flutter run -d chrome --web-port 3000 --dart-define=PROXY_DEMO_TOKEN=$PROXY_DEMO_TOKEN` |
+| Android emulator | `flutter run -d emulator --dart-define=PROXY_DEMO_TOKEN=$PROXY_DEMO_TOKEN` |
+| iOS simulator | `flutter run -d iPhone --dart-define=PROXY_DEMO_TOKEN=$PROXY_DEMO_TOKEN` |
 | Android device | `adb reverse tcp:8080 tcp:8080`, then add `--dart-define=ECHONOVA_PROXY_URL=http://127.0.0.1:8080/echonova` |
 | iOS device | Run the proxy where the phone can reach it (for example `HOST=0.0.0.0`, on the same network) and add `--dart-define=ECHONOVA_PROXY_URL=http://<your computer's address>:8080/echonova` |
 

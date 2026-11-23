@@ -4,7 +4,7 @@
 /// ```sh
 /// flutter run \
 ///   --dart-define=ECHONOVA_PROXY_URL=https://api.example.com/echonova \
-///   --dart-define=PROXY_DEMO_TOKEN=change-me
+///   --dart-define=PROXY_DEMO_TOKEN=$PROXY_DEMO_TOKEN
 /// ```
 ///
 /// Neither value is an EchoNova API key. The key stays on the proxy.

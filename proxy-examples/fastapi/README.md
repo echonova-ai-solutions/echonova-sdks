@@ -10,7 +10,7 @@ Python 3.11+, with FastAPI, uvicorn, httpx and websockets.
 cd proxy-examples/fastapi
 uv sync
 export ECHONOVA_API_KEY=ek_...                          # your key, from a secret store
-export PROXY_DEMO_TOKEN=change-me                       # demo auth only: replace the hook
+export PROXY_DEMO_TOKEN=$(openssl rand -hex 32)         # demo auth only: replace the hook
 export PROXY_ALLOWED_ORIGINS=http://localhost:3000      # your web app, if any
 uv run python -m echonova_proxy                         # http://127.0.0.1:8080/echonova
 ```
@@ -19,7 +19,7 @@ Try it:
 
 ```bash
 curl http://127.0.0.1:8080/healthz
-curl -H "Authorization: Bearer change-me" http://127.0.0.1:8080/echonova/v1/text-to-speech/voices
+curl -H "Authorization: Bearer $PROXY_DEMO_TOKEN" http://127.0.0.1:8080/echonova/v1/text-to-speech/voices
 ```
 
 All settings are environment variables; see [Configuration](../README.md#configuration-both-proxies).

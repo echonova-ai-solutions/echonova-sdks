@@ -657,6 +657,7 @@ test('the config refuses unsafe settings', () => {
   assert.throws(() => makeSettings({ apiKey: API_KEY, upstreamUrl: 'http://api.echonova.ai' }), ConfigError); // clear text
   assert.throws(() => makeSettings({ apiKey: API_KEY, upstreamUrl: 'https://api.echonova.ai/v1' }), ConfigError);
   assert.throws(() => createProxy(makeSettings({ apiKey: API_KEY })), ConfigError); // no auth hook, no demo token: fail closed
+  assert.throws(() => createProxy(makeSettings({ apiKey: API_KEY, demoToken: 'change-me' })), /placeholder/); // the docs' example value
   const settings = settingsFromEnv({
     ECHONOVA_API_KEY: API_KEY,
     PROXY_ALLOWED_ORIGINS: 'https://a.example.com/, https://b.example.com',

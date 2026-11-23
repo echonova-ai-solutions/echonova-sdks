@@ -26,7 +26,7 @@ client = EchoNova()  # reads ECHONOVA_API_KEY
 voices = client.text_to_speech.voices.list()  # changes rarely: cache it
 voice = next(v for v in voices if v.language == "ar")
 
-speech = client.text_to_speech.generate("أهلاً بك في إيكونوفا", voice_id=voice.id)
+speech = client.text_to_speech.generate("أهلاً بك في إيكونوڤا", voice_id=voice.id)
 print(speech.duration_seconds, speech.credits_consumed, speech.request_id)
 client.download(speech.audio_url, to="speech.wav")
 ```
@@ -79,7 +79,7 @@ Default timeouts in seconds (connect is 10 everywhere):
 from echonova import EchoNova
 
 client = EchoNova()
-text = "أهلاً بك في إيكونوفا"
+text = "أهلاً بك في إيكونوڤا"
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 
 speech = client.text_to_speech.generate(text, voice_id=voice_id, speed=1.1, num_steps=64)
@@ -261,7 +261,7 @@ import uuid
 import echonova
 
 client = echonova.EchoNova()
-text = "أهلاً بك في إيكونوفا"
+text = "أهلاً بك في إيكونوڤا"
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 key = str(uuid.uuid4())  # optional: your own key, kept with the request, to retry it after a restart
 
@@ -315,7 +315,7 @@ Every result has `.request_id` and `.raw`, and `to_dict()`.
 ```python
 from echonova import AsyncEchoNova
 
-text = "أهلاً بك في إيكونوفا"
+text = "أهلاً بك في إيكونوڤا"
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 
 async with AsyncEchoNova() as client:

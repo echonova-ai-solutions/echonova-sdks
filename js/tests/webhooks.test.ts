@@ -13,6 +13,7 @@ interface Vector {
   body: string;
   expect: 'valid' | 'invalid';
   expect_type?: string;
+  expect_webhook_id?: string;
   reason?: string;
 }
 
@@ -43,9 +44,16 @@ async function rejection(promise: Promise<unknown>): Promise<WebhookVerification
 }
 
 const SECRET = 'whsec_TEST0000000000000000000000000000000000000000';
+const WEBHOOK_ID = 'msg_1';
 function signed(body: string, event: string, timestamp = 1762300800): Record<string, string> {
-  const signature = createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('hex');
-  return { 'X-Webhook-Event': event, 'X-Webhook-Timestamp': String(timestamp), 'X-Webhook-Signature': signature };
+  const key = Buffer.from(SECRET.slice('whsec_'.length), 'base64');
+  const signature = createHmac('sha256', key).update(`${WEBHOOK_ID}.${timestamp}.${body}`).digest('base64');
+  return {
+    'X-Webhook-Event': event,
+    'webhook-id': WEBHOOK_ID,
+    'webhook-timestamp': String(timestamp),
+    'webhook-signature': `v1,${signature}`,
+  };
 }
 
 describe('shared webhook vectors', () => {
@@ -55,6 +63,8 @@ describe('shared webhook vectors', () => {
     if (v.expect === 'valid') {
       const event = await verifyWebhook(body, v.headers, v.secrets, options);
       expect(TYPE_NAMES[event.type]).toBe(v.expect_type);
+      expect(event.webhookId).toBe(v.expect_webhook_id);
+      expect(event.dedupeKey).toBe(v.expect_webhook_id);
     } else {
       const error = await rejection(verifyWebhook(body, v.headers, v.secrets, options));
       expect(error.reason).toBe(v.reason);
@@ -70,9 +80,9 @@ describe('verifyWebhook', () => {
     if (event.type !== 'job.completed') return;
     expectTypeOf(event).toEqualTypeOf<JobCompleted>();
     expect(event.service).toBe('tts');
-    expect(event.text).toBe('مرحبا بكم في إيكونوفا');
+    expect(event.text).toBe('مرحبا بكم في إيكونوڤا');
     expect(event.durationSeconds).toBe(3.4);
-    expect(event.dedupeKey).toBe('job.completed:000000000000000000000001');
+    expect(event.dedupeKey).toBe(v.headers['webhook-id']);
     expect(String(event.raw['audioUrl']).startsWith('https://')).toBe(true);
     expect(event.timestamp).toBe(1762300800);
     expect(Object.isFrozen(event)).toBe(true);
@@ -88,25 +98,19 @@ describe('verifyWebhook', () => {
     expect(event.audioUrl).toBeNull();
   });
 
-  it('builds the spending dedupe key', async () => {
+  it('parses spending fields', async () => {
     const v = vector('spending.warning');
     const event = await verifyWebhook(v.body, v.headers, v.secrets, { now: v.now });
     if (event.type !== 'spending.warning') throw new Error('wrong type');
     expect(event.percentageUsed).toBe(80);
     expect(event.apiKeyName).toBe('production');
-    expect(event.dedupeKey).toBe('spending.warning:000000000000000000000a01:8000:10000');
+    expect([event.creditsUsed, event.creditLimit]).toEqual([8000, 10000]);
   });
 
-  it('builds the exhausted dedupe key', async () => {
-    const v = vector('spending.exhausted');
-    const event = await verifyWebhook(v.body, v.headers, v.secrets, { now: v.now });
-    expect(event.dedupeKey).toBe('spending.exhausted:000000000000000000000a01:10000:10000');
-  });
-
-  it('has no dedupe key for unknown events', async () => {
+  it('deduplicates unknown events by webhook-id too', async () => {
     const v = vector('unknown event name parses');
     const event = await verifyWebhook(v.body, v.headers, v.secrets, { now: v.now });
-    expect(event).toMatchObject({ type: 'unknown', event: 'job.archived', dedupeKey: null });
+    expect(event).toMatchObject({ type: 'unknown', event: 'agent.created', dedupeKey: v.headers['webhook-id'] });
     if (event.type === 'unknown') expectTypeOf(event).toEqualTypeOf<UnknownEvent>();
   });
 
@@ -116,7 +120,6 @@ describe('verifyWebhook', () => {
     const event = await verifyWebhook(v.body, lowered, v.secrets, { now: v.now });
     if (event.type !== 'job.failed') throw new Error('wrong type');
     expect(event.error).toBe('Transcription failed. Try again.');
-    expect(event.dedupeKey).toBe('job.failed:000000000000000000000003');
   });
 
   it('accepts Headers, ArrayBuffer, Buffer and a Date for now', async () => {
@@ -133,13 +136,13 @@ describe('verifyWebhook', () => {
 
   it('rejects non-ASCII digits in the timestamp', async () => {
     const v = vector('job.failed');
-    const headers = { ...v.headers, 'X-Webhook-Timestamp': '١٧٦٢٣٠٠٨٠٠' };
+    const headers = { ...v.headers, 'webhook-timestamp': '١٧٦٢٣٠٠٨٠٠' };
     expect((await rejection(verifyWebhook(v.body, headers, v.secrets, { now: v.now }))).reason).toBe('timestamp');
   });
 
   it('rejects an empty header as missing', async () => {
     const v = vector('job.failed');
-    const headers = { ...v.headers, 'X-Webhook-Signature': '' };
+    const headers = { ...v.headers, 'webhook-signature': '' };
     expect((await rejection(verifyWebhook(v.body, headers, v.secrets, { now: v.now }))).reason).toBe('headers');
   });
 
@@ -148,11 +151,14 @@ describe('verifyWebhook', () => {
     expect((await rejection(verifyWebhook(v.body, v.headers, v.secrets))).reason).toBe('timestamp');
   });
 
-  it.each([[''], [[]], [['']], [[5]]] as const)('treats an empty secret as a programming error (%j)', async (secret) => {
-    const v = vector('job.failed');
-    await expect(verifyWebhook(v.body, v.headers, secret as never, { now: v.now })).rejects.toThrow(TypeError);
-    await expect(verifyWebhook(v.body, v.headers, secret as never, { now: v.now })).rejects.toThrow(/secret/);
-  });
+  it.each([[''], [[]], [['']], [[5]], ['whsec_'], ['whsec_not base64!'], [['whsec_TEST0000', 'whsec_%%%']]] as const)(
+    'treats an empty or malformed secret as a programming error (%j)',
+    async (secret) => {
+      const v = vector('job.failed');
+      await expect(verifyWebhook(v.body, v.headers, secret as never, { now: v.now })).rejects.toThrow(TypeError);
+      await expect(verifyWebhook(v.body, v.headers, secret as never, { now: v.now })).rejects.toThrow(/secret/);
+    },
+  );
 
   it('rejects a signed body that is not JSON', async () => {
     const body = 'not json';
@@ -187,9 +193,9 @@ describe('verifyWebhook', () => {
 
   it('rejects a timestamp longer than 15 characters before parsing it', async () => {
     const v = vector('job.failed');
-    const padded = { ...v.headers, 'X-Webhook-Timestamp': `0${v.headers['X-Webhook-Timestamp']!.padStart(15, '0')}` };
+    const padded = { ...v.headers, 'webhook-timestamp': `0${v.headers['webhook-timestamp']!.padStart(15, '0')}` };
     expect((await rejection(verifyWebhook(v.body, padded, v.secrets, { now: v.now }))).reason).toBe('timestamp');
-    const spaced = { ...v.headers, 'X-Webhook-Timestamp': `  ${v.headers['X-Webhook-Timestamp']!}  ` };
+    const spaced = { ...v.headers, 'webhook-timestamp': `  ${v.headers['webhook-timestamp']!}  ` };
     await expect(verifyWebhook(v.body, spaced, v.secrets, { now: v.now })).resolves.toMatchObject({ type: 'job.failed' });
   });
 
@@ -205,6 +211,6 @@ describe('verifyWebhook', () => {
     if (event.type !== 'spending.warning') throw new Error('wrong type');
     expect(event.percentageUsed).toBe(80);
     expect(event.creditsUsed).toBe(8050.5);
-    expect(event.dedupeKey).toBe('spending.warning:k1:8050.5:10000');
+    expect(event.dedupeKey).toBe(WEBHOOK_ID);
   });
 });

@@ -35,7 +35,7 @@ const client = new EchoNova(); // reads ECHONOVA_API_KEY
 const voices = await client.textToSpeech.voices.list(); // changes rarely: cache it
 const voice = voices.items.find((v) => v.language === 'ar')!;
 
-const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوفا', voiceId: voice.id });
+const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوڤا', voiceId: voice.id });
 console.log(speech.durationSeconds, speech.creditsConsumed, speech.requestId);
 await client.download(speech.audioUrl, { to: 'speech.wav' });
 ```
@@ -91,7 +91,7 @@ const fast = client.withOptions({ timeout: 10_000 }); // a copy that shares the 
 import EchoNova from '@echonova/ai';
 
 const client = new EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 const speech = await client.textToSpeech.generate({ text, voiceId, speed: 1.1, numSteps: 64 });
@@ -252,7 +252,7 @@ declare function alertOps(): void;
 declare function retryLater(seconds: number | null): void;
 
 const client = new EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 try {

@@ -29,6 +29,9 @@ import { createUpgradeHandler } from './ws-proxy.js';
  * @property {Agent} dispatcher HTTP connection pool for upstream calls (with the proxy's timeouts)
  */
 
+// Example values from the docs, which anyone could guess.
+const PLACEHOLDER_TOKENS = new Set(['change-me', 'changeme']);
+
 /**
  * @param {Settings} settings
  * @param {{ authenticate?: Authenticate, quota?: Quota, jobs?: JobOwners, logger?: Logger }} [hooks]
@@ -38,6 +41,9 @@ export function createProxy(settings, hooks = {}) {
   if (!authenticate) {
     if (!settings.demoToken) {
       throw new ConfigError('set PROXY_DEMO_TOKEN for the demo auth hook, or pass your own authenticate (hooks.js)');
+    }
+    if (PLACEHOLDER_TOKENS.has(settings.demoToken)) {
+      throw new ConfigError('PROXY_DEMO_TOKEN is a placeholder anyone can guess: set it to `openssl rand -hex 32`');
     }
     authenticate = demoAuthenticate(settings.demoToken, settings.sessionCookie);
   }

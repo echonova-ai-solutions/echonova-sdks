@@ -1,66 +1,108 @@
 {
-  "$comment": "EchoNova webhook contract for the SDKs' verify helpers. The gateway's OpenAPI and AsyncAPI documents do not describe webhooks, so this file is maintained here from the public docs (echonova.ai/docs/developers/webhooks) and checked against live deliveries in the nightly suite.",
-  "version": 1,
-
+  "$comment": "EchoNova webhook contract for the SDKs' verify helpers. The gateway's OpenAPI and AsyncAPI documents do not describe webhooks, so this file is maintained here, checked against the gateway's delivery code (Standard Webhooks v1 since 2026-11-10) and the public docs.",
+  "version": 2,
   "signing": {
+    "scheme": "Standard Webhooks v1 (https://www.standardwebhooks.com)",
     "algorithm": "HMAC-SHA256",
-    "key": "The webhook's signing secret exactly as shown in the portal, including the whsec_ prefix, encoded as UTF-8. It is not base64-decoded.",
-    "message": "<X-Webhook-Timestamp value>.<raw request body bytes>",
-    "signature_encoding": "lowercase hexadecimal, no prefix",
+    "key": "The webhook's signing secret as shown in the portal is whsec_ followed by base64. The key is that base64, decoded. Secrets created before 2026-11-10 use the URL-safe alphabet without padding; they decode too. A secret given without the whsec_ prefix is accepted.",
+    "message": "<webhook-id>.<webhook-timestamp>.<raw request body bytes>",
+    "signature_encoding": "v1,<base64 of the HMAC>. The header holds one such entry per active secret, separated by spaces. A delivery is valid when any v1 entry matches any of the receiver's secrets; entries of other versions are ignored.",
     "timestamp_unit": "seconds since the Unix epoch",
     "headers": {
-      "event": "X-Webhook-Event",
-      "timestamp": "X-Webhook-Timestamp",
-      "signature": "X-Webhook-Signature"
+      "id": "webhook-id",
+      "timestamp": "webhook-timestamp",
+      "signature": "webhook-signature",
+      "event": "X-Webhook-Event"
     },
     "default_tolerance_seconds": 300,
     "notes": [
       "Verify the raw body bytes as received. Re-serialising parsed JSON changes the bytes and breaks the signature.",
+      "webhook-id is the delivery's id. It stays the same when a delivery is retried, so it is the dedupe key.",
       "Each delivery attempt is signed again with a new timestamp.",
-      "Verifiers accept a list of secrets, so two secrets can be valid at once (for example while moving to a new secret or a new webhook endpoint)."
+      "X-Webhook-Event names the event but is not covered by the signature. The verifiers check that the body has the shape of the event it is sent as.",
+      "Rotating a secret in the portal keeps the previous one active for 24 hours, and the gateway signs with every active secret during that time. Verifiers also accept a list of secrets."
     ]
   },
-
   "delivery": {
     "attempts": 3,
     "timeout_seconds": 10,
     "success": "any 2xx status",
     "redirects_followed": false,
-    "delivery_id_header": null,
-    "duplicates": "The same event can be delivered more than once (retries, or more than one subscribed endpoint). Deduplicate with dedupe_key."
+    "delivery_id_header": "webhook-id",
+    "duplicates": "The same delivery can arrive more than once (retries). Deduplicate with webhook-id (dedupe_key)."
   },
-
   "events": {
     "job.completed": {
       "discriminator": "service",
       "variants": {
         "tts": {
-          "required": {"jobId": "string", "apiKeyId": "string", "service": "\"tts\"", "text": "string", "audioUrl": "string"},
-          "optional": {"durationSeconds": "number|null"}
+          "required": {
+            "jobId": "string",
+            "apiKeyId": "string",
+            "service": "\"tts\"",
+            "text": "string",
+            "audioUrl": "string"
+          },
+          "optional": {
+            "durationSeconds": "number|null"
+          }
         },
         "stt": {
-          "required": {"jobId": "string", "apiKeyId": "string", "service": "\"stt\"", "transcription": "string"},
-          "optional": {"durationSeconds": "number|null", "terminology": "object"}
+          "required": {
+            "jobId": "string",
+            "apiKeyId": "string",
+            "service": "\"stt\"",
+            "transcription": "string"
+          },
+          "optional": {
+            "durationSeconds": "number|null",
+            "terminology": "object"
+          }
         }
       },
-      "dedupe_key": ["event", "jobId"]
+      "dedupe_key": [
+        "webhook-id"
+      ]
     },
     "job.failed": {
-      "required": {"jobId": "string", "apiKeyId": "string", "service": "\"tts\"|\"stt\""},
-      "optional": {"error": "string|null"},
-      "dedupe_key": ["event", "jobId"]
+      "required": {
+        "jobId": "string",
+        "apiKeyId": "string",
+        "service": "\"tts\"|\"stt\""
+      },
+      "optional": {
+        "error": "string|null"
+      },
+      "dedupe_key": [
+        "webhook-id"
+      ]
     },
     "spending.warning": {
-      "required": {"apiKeyId": "string", "apiKeyName": "string", "creditsUsed": "number", "creditLimit": "number"},
-      "optional": {"percentageUsed": "integer"},
-      "dedupe_key": ["event", "apiKeyId", "creditsUsed", "creditLimit"]
+      "required": {
+        "apiKeyId": "string",
+        "apiKeyName": "string",
+        "creditsUsed": "number",
+        "creditLimit": "number"
+      },
+      "optional": {
+        "percentageUsed": "integer"
+      },
+      "dedupe_key": [
+        "webhook-id"
+      ]
     },
     "spending.exhausted": {
-      "required": {"apiKeyId": "string", "apiKeyName": "string", "creditsUsed": "number", "creditLimit": "number"},
+      "required": {
+        "apiKeyId": "string",
+        "apiKeyName": "string",
+        "creditsUsed": "number",
+        "creditLimit": "number"
+      },
       "optional": {},
-      "dedupe_key": ["event", "apiKeyId", "creditsUsed", "creditLimit"]
+      "dedupe_key": [
+        "webhook-id"
+      ]
     }
   },
-
-  "unknown_events": "Parse as an UnknownEvent carrying the event name and raw payload; never raise for an unknown event name once the signature is valid."
+  "unknown_events": "Parse as an UnknownEvent carrying the event name and raw payload; never raise for an unknown event name once the signature is valid. The gateway also sends agent.* events (agent.created, agent.updated, agent.archived, agent.build.completed, agent.build.failed, agent.test_run.finished), which the SDKs don't model yet."
 }

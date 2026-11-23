@@ -200,7 +200,7 @@ client = EchoNova()
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 key = str(uuid.uuid4())  # store it with the work item, and reuse it on every attempt
 
-speech = client.text_to_speech.generate("أهلاً بك في إيكونوفا", voice_id=voice_id, idempotency_key=key)
+speech = client.text_to_speech.generate("أهلاً بك في إيكونوڤا", voice_id=voice_id, idempotency_key=key)
 ```
 
 **TypeScript**
@@ -212,7 +212,7 @@ const client = new EchoNova();
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 const key = crypto.randomUUID(); // store it with the work item, and reuse it on every attempt
 
-const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوفا', voiceId }, { idempotencyKey: key });
+const speech = await client.textToSpeech.generate({ text: 'أهلاً بك في إيكونوڤا', voiceId }, { idempotencyKey: key });
 ```
 
 **Dart**
@@ -223,7 +223,7 @@ import 'package:echonova_ai/echonova_ai.dart';
 Future<void> synthesize(EchoNova client, String voiceId, String key) async {
   // Store the key with the work item, and reuse it on every attempt.
   final speech = await client.textToSpeech.generate(
-    'أهلاً بك في إيكونوفا',
+    'أهلاً بك في إيكونوڤا',
     voiceId: voiceId,
     options: RequestOptions(idempotencyKey: key),
   );
@@ -263,7 +263,7 @@ The API docs' advice is: **don't send the `POST` again until you have looked**. 
 from echonova import APIConnectionError, APIStatusError, EchoNova
 
 client = EchoNova()
-text = "أهلاً بك في إيكونوفا"
+text = "أهلاً بك في إيكونوڤا"
 voice_id = "..."  # a voice ID from client.text_to_speech.voices.list()
 
 try:
@@ -288,7 +288,7 @@ done = client.text_to_speech.jobs.wait(job_id)
 import EchoNova, { APIConnectionError, APIStatusError } from '@echonova/ai';
 
 const client = new EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 async function createOnce(): Promise<string> {
@@ -313,7 +313,7 @@ const done = await client.textToSpeech.jobs.wait(await createOnce());
 import 'package:echonova_ai/echonova_ai.dart';
 
 final client = EchoNova();
-const text = 'أهلاً بك في إيكونوفا';
+const text = 'أهلاً بك في إيكونوڤا';
 const voiceId = '...'; // a voice ID from client.textToSpeech.voices.list()
 
 Future<String> createOnce() async {

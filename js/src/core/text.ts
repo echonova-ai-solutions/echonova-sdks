@@ -62,24 +62,6 @@ export function roundHalfEven(value: number): number {
   return floor % 2 === 0 ? floor : floor + 1;
 }
 
-/**
- * Format a number for a dedupe key: integers without a decimal point or exponent
- * ("10000"), other numbers in shortest round-trip form with a two-digit exponent
- * below 1e-4 ("0.25", "1e-05"). Every SDK produces the same key for the same event.
- */
-export function numberKey(value: number | null): string {
-  if (value === null) return '-';
-  if (!Number.isFinite(value)) return String(value);
-  if (Number.isInteger(value)) return BigInt(value).toString();
-  const [mantissa, exponentText] = value.toExponential().split('e') as [string, string];
-  const exponent = Number(exponentText);
-  if (exponent < -4 || exponent >= 16) {
-    const sign = exponent < 0 ? '-' : '+';
-    return `${mantissa}e${sign}${String(Math.abs(exponent)).padStart(2, '0')}`;
-  }
-  return String(value);
-}
-
 /** Truncate to at most `limit` Unicode code points (never splits a surrogate pair). */
 export function truncateCodePoints(text: string, limit: number): string {
   if (text.length <= limit) return text;

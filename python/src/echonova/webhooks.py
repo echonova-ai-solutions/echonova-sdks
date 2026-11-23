@@ -1,4 +1,4 @@
-"""Verify and parse EchoNova webhook requests.
+"""Verify and parse EchoNova webhook requests (Standard Webhooks v1).
 
     from echonova import webhooks
 
@@ -12,6 +12,8 @@ Django, aiohttp or a plain dict: see ``HeadersLike``.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -37,8 +39,10 @@ __all__ = [
 
 DEFAULT_TOLERANCE_SECONDS = 300
 EVENT_HEADER = "X-Webhook-Event"
-TIMESTAMP_HEADER = "X-Webhook-Timestamp"
-SIGNATURE_HEADER = "X-Webhook-Signature"
+ID_HEADER = "webhook-id"
+TIMESTAMP_HEADER = "webhook-timestamp"
+SIGNATURE_HEADER = "webhook-signature"
+SECRET_PREFIX = "whsec_"  # noqa: S105 - the prefix of every signing secret, not a secret
 MAX_TIMESTAMP_DIGITS = 15  # Unix seconds have 10 digits for centuries; a longer value is refused before int()
 
 
@@ -68,11 +72,12 @@ class JobCompleted:
     terminology: dict[str, Any] | None  # stt, when terminology was sent
     timestamp: int
     raw: dict[str, Any]
+    webhook_id: str  # the delivery's webhook-id; the same on every retry
     event: str = "job.completed"
 
     @property
     def dedupe_key(self) -> str:
-        return f"{self.event}:{self.job_id}"
+        return self.webhook_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,11 +88,12 @@ class JobFailed:
     error: str | None
     timestamp: int
     raw: dict[str, Any]
+    webhook_id: str
     event: str = "job.failed"
 
     @property
     def dedupe_key(self) -> str:
-        return f"{self.event}:{self.job_id}"
+        return self.webhook_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,11 +107,12 @@ class SpendingWarning:
     percentage_used: int | None
     timestamp: int
     raw: dict[str, Any]
+    webhook_id: str
     event: str = "spending.warning"
 
     @property
     def dedupe_key(self) -> str:
-        return f"{self.event}:{self.api_key_id}:{_num_key(self.credits_used)}:{_num_key(self.credit_limit)}"
+        return self.webhook_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,11 +125,12 @@ class SpendingExhausted:
     credit_limit: float | None
     timestamp: int
     raw: dict[str, Any]
+    webhook_id: str
     event: str = "spending.exhausted"
 
     @property
     def dedupe_key(self) -> str:
-        return f"{self.event}:{self.api_key_id}:{_num_key(self.credits_used)}:{_num_key(self.credit_limit)}"
+        return self.webhook_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,10 +140,11 @@ class UnknownEvent:
     event: str
     timestamp: int
     raw: Any
+    webhook_id: str
 
     @property
-    def dedupe_key(self) -> str | None:
-        return None
+    def dedupe_key(self) -> str:
+        return self.webhook_id
 
 
 WebhookEvent = JobCompleted | JobFailed | SpendingWarning | SpendingExhausted | UnknownEvent
@@ -152,22 +161,26 @@ def verify(
     """Check a webhook's signature and timestamp, then parse it.
 
     ``headers`` is your framework's request headers object, or a ``dict``; names
-    are matched case-insensitively. ``secret`` may be a list, so two secrets can be
-    valid at once (for example during a switch-over).
+    are matched case-insensitively. ``secret`` is the webhook's signing secret
+    (``whsec_...``) as shown in the portal. It may be a list, so more than one
+    secret can be valid at once. During a rotation in the portal the gateway signs
+    with both the new and the previous secret, so passing only the new one works.
     Raises ``WebhookVerificationError`` with ``reason`` "headers", "timestamp",
-    "signature" or "payload".
+    "signature" or "payload", and ``ValueError`` for a secret that isn't valid.
     """
     body = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
     secrets = [secret] if isinstance(secret, str) else list(secret)
     if not secrets or not all(isinstance(s, str) and s for s in secrets):
         raise ValueError("secret must be a non-empty string or a list of them")
+    keys = [_signing_key(s) for s in secrets]
 
     event_name = _header(headers, EVENT_HEADER)
+    webhook_id = _header(headers, ID_HEADER)
     timestamp_text = _header(headers, TIMESTAMP_HEADER)
     signature = _header(headers, SIGNATURE_HEADER)
-    if not event_name or not timestamp_text or not signature:
+    if not event_name or not webhook_id or not timestamp_text or not signature:
         raise WebhookVerificationError(
-            f"missing {EVENT_HEADER}, {TIMESTAMP_HEADER} or {SIGNATURE_HEADER} header", reason="headers"
+            f"missing {EVENT_HEADER}, {ID_HEADER}, {TIMESTAMP_HEADER} or {SIGNATURE_HEADER} header", reason="headers"
         )
 
     timestamp_text = timestamp_text.strip()
@@ -182,15 +195,17 @@ def verify(
     if abs(current - timestamp) > tolerance:
         raise WebhookVerificationError("webhook timestamp is outside the allowed tolerance", reason="timestamp")
 
-    message = timestamp_text.encode("ascii") + b"." + body
-    received = signature.strip().lower()
-    if not received.isascii():
-        raise WebhookVerificationError("webhook signature does not match", reason="signature")
+    webhook_id = webhook_id.strip()
+    message = webhook_id.encode("utf-8") + b"." + timestamp_text.encode("ascii") + b"." + body
+    # One "v1,<base64>" per secret the gateway signed with, space-separated; other versions are ignored.
+    received = [entry[3:].encode("ascii") for entry in signature.split() if entry.startswith("v1,") and entry.isascii()]
     valid = False
-    for candidate in secrets:
-        expected = hmac.new(candidate.encode("utf-8"), message, hashlib.sha256).hexdigest()
-        if hmac.compare_digest(expected, received):
-            valid = True
+    for key in keys:
+        expected = base64.b64encode(hmac.new(key, message, hashlib.sha256).digest())
+        for candidate in received:
+            # Check every pair, so timing doesn't reveal which one matched.
+            if hmac.compare_digest(expected, candidate):
+                valid = True
     if not valid:
         raise WebhookVerificationError("webhook signature does not match", reason="signature")
 
@@ -198,7 +213,19 @@ def verify(
         data = json.loads(body)
     except ValueError:
         raise WebhookVerificationError("webhook body is not JSON", reason="payload") from None
-    return _parse_event(event_name.strip(), data, timestamp)
+    return _parse_event(event_name.strip(), data, timestamp, webhook_id)
+
+
+def _signing_key(secret: str) -> bytes:
+    """The HMAC key: the base64 after ``whsec_``, decoded. Either base64 alphabet, padding optional."""
+    text = secret.strip().removeprefix(SECRET_PREFIX).replace("-", "+").replace("_", "/")
+    try:
+        key = base64.b64decode(text + "=" * (-len(text) % 4), validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("secret is not a webhook signing secret: expected whsec_ followed by base64") from None
+    if not key:
+        raise ValueError("secret is not a webhook signing secret: expected whsec_ followed by base64")
+    return key
 
 
 def _header(headers: HeadersLike, name: str) -> str | None:
@@ -213,9 +240,9 @@ def _header(headers: HeadersLike, name: str) -> str | None:
     return None
 
 
-def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
+def _parse_event(name: str, data: Any, timestamp: int, webhook_id: str) -> WebhookEvent:
     if not isinstance(data, dict):
-        return UnknownEvent(event=name, timestamp=timestamp, raw=data)
+        return UnknownEvent(event=name, timestamp=timestamp, raw=data, webhook_id=webhook_id)
     if name == "job.completed":
         job_id = _required_str(data, "jobId")
         service = _required_str(data, "service")
@@ -235,6 +262,7 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             terminology=data.get("terminology") if isinstance(data.get("terminology"), dict) else None,
             timestamp=timestamp,
             raw=data,
+            webhook_id=webhook_id,
         )
     if name == "job.failed":
         # A failed job has no result. With one, the body may be a job.completed sent under this event name.
@@ -246,6 +274,7 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             error=_str(data.get("error")),
             timestamp=timestamp,
             raw=data,
+            webhook_id=webhook_id,
         )
     if name == "spending.warning":
         # A spending event carries its credits. Without them, the body may be a job event sent under this name.
@@ -260,6 +289,7 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             percentage_used=round(percentage) if percentage is not None else None,
             timestamp=timestamp,
             raw=data,
+            webhook_id=webhook_id,
         )
     if name == "spending.exhausted":
         credits_used = _required_number(data, "creditsUsed")
@@ -271,8 +301,9 @@ def _parse_event(name: str, data: Any, timestamp: int) -> WebhookEvent:
             credit_limit=credit_limit,
             timestamp=timestamp,
             raw=data,
+            webhook_id=webhook_id,
         )
-    return UnknownEvent(event=name, timestamp=timestamp, raw=data)
+    return UnknownEvent(event=name, timestamp=timestamp, raw=data, webhook_id=webhook_id)
 
 
 def _required_str(data: dict[str, Any], key: str) -> str:
@@ -315,9 +346,3 @@ def _number(value: Any) -> float | None:
     else:
         return None
     return number if math.isfinite(number) else None
-
-
-def _num_key(value: float | None) -> str:
-    if value is None:
-        return "-"
-    return str(int(value)) if value == int(value) else repr(value)

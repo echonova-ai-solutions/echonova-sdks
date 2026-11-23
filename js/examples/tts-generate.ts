@@ -1,12 +1,12 @@
 /**
  * Text to Speech: pick a voice, synthesize a sentence, save the WAV.
  *
- *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/tts-generate.ts "أهلاً بك في إيكونوفا" speech.wav
+ *     ECHONOVA_API_KEY=ek_... node --experimental-strip-types examples/tts-generate.ts "أهلاً بك في إيكونوڤا" speech.wav
  */
 
 import EchoNova from '@echonova/ai';
 
-const [text = 'أهلاً بك في إيكونوفا', output = 'speech.wav'] = process.argv.slice(2);
+const [text = 'أهلاً بك في إيكونوڤا', output = 'speech.wav'] = process.argv.slice(2);
 
 const client = new EchoNova(); // reads ECHONOVA_API_KEY
 

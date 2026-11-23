@@ -265,7 +265,7 @@ Signed links (`audioUrl`, `outputUrl`) are plain `GET`s to a storage host, witho
 ## Streams and webhooks
 
 - **Streams.** Instead of managing a WebSocket, its JSON control messages, binary PCM frames, keepalive pings and close codes, open a session with `connect()`. Close codes become the same exceptions as REST errors (`4002` is `InsufficientBalanceError`, `4029` is `SpendingLimitError`). See [Streaming](streaming.md).
-- **Webhooks.** Instead of computing `HMAC-SHA256(secret, timestamp + "." + body)` and comparing in constant time, call the SDK's `verify` with the raw body and the headers. See [Webhooks](webhooks.md).
+- **Webhooks.** Instead of decoding the secret, computing `HMAC-SHA256(key, id + "." + timestamp + "." + body)`, matching it against each `v1,` entry of `webhook-signature` and comparing in constant time, call the SDK's `verify` with the raw body and the headers. See [Webhooks](webhooks.md).
 
 ## Checklist
 

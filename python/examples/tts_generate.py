@@ -2,7 +2,7 @@
 
 Run::
 
-    ECHONOVA_API_KEY=ek_... python examples/tts_generate.py "أهلاً بك في إيكونوفا" speech.wav
+    ECHONOVA_API_KEY=ek_... python examples/tts_generate.py "أهلاً بك في إيكونوڤا" speech.wav
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from echonova import EchoNova
 
 
 def main() -> None:
-    text = sys.argv[1] if len(sys.argv) > 1 else "أهلاً بك في إيكونوفا"
+    text = sys.argv[1] if len(sys.argv) > 1 else "أهلاً بك في إيكونوڤا"
     output = sys.argv[2] if len(sys.argv) > 2 else "speech.wav"
     with EchoNova() as client:
         voices = client.text_to_speech.voices.list()  # changes rarely: cache it in a real app

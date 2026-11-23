@@ -31,15 +31,19 @@ WebhookEvent verifyVector(Map<String, Object?> v) => verifyWebhook(
     );
 
 const testSecret = 'whsec_TEST0000000000000000000000000000000000000000';
+const testWebhookId = 'msg_1';
 
-/// Signs [body] like EchoNova does.
-Map<String, String> signed(String event, String body, {int timestamp = 1000}) {
-  final message = utf8.encode('$timestamp.$body');
-  final signature = Hmac(sha256, utf8.encode(testSecret)).convert(message);
+/// Signs [body] like EchoNova does (Standard Webhooks v1).
+Map<String, String> signed(String event, String body,
+    {String timestamp = '1000'}) {
+  final key = base64.decode(testSecret.substring('whsec_'.length));
+  final message = utf8.encode('$testWebhookId.${timestamp.trim()}.$body');
+  final signature = base64.encode(Hmac(sha256, key).convert(message).bytes);
   return {
     'X-Webhook-Event': event,
-    'X-Webhook-Timestamp': '$timestamp',
-    'X-Webhook-Signature': '$signature',
+    'webhook-id': testWebhookId,
+    'webhook-timestamp': timestamp,
+    'webhook-signature': 'v1,$signature',
   };
 }
 
@@ -66,7 +70,10 @@ void main() {
     for (final v in vectors) {
       test('${v['name']}', () {
         if (v['expect'] == 'valid') {
-          expect(typeName(verifyVector(v)), v['expect_type']);
+          final event = verifyVector(v);
+          expect(typeName(event), v['expect_type']);
+          expect(event.webhookId, v['expect_webhook_id']);
+          expect(event.dedupeKey, v['expect_webhook_id']);
         } else {
           expect(
             () => verifyVector(v),
@@ -83,9 +90,9 @@ void main() {
     final event = verifyWebhook(bodyOf(v), headersOf(v), [secretsOf(v).first],
         now: nowOf(v)) as JobCompleted;
     expect(event.service, 'tts');
-    expect(event.text, 'مرحبا بكم في إيكونوفا');
+    expect(event.text, 'مرحبا بكم في إيكونوڤا');
     expect(event.durationSeconds, 3.4);
-    expect(event.dedupeKey, 'job.completed:000000000000000000000001');
+    expect(event.dedupeKey, headersOf(v)['webhook-id']);
     expect(event.raw['audioUrl'], startsWith('https://'));
     expect(event.timestamp, 1762300800);
     expect(event.event, 'job.completed');
@@ -146,22 +153,19 @@ void main() {
     expect(event.service, 'x');
   });
 
-  test('spending dedupe key', () {
+  test('spending fields', () {
     final event = verifyVector(vector('spending.warning')) as SpendingWarning;
     expect(event.percentageUsed, 80);
-    expect(event.dedupeKey,
-        'spending.warning:000000000000000000000a01:8000:10000');
+    expect([event.creditsUsed, event.creditLimit], [8000, 10000]);
   });
 
-  test('dedupe keys format numbers like the other SDKs', () {
-    String key(Object? used, Object? limit) => verifySigned(
-          'spending.exhausted',
-          {'apiKeyId': 'k', 'creditsUsed': used, 'creditLimit': limit},
-        ).dedupeKey!;
-    expect(key(8000.5, 10000.0), 'spending.exhausted:k:8000.5:10000');
-    expect(key(0.00001, '25'), 'spending.exhausted:k:1e-05:25');
-    expect(key(1.5e-7, 0.0001), 'spending.exhausted:k:1.5e-07:0.0001');
-    expect(key(1e20, -0.0), 'spending.exhausted:k:100000000000000000000:0');
+  test('spending amounts are read from numbers and numeric strings', () {
+    final event = verifySigned('spending.exhausted',
+        {'apiKeyId': 'k', 'creditsUsed': 8000.5, 'creditLimit': '25'});
+    expect(event, isA<SpendingExhausted>());
+    event as SpendingExhausted;
+    expect([event.creditsUsed, event.creditLimit], [8000.5, 25]);
+    expect(event.dedupeKey, testWebhookId);
   });
 
   test('a spending event without its credits fails as a payload problem', () {
@@ -196,7 +200,7 @@ void main() {
     final event = verifySigned('job.completed', [1, 2]);
     expect(event, isA<UnknownWebhookEvent>());
     expect(event.raw, [1, 2]);
-    expect(event.dedupeKey, isNull);
+    expect(event.dedupeKey, testWebhookId);
   });
 
   test('a known event without its id fails as a payload problem', () {
@@ -231,7 +235,7 @@ void main() {
 
   test('non-ASCII digits in the timestamp are rejected', () {
     final v = vector('job.failed');
-    final headers = {...headersOf(v), 'X-Webhook-Timestamp': '١٧٦٢٣٠٠٨٠٠'};
+    final headers = {...headersOf(v), 'webhook-timestamp': '١٧٦٢٣٠٠٨٠٠'};
     expect(
       () => verifyWebhook(bodyOf(v), headers, secretsOf(v), now: nowOf(v)),
       throwsA(isA<WebhookVerificationException>()
@@ -241,7 +245,7 @@ void main() {
 
   test('an absurdly large timestamp is out of tolerance', () {
     final v = vector('job.failed');
-    final headers = {...headersOf(v), 'X-Webhook-Timestamp': '9' * 40};
+    final headers = {...headersOf(v), 'webhook-timestamp': '9' * 40};
     expect(
       () => verifyWebhook(bodyOf(v), headers, secretsOf(v), now: nowOf(v)),
       throwsA(isA<WebhookVerificationException>()
@@ -253,15 +257,9 @@ void main() {
     // Signed correctly, so only the length can be the reason.
     WebhookEvent verifyAt(String timestamp) {
       const body = '{"jobId":"j","service":"tts","error":"x"}';
-      final signature = Hmac(sha256, utf8.encode(testSecret))
-          .convert(utf8.encode('${timestamp.trim()}.$body'));
       return verifyWebhook(
         utf8.encode(body),
-        {
-          'X-Webhook-Event': 'job.failed',
-          'X-Webhook-Timestamp': timestamp,
-          'X-Webhook-Signature': '$signature',
-        },
+        signed('job.failed', body, timestamp: timestamp),
         [testSecret],
         now: DateTime.fromMillisecondsSinceEpoch(1000 * 1000),
       );
@@ -278,7 +276,7 @@ void main() {
 
   test('an empty header counts as missing', () {
     final v = vector('job.failed');
-    final headers = {...headersOf(v), 'X-Webhook-Signature': ''};
+    final headers = {...headersOf(v), 'webhook-signature': ''};
     expect(
       () => verifyWebhook(bodyOf(v), headers, secretsOf(v), now: nowOf(v)),
       throwsA(isA<WebhookVerificationException>()
@@ -288,7 +286,10 @@ void main() {
 
   for (final secrets in [
     <String>[],
-    <String>['']
+    <String>[''],
+    <String>['whsec_'],
+    <String>['whsec_not base64!'],
+    <String>['whsec_TEST0000', 'whsec_%%%'],
   ]) {
     test('secrets $secrets is a programming error', () {
       final v = vector('job.failed');
