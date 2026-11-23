@@ -273,7 +273,7 @@ final Map<String, Invoker> invokers = {
         numSteps: a.integer('numSteps'),
         tashkeel: a.flag('tashkeel'),
         normalize: a.flag('normalize'),
-        options: a.idempotency('idempotencyKey'),
+        options: a.idempotency('RequestOptions.idempotencyKey'),
       ),
   'textToSpeech.jobs.create': (c, a) => c.textToSpeech.jobs.create(
         a.required('text'),
@@ -297,7 +297,7 @@ final Map<String, Invoker> invokers = {
         numbersAsDigits: a.flag('numbersAsDigits'),
         identifySpeakers: a.flag('identifySpeakers'),
         terminology: a.terminology('terminology'),
-        options: a.idempotency('idempotencyKey'),
+        options: a.idempotency('RequestOptions.idempotencyKey'),
       ),
   'speechToText.jobs.create': (c, a) => c.speechToText.jobs.create(
         a.file('file'),
@@ -332,7 +332,7 @@ final Map<String, Invoker> invokers = {
         compReleaseMs: a.number('compReleaseMs'),
         sampleRate: a.integer('sampleRate'),
         bitDepth: a.integer('bitDepth'),
-        options: a.idempotency('idempotencyKey'),
+        options: a.idempotency('RequestOptions.idempotencyKey'),
       ),
   'soundCleaning.jobs.list': (c, a) => c.soundCleaning.jobs
       .list(offset: a.integer('offset'), limit: a.integer('limit')),
