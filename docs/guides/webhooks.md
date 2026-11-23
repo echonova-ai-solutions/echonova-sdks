@@ -6,7 +6,16 @@ Create a webhook in the portal (**Developers**, then **Webhooks**) with an `http
 
 ## Verify every delivery
 
-Each delivery is a `POST` with a JSON body and three headers: `X-Webhook-Event` (the event name), `X-Webhook-Timestamp` and `X-Webhook-Signature`, an HMAC-SHA256 of the timestamp and the body, signed with the webhook's secret. Anyone can send a request to your URL, so **check the signature before you act on a delivery**.
+Each delivery is a `POST` with a JSON body, signed the [Standard Webhooks](https://www.standardwebhooks.com) way. It has four headers:
+
+| Header | What it holds |
+| --- | --- |
+| `webhook-id` | The delivery's ID. It stays the same when the delivery is retried. |
+| `webhook-timestamp` | When this attempt was signed, in Unix seconds. |
+| `webhook-signature` | `v1,` and a base64 HMAC-SHA256 of the ID, the timestamp and the body, keyed with the webhook's secret. During a secret rotation there is one entry per active secret, separated by spaces. |
+| `X-Webhook-Event` | The event name, such as `job.completed`. It isn't covered by the signature. |
+
+Anyone can send a request to your URL, so **check the signature before you act on a delivery**.
 
 The SDK's `verify` function checks the headers, rejects timestamps more than 5 minutes from your clock (change it with `tolerance` / `toleranceSeconds`), compares the signature in constant time, and returns a typed event:
 
@@ -141,37 +150,31 @@ The signature covers the body **exactly as it arrived**. If your framework parse
 
 Pass the headers as your framework gives them; header names are matched case-insensitively. In Python, `verify` accepts a `dict` or any headers object with `get()` and `items()` (`webhooks.HeadersLike`), which covers FastAPI and Starlette, Flask, Django and aiohttp.
 
-## Several secrets during a switch-over
+## Rotate the secret
 
-A webhook's secret can't be changed. To move to a new secret, the [API docs](https://echonova.ai/docs/developers/webhooks-verify-signature) describe this switch-over:
+To change a webhook's secret, choose **Rotate secret** on the webhook in the portal. For 24 hours after a rotation the previous secret stays active, and EchoNova signs every delivery with both secrets. Deploy the new secret to your endpoint within that time; `verify` passes a delivery when any of its signatures matches.
 
-1. Create a second webhook with the same URL and events. Copy its secret.
-2. Deploy your endpoint with **both** secrets. `verify` accepts a list and passes a delivery signed with any of them.
-3. Delete the first webhook.
-4. Remove the old secret from your configuration.
-
-The examples here read a comma-separated list from `ECHONOVA_WEBHOOK_SECRETS` for that reason. While both webhooks exist, each event is delivered twice, once per webhook: the dedupe keys below make sure you handle it once.
+`verify` also accepts a list of secrets, for example when one endpoint receives deliveries from more than one webhook. The examples here read a comma-separated list from `ECHONOVA_WEBHOOK_SECRETS`, so a single secret works too.
 
 ## Handle each event once
 
-The same event can arrive more than once: when your server processes a delivery but answers too late, EchoNova sends it again, and during a secret switch-over two webhooks deliver it. The body has no delivery ID, so every event the SDK parses has a `dedupe_key` (`dedupeKey` in TypeScript and Dart), built from the event's content:
+The same delivery can arrive more than once: when your server processes it but answers too late, EchoNova sends it again. Every event the SDK parses has a `dedupe_key` (`dedupeKey` in TypeScript and Dart): the delivery's `webhook-id`, which is the same on every retry. It is also available as `webhook_id` (`webhookId`).
 
-| Event | Dedupe key |
-| --- | --- |
-| `job.completed`, `job.failed` | the event name and the job ID |
-| `spending.warning`, `spending.exhausted` | the event name, the API key ID, the credits used and the limit |
-| an event the SDK doesn't know | none: hash the raw body instead, which a retry repeats byte for byte |
+Record the key **before** you do the work, in a store that every instance of your server shares and that survives restarts: a unique column in your database, or Redis `SET key value NX` with an expiry of a few days. Skip the event when the key was already there. The recipes below use an in-memory set to stay short; don't use one in production.
 
-Record the key **before** you do the work, in a store that every instance of your server shares and that survives restarts: a unique column in your database, or Redis `SET key value NX` with an expiry. Skip the event when the key was already there. The recipes below use an in-memory set to stay short; don't use one in production.
+Two webhooks pointed at the same URL deliver the same event under two different IDs. Subscribe each event once per URL.
 
 ## Confirm before you act on a failure or a spending event
 
-The signature covers the timestamp and the body, but not the `X-Webhook-Event` header. Someone who obtains a signed delivery, for example from a log, could send it again within the timestamp tolerance under a different event name.
+The signature covers the delivery ID, the timestamp and the body, but not the `X-Webhook-Event` header. Someone who obtains a signed delivery, for example from a log, could send it again within the timestamp tolerance under a different event name. If you record dedupe keys, a replay of a delivery you already handled is skipped, because it keeps its `webhook-id`; a delivery you never received is not.
 
-As SDK policy, `verify` refuses a `job.completed` whose body has no result (`audioUrl` for Text to Speech, `transcription` for Speech to Text), with the reason `payload`. That stops a failed job's delivery from being passed off as a completed one. The other events can't be told apart by their bodies alone:
+As SDK policy, `verify` checks that the body fits the event it is sent as, and refuses it with the reason `payload` otherwise:
 
-- Before you act on a `job.failed`, for example by refunding a customer or retrying, get the job (`jobs.get`) and check that its status is `failed`.
-- Before you act on a `spending.warning` or `spending.exhausted`, for example by blocking a key, check the key's usage in the portal or your own records.
+- a `job.completed` must carry its result (`audioUrl` for Text to Speech, `transcription` for Speech to Text);
+- a `job.failed` must not carry a result;
+- a `spending.warning` or `spending.exhausted` must carry `creditsUsed` and `creditLimit`, which job events never have.
+
+A `spending.warning` and a `spending.exhausted` have the same shape, so one can still be passed off as the other. Before you act on a spending event, for example by blocking a key, check the key's usage in the portal or your own records. Before you act on a `job.failed`, for example by refunding a customer, you can also get the job (`jobs.get`) and check that its status is `failed`.
 
 ## Acknowledge fast
 
@@ -275,10 +278,8 @@ async def echonova_webhook(request: Request, background: BackgroundTasks) -> Res
         event = webhooks.verify(await request.body(), request.headers, SECRETS)
     except WebhookVerificationError:
         return Response(status_code=401)
-    key = event.dedupe_key
-    if key is None or key not in seen:
-        if key is not None:
-            seen.add(key)
+    if event.dedupe_key not in seen:
+        seen.add(event.dedupe_key)
         background.add_task(process, event)  # runs after the response is sent
     return Response(status_code=200)
 ```
@@ -310,10 +311,8 @@ def echonova_webhook() -> tuple[str, int]:
         event = webhooks.verify(raw_body, request.headers, SECRETS)
     except WebhookVerificationError:
         return "", 401
-    key = event.dedupe_key
-    if key is None or key not in seen:
-        if key is not None:
-            seen.add(key)
+    if event.dedupe_key not in seen:
+        seen.add(event.dedupe_key)
         threading.Thread(target=process, args=(event,), daemon=True).start()  # or your task queue
     return "", 200
 ```
@@ -343,9 +342,8 @@ app.post('/webhooks/echonova', express.raw({ type: 'application/json' }), async 
     res.sendStatus(401);
     return;
   }
-  const key = event.dedupeKey;
-  const isNew = key === null || !seen.has(key);
-  if (key !== null) seen.add(key);
+  const isNew = !seen.has(event.dedupeKey);
+  seen.add(event.dedupeKey);
   res.sendStatus(200); // acknowledge first...
   if (isNew) processEvent(event).catch((err) => console.error('webhook processing failed', err)); // ...then work
 });
@@ -377,9 +375,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!(err instanceof WebhookVerificationError)) throw err;
     return new Response(null, { status: 401 });
   }
-  const key = event.dedupeKey;
-  if (key === null || !seen.has(key)) {
-    if (key !== null) seen.add(key);
+  if (!seen.has(event.dedupeKey)) {
+    seen.add(event.dedupeKey);
     after(() => processEvent(event));
   }
   return new Response(null, { status: 200 });
@@ -418,8 +415,7 @@ Future<Response> handle(Request request) async {
   } on WebhookVerificationException {
     return Response(401);
   }
-  final key = event.dedupeKey;
-  if (key == null || seen.add(key)) {
+  if (seen.add(event.dedupeKey)) {
     // Acknowledge first, then do the work.
     unawaited(process(event).catchError((Object error) => print('webhook processing failed: $error')));
   }
@@ -438,7 +434,8 @@ Future<void> main() async {
 - [ ] The secret lives in your secrets manager or environment, never in source control.
 - [ ] The webhook route reads the raw body.
 - [ ] Dedupe keys go into a shared, durable store before the work starts.
-- [ ] A `job.failed` or spending event is confirmed with the API or your records before anything irreversible happens.
+- [ ] A spending event (and, if it matters, a `job.failed`) is confirmed with the API or your records before anything irreversible happens.
+- [ ] After a secret rotation, the new secret is deployed within 24 hours.
 - [ ] The endpoint answers `2xx` within seconds and does slow work afterwards.
 - [ ] Jobs whose event never arrives are checked once by polling.
 - [ ] Webhooks go straight to your server, not through the [reference proxies](../../proxy-examples/README.md).
