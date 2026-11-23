@@ -84,7 +84,7 @@
           "required": false,
           "python": "idempotency_key",
           "ts": "idempotencyKey",
-          "dart": "idempotencyKey"
+          "dart": "RequestOptions.idempotencyKey"
         },
         {
           "api": "text",
@@ -291,7 +291,7 @@
           "required": false,
           "python": "idempotency_key",
           "ts": "idempotencyKey",
-          "dart": "idempotencyKey"
+          "dart": "RequestOptions.idempotencyKey"
         },
         {
           "api": "file",
@@ -455,7 +455,7 @@
           "required": false,
           "python": "idempotency_key",
           "ts": "idempotencyKey",
-          "dart": "idempotencyKey"
+          "dart": "RequestOptions.idempotencyKey"
         },
         {
           "api": "file",

@@ -110,7 +110,8 @@ STREAM_MESSAGES: dict[str, tuple[str, str]] = {
 RENAMES: dict[str, dict[str, str]] = {
     "jobId": {"python": "job_id", "ts": "jobId"},
     "format": {"python": "format", "ts": "format"},
-    "Idempotency-Key": {"python": "idempotency_key", "ts": "idempotencyKey"},
+    # TypeScript takes it in the request options object; Dart only through RequestOptions.
+    "Idempotency-Key": {"python": "idempotency_key", "ts": "idempotencyKey", "dart": "RequestOptions.idempotencyKey"},
 }
 
 
@@ -126,7 +127,7 @@ def camel(name: str) -> str:
 def names(api_name: str) -> dict[str, str]:
     override = RENAMES.get(api_name, {})
     ts = override.get("ts", camel(api_name) if "_" in api_name else api_name)
-    return {"python": override.get("python", snake(api_name)), "ts": ts, "dart": ts}
+    return {"python": override.get("python", snake(api_name)), "ts": ts, "dart": override.get("dart", ts)}
 
 
 def resolve(spec: dict, schema: dict) -> dict:
