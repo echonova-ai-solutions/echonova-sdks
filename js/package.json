@@ -1,6 +1,6 @@
 {
   "name": "@echonova/ai",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Official JavaScript and TypeScript SDK for the EchoNova speech API: Text to Speech, Speech to Text and Sound Cleaning.",
   "homepage": "https://echonova.ai",
   "repository": {
