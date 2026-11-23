@@ -24,7 +24,8 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 API_KEY = re.compile(r"(?<![A-Za-z0-9_])ek_[A-Za-z0-9_\-]{8,}")
-WEBHOOK_SECRET = re.compile(r"(?<![A-Za-z0-9_])whsec_[A-Za-z0-9_\-]{8,}")
+# Secrets are base64 (standard alphabet since 2026-11-10, URL-safe before), so + / = belong to them too.
+WEBHOOK_SECRET = re.compile(r"(?<![A-Za-z0-9_])whsec_[A-Za-z0-9+/_\-]{8,}={0,2}")
 OBJECT_ID = re.compile(r"\b[0-9a-f]{24}\b")
 UUID = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 URL = re.compile(r"(?:https?|wss?)://[^\s\"'<>]+")
@@ -166,7 +167,7 @@ def find_leaks(text: str, *, fixture: bool = False) -> list[str]:
     text = re.sub(r"https?://[^\s\"'<>]*\bexample\.(?:com|org)[^\s\"'<>]*", "", text)
     if re.search(r"(?<![A-Za-z0-9_])ek_(?!REDACTED)[A-Za-z0-9_\-]{8,}", text):
         problems.append("API key")
-    if re.search(r"(?<![A-Za-z0-9_])whsec_(?!REDACTED|TEST)[A-Za-z0-9_\-]{8,}", text):
+    if re.search(r"(?<![A-Za-z0-9_])whsec_(?!REDACTED|TEST)[A-Za-z0-9+/_\-]{8,}", text):
         problems.append("webhook secret")
     if re.search(r"(?i)[?&](sig|signature|se|sv|sp|skoid|X-Amz-Signature)=(?!REDACTED|\.\.\.|…)[^&\"\s]+", text):
         problems.append("signed URL query")

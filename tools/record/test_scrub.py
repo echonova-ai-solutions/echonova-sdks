@@ -64,6 +64,12 @@ def test_find_leaks_catches_unscrubbed_values() -> None:
     assert find_leaks("whsec_TEST0000000000000000000000") == []  # made-up test secrets are allowed
 
 
+def test_a_standard_base64_webhook_secret_is_redacted_whole() -> None:
+    secret = "whsec_" + "ab+/" * 10 + "cd=="
+    assert Scrubber().value({"note": f"secret {secret} end"}) == {"note": "secret whsec_REDACTED end"}
+    assert find_leaks(f"x {secret}") != []
+
+
 def test_identifiers_containing_ek_are_not_keys() -> None:
     assert find_leaks("def test_non_ek_key_logs_a_warning(): ...") == []
     assert Scrubber().text("check_ek_prefix_handling") == "check_ek_prefix_handling"

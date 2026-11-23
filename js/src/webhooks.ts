@@ -1,5 +1,5 @@
 /**
- * Verify and parse EchoNova webhook requests.
+ * Verify and parse EchoNova webhook requests (Standard Webhooks v1).
  *
  * ```ts
  * import { verifyWebhook } from '@echonova/ai';
@@ -15,13 +15,14 @@
  */
 
 import { header, type HeadersLike } from './core/envelope.js';
-import { numberKey, parseFloatStrict, roundHalfEven, strip } from './core/text.js';
+import { parseFloatStrict, roundHalfEven, strip } from './core/text.js';
 import { WebhookVerificationError } from './errors.js';
 
 export const DEFAULT_TOLERANCE_SECONDS = 300;
 export const EVENT_HEADER = 'X-Webhook-Event';
-export const TIMESTAMP_HEADER = 'X-Webhook-Timestamp';
-export const SIGNATURE_HEADER = 'X-Webhook-Signature';
+export const ID_HEADER = 'webhook-id';
+export const TIMESTAMP_HEADER = 'webhook-timestamp';
+export const SIGNATURE_HEADER = 'webhook-signature';
 
 type Raw = Readonly<Record<string, unknown>>;
 
@@ -42,10 +43,12 @@ export interface JobCompleted {
   readonly transcription: string | null;
   /** STT: the terminology result, when terminology was sent. */
   readonly terminology: Raw | null;
-  /** The `X-Webhook-Timestamp` value (Unix seconds). */
+  /** The `webhook-timestamp` value (Unix seconds). */
   readonly timestamp: number;
   readonly raw: Raw;
-  /** Stable id for deduplicating deliveries of the same event. */
+  /** The delivery's `webhook-id`. It stays the same when a delivery is retried. */
+  readonly webhookId: string;
+  /** The key to deduplicate deliveries with: the `webhookId`. */
   readonly dedupeKey: string;
 }
 
@@ -59,6 +62,7 @@ export interface JobFailed {
   readonly error: string | null;
   readonly timestamp: number;
   readonly raw: Raw;
+  readonly webhookId: string;
   readonly dedupeKey: string;
 }
 
@@ -73,6 +77,7 @@ export interface SpendingWarning {
   readonly percentageUsed: number | null;
   readonly timestamp: number;
   readonly raw: Raw;
+  readonly webhookId: string;
   readonly dedupeKey: string;
 }
 
@@ -86,6 +91,7 @@ export interface SpendingExhausted {
   readonly creditLimit: number | null;
   readonly timestamp: number;
   readonly raw: Raw;
+  readonly webhookId: string;
   readonly dedupeKey: string;
 }
 
@@ -96,7 +102,8 @@ export interface UnknownEvent {
   readonly event: string;
   readonly timestamp: number;
   readonly raw: unknown;
-  readonly dedupeKey: null;
+  readonly webhookId: string;
+  readonly dedupeKey: string;
 }
 
 /** Narrow with `event.type`. */
@@ -112,6 +119,7 @@ export interface VerifyWebhookOptions {
 }
 
 const MAX_TIMESTAMP_LENGTH = 15;
+const SECRET_PREFIX = 'whsec_';
 
 const encoder = new TextEncoder();
 
@@ -123,11 +131,22 @@ function toBytes(payload: WebhookPayload): Uint8Array {
   throw new TypeError('payload must be the raw request body: a string, Uint8Array or ArrayBuffer');
 }
 
-function hexToBytes(hex: string): Uint8Array<ArrayBuffer> | null {
-  if (hex.length !== 64 || !/^[0-9a-f]+$/.test(hex)) return null;
-  const out = new Uint8Array(32);
-  for (let i = 0; i < 32; i += 1) out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
+/** Decode base64 in either alphabet, padding optional; null if it isn't base64. */
+function base64ToBytes(text: string): Uint8Array<ArrayBuffer> | null {
+  const unpadded = text.replace(/-/g, '+').replace(/_/g, '/').replace(/={1,2}$/, '');
+  if (!/^[A-Za-z0-9+/]*$/.test(unpadded) || unpadded.length % 4 === 1) return null;
+  const binary = atob(unpadded + '='.repeat((4 - (unpadded.length % 4)) % 4));
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+/** The HMAC key: the base64 after `whsec_`, decoded. */
+function signingKey(secret: string): Uint8Array<ArrayBuffer> {
+  const text = strip(secret);
+  const key = base64ToBytes(text.startsWith(SECRET_PREFIX) ? text.slice(SECRET_PREFIX.length) : text);
+  if (key === null || key.length === 0) {
+    throw new TypeError('secret is not a webhook signing secret: expected whsec_ followed by base64');
+  }
+  return key;
 }
 
 function subtleCrypto(): SubtleCrypto {
@@ -136,27 +155,27 @@ function subtleCrypto(): SubtleCrypto {
   return subtle;
 }
 
-/** Check one secret. `crypto.subtle.verify` compares the MAC in constant time. */
+/** Check one key against every signature. `crypto.subtle.verify` compares the MAC in constant time. */
 async function signatureMatches(
-  secret: string,
+  key: Uint8Array<ArrayBuffer>,
   message: Uint8Array<ArrayBuffer>,
-  signature: Uint8Array<ArrayBuffer> | null,
+  signatures: readonly Uint8Array<ArrayBuffer>[],
 ): Promise<boolean> {
   const subtle = subtleCrypto();
-  const key = await subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'verify',
-  ]);
-  if (signature === null) return false;
-  return subtle.verify('HMAC', key, signature, message);
+  const hmacKey = await subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  const results = await Promise.all(signatures.map((signature) => subtle.verify('HMAC', hmacKey, signature, message)));
+  return results.includes(true);
 }
 
 /**
  * Check a webhook's signature and timestamp, then parse it.
  *
- * `secret` may be a list, so two secrets can be valid at once (for example
- * while moving to a new webhook endpoint). Rejects with
+ * `secret` is the webhook's signing secret (`whsec_…`) as shown in the portal.
+ * It may be a list, so more than one secret can be valid at once. During a
+ * rotation in the portal the gateway signs with both the new and the previous
+ * secret, so passing only the new one works. Rejects with
  * `WebhookVerificationError` whose `reason` is `"headers"`, `"timestamp"`,
- * `"signature"` or `"payload"`.
+ * `"signature"` or `"payload"`, and throws `TypeError` for a secret that isn't valid.
  */
 export async function verifyWebhook(
   payload: WebhookPayload,
@@ -169,14 +188,16 @@ export async function verifyWebhook(
   if (secrets.length === 0 || !secrets.every((s) => typeof s === 'string' && s.length > 0)) {
     throw new TypeError('secret must be a non-empty string or a list of them');
   }
+  const keys = secrets.map((s) => signingKey(s as string));
   const tolerance = options.toleranceSeconds ?? DEFAULT_TOLERANCE_SECONDS;
 
   const eventName = header(headers, EVENT_HEADER);
+  const idHeader = header(headers, ID_HEADER);
   const timestampHeader = header(headers, TIMESTAMP_HEADER);
   const signatureHeader = header(headers, SIGNATURE_HEADER);
-  if (!eventName || !timestampHeader || !signatureHeader) {
+  if (!eventName || !idHeader || !timestampHeader || !signatureHeader) {
     throw new WebhookVerificationError(
-      `missing ${EVENT_HEADER}, ${TIMESTAMP_HEADER} or ${SIGNATURE_HEADER} header`,
+      `missing ${EVENT_HEADER}, ${ID_HEADER}, ${TIMESTAMP_HEADER} or ${SIGNATURE_HEADER} header`,
       { reason: 'headers' },
     );
   }
@@ -194,13 +215,19 @@ export async function verifyWebhook(
     throw new WebhookVerificationError('webhook timestamp is outside the allowed tolerance', { reason: 'timestamp' });
   }
 
-  const prefix = encoder.encode(`${timestampText}.`);
+  const webhookId = strip(idHeader);
+  const prefix = encoder.encode(`${webhookId}.${timestampText}.`);
   const message = new Uint8Array(prefix.length + body.length);
   message.set(prefix);
   message.set(body, prefix.length);
-  const received = hexToBytes(strip(signatureHeader).toLowerCase());
-  // Check every secret (no early exit), like a constant-time comparison would.
-  const results = await Promise.all(secrets.map((s) => signatureMatches(s as string, message, received)));
+  // One `v1,<base64>` per secret the gateway signed with, space-separated; other versions are ignored.
+  const signatures = signatureHeader
+    .split(/\s+/)
+    .filter((entry) => entry.startsWith('v1,'))
+    .map((entry) => base64ToBytes(entry.slice(3)))
+    .filter((bytes): bytes is Uint8Array<ArrayBuffer> => bytes !== null && bytes.length === 32);
+  // Check every key (no early exit), like a constant-time comparison would.
+  const results = await Promise.all(keys.map((key) => signatureMatches(key, message, signatures)));
   if (!results.includes(true)) {
     throw new WebhookVerificationError('webhook signature does not match', { reason: 'signature' });
   }
@@ -213,12 +240,12 @@ export async function verifyWebhook(
   } catch {
     throw new WebhookVerificationError('webhook body is not JSON', { reason: 'payload' });
   }
-  return parseEvent(strip(eventName), data, timestamp);
+  return parseEvent(strip(eventName), data, timestamp, webhookId);
 }
 
-function parseEvent(name: string, data: unknown, timestamp: number): WebhookEvent {
+function parseEvent(name: string, data: unknown, timestamp: number, webhookId: string): WebhookEvent {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    return Object.freeze({ type: 'unknown', event: name, timestamp, raw: data, dedupeKey: null });
+    return Object.freeze({ type: 'unknown', event: name, timestamp, raw: data, webhookId, dedupeKey: webhookId });
   }
   const raw = data as Raw;
   switch (name) {
@@ -246,7 +273,8 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
             : null,
         timestamp,
         raw,
-        dedupeKey: `job.completed:${jobId}`,
+        webhookId,
+        dedupeKey: webhookId,
       });
     }
     case 'job.failed': {
@@ -262,7 +290,8 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
         error: str(raw['error']),
         timestamp,
         raw,
-        dedupeKey: `job.failed:${jobId}`,
+        webhookId,
+        dedupeKey: webhookId,
       });
     }
     case 'spending.warning': {
@@ -281,7 +310,8 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
         percentageUsed: percentage !== null && Number.isFinite(percentage) ? roundHalfEven(percentage) : null,
         timestamp,
         raw,
-        dedupeKey: `spending.warning:${apiKeyId}:${numberKey(creditsUsed)}:${numberKey(creditLimit)}`,
+        webhookId,
+        dedupeKey: webhookId,
       });
     }
     case 'spending.exhausted': {
@@ -297,11 +327,12 @@ function parseEvent(name: string, data: unknown, timestamp: number): WebhookEven
         creditLimit,
         timestamp,
         raw,
-        dedupeKey: `spending.exhausted:${apiKeyId}:${numberKey(creditsUsed)}:${numberKey(creditLimit)}`,
+        webhookId,
+        dedupeKey: webhookId,
       });
     }
     default:
-      return Object.freeze({ type: 'unknown', event: name, timestamp, raw, dedupeKey: null });
+      return Object.freeze({ type: 'unknown', event: name, timestamp, raw, webhookId, dedupeKey: webhookId });
   }
 }
 

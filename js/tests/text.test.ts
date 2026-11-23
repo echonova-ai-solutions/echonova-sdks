@@ -1,26 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numberKey, parseFloatStrict, parseIntStrict, roundHalfEven, strip, truncateCodePoints } from '../src/core/text.js';
-
-describe('numberKey (same output as the reference SDK)', () => {
-  it.each([
-    [0.25, '0.25'],
-    [1e-5, '1e-05'],
-    [1.5e-7, '1.5e-07'],
-    [0.0001, '0.0001'],
-    [0.00012345, '0.00012345'],
-    [123.456, '123.456'],
-    [-0.5, '-0.5'],
-    [1e21, '1000000000000000000000'],
-    [10000, '10000'],
-    [1e16, '10000000000000000'],
-    [2.5e-300, '2.5e-300'],
-    [0.1 + 0.2, '0.30000000000000004'],
-    [-0, '0'],
-    [null, '-'],
-  ] as const)('%s -> %s', (value, expected) => {
-    expect(numberKey(value)).toBe(expected);
-  });
-});
+import { parseFloatStrict, parseIntStrict, roundHalfEven, strip, truncateCodePoints } from '../src/core/text.js';
 
 describe('roundHalfEven', () => {
   it('rounds halves to even', () => {

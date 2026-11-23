@@ -1,4 +1,4 @@
-/// Verify and parse EchoNova webhook requests.
+/// Verify and parse EchoNova webhook requests (Standard Webhooks v1).
 ///
 /// ```dart
 /// final event = verifyWebhook(
@@ -31,14 +31,18 @@ import 'errors.dart';
 /// The default tolerance between a webhook's timestamp and now.
 const Duration defaultWebhookTolerance = Duration(seconds: 300);
 
-/// The header that names the event.
+/// The header that names the event. It isn't covered by the signature.
 const String webhookEventHeader = 'X-Webhook-Event';
 
-/// The header with the signing time, in Unix seconds.
-const String webhookTimestampHeader = 'X-Webhook-Timestamp';
+/// The header with the delivery's id. It stays the same on retries.
+const String webhookIdHeader = 'webhook-id';
 
-/// The header with the HMAC-SHA256 signature, as hex.
-const String webhookSignatureHeader = 'X-Webhook-Signature';
+/// The header with the signing time, in Unix seconds.
+const String webhookTimestampHeader = 'webhook-timestamp';
+
+/// The header with the signatures: `v1,<base64 HMAC-SHA256>`, one per
+/// active secret, separated by spaces.
+const String webhookSignatureHeader = 'webhook-signature';
 
 /// A verified webhook event. `switch` over it to handle each kind.
 sealed class WebhookEvent {
@@ -53,9 +57,13 @@ sealed class WebhookEvent {
   /// The parsed JSON body.
   Object? get raw;
 
-  /// A key to deduplicate deliveries (the same event can arrive more than
-  /// once), or `null` when the event can't be deduplicated.
-  String? get dedupeKey;
+  /// The delivery's `webhook-id`. It stays the same when a delivery is
+  /// retried.
+  String get webhookId;
+
+  /// The key to deduplicate deliveries with (the same delivery can arrive
+  /// more than once): the [webhookId].
+  String get dedupeKey => webhookId;
 }
 
 /// An async Text to Speech or Speech to Text job finished. Check [service].
@@ -72,6 +80,7 @@ final class JobCompleted extends WebhookEvent {
     required this.terminology,
     required this.timestamp,
     required this.raw,
+    required this.webhookId,
   });
 
   /// The finished job.
@@ -106,10 +115,10 @@ final class JobCompleted extends WebhookEvent {
   final Map<String, Object?> raw;
 
   @override
-  String get event => 'job.completed';
+  final String webhookId;
 
   @override
-  String get dedupeKey => '$event:$jobId';
+  String get event => 'job.completed';
 }
 
 /// An async job failed.
@@ -122,6 +131,7 @@ final class JobFailed extends WebhookEvent {
     required this.error,
     required this.timestamp,
     required this.raw,
+    required this.webhookId,
   });
 
   /// The failed job.
@@ -143,10 +153,10 @@ final class JobFailed extends WebhookEvent {
   final Map<String, Object?> raw;
 
   @override
-  String get event => 'job.failed';
+  final String webhookId;
 
   @override
-  String get dedupeKey => '$event:$jobId';
+  String get event => 'job.failed';
 }
 
 /// The key is close to its Credit Limit for this billing cycle.
@@ -160,6 +170,7 @@ final class SpendingWarning extends WebhookEvent {
     required this.percentageUsed,
     required this.timestamp,
     required this.raw,
+    required this.webhookId,
   });
 
   /// The API key.
@@ -184,11 +195,10 @@ final class SpendingWarning extends WebhookEvent {
   final Map<String, Object?> raw;
 
   @override
-  String get event => 'spending.warning';
+  final String webhookId;
 
   @override
-  String get dedupeKey =>
-      '$event:$apiKeyId:${_numberKey(creditsUsed)}:${_numberKey(creditLimit)}';
+  String get event => 'spending.warning';
 }
 
 /// The key reached its Credit Limit; paid calls with it now fail until the
@@ -202,6 +212,7 @@ final class SpendingExhausted extends WebhookEvent {
     required this.creditLimit,
     required this.timestamp,
     required this.raw,
+    required this.webhookId,
   });
 
   /// The API key.
@@ -223,11 +234,10 @@ final class SpendingExhausted extends WebhookEvent {
   final Map<String, Object?> raw;
 
   @override
-  String get event => 'spending.exhausted';
+  final String webhookId;
 
   @override
-  String get dedupeKey =>
-      '$event:$apiKeyId:${_numberKey(creditsUsed)}:${_numberKey(creditLimit)}';
+  String get event => 'spending.exhausted';
 }
 
 /// An event this SDK version doesn't know yet. The signature was valid.
@@ -237,6 +247,7 @@ final class UnknownWebhookEvent extends WebhookEvent {
     required this.event,
     required this.timestamp,
     required this.raw,
+    required this.webhookId,
   });
 
   @override
@@ -249,18 +260,21 @@ final class UnknownWebhookEvent extends WebhookEvent {
   final Object? raw;
 
   @override
-  String? get dedupeKey => null;
+  final String webhookId;
 }
 
 /// Checks a webhook's signature and timestamp, then parses it.
 ///
 /// [payload] is the raw request body, exactly as received (use
-/// `utf8.encode` if your framework only gives you a string). [secrets] may
-/// hold more than one secret, so two can be valid at once (for example
-/// during a switch-over). [now] defaults to the current time.
+/// `utf8.encode` if your framework only gives you a string). [secrets] are
+/// the webhook's signing secrets (`whsec_...`) as shown in the portal; more
+/// than one can be valid at once. During a rotation in the portal the gateway
+/// signs with both the new and the previous secret, so passing only the new
+/// one works. [now] defaults to the current time.
 ///
 /// Throws [WebhookVerificationException] with a [WebhookFailure] reason, or
-/// [ArgumentError] when [secrets] is empty or holds an empty string.
+/// [ArgumentError] when [secrets] is empty or holds a secret that isn't
+/// valid.
 WebhookEvent verifyWebhook(
   List<int> payload,
   Map<String, String> headers,
@@ -275,19 +289,23 @@ WebhookEvent verifyWebhook(
       'secret must be a non-empty string or a list of them',
     );
   }
+  final keys = [for (final secret in secrets) _signingKey(secret)];
 
   final eventName = header(headers, webhookEventHeader);
+  final idHeader = header(headers, webhookIdHeader);
   final timestampHeader = header(headers, webhookTimestampHeader);
   final signature = header(headers, webhookSignatureHeader);
   if (eventName == null ||
       eventName.isEmpty ||
+      idHeader == null ||
+      idHeader.trim().isEmpty ||
       timestampHeader == null ||
       timestampHeader.isEmpty ||
       signature == null ||
       signature.isEmpty) {
     throw WebhookVerificationException(
-      'missing $webhookEventHeader, $webhookTimestampHeader or '
-      '$webhookSignatureHeader header',
+      'missing $webhookEventHeader, $webhookIdHeader, $webhookTimestampHeader '
+      'or $webhookSignatureHeader header',
       reason: WebhookFailure.headers,
     );
   }
@@ -313,13 +331,27 @@ WebhookEvent verifyWebhook(
     );
   }
 
-  final message = [...ascii.encode(timestampText), 0x2E, ...payload];
-  final received = signature.trim().toLowerCase();
+  final webhookId = idHeader.trim();
+  final message = [
+    ...utf8.encode(webhookId),
+    0x2E,
+    ...ascii.encode(timestampText),
+    0x2E,
+    ...payload,
+  ];
+  // One `v1,<base64>` per secret the gateway signed with, separated by
+  // spaces; entries of other versions are ignored.
+  final received = [
+    for (final entry in signature.split(_whitespace))
+      if (entry.startsWith('v1,')) entry.substring(3),
+  ];
   var valid = false;
-  for (final secret in secrets) {
-    final expected = Hmac(sha256, utf8.encode(secret)).convert(message);
-    // Check every secret, so timing doesn't reveal which one matched.
-    if (_constantTimeEquals(expected.toString(), received)) valid = true;
+  for (final key in keys) {
+    final expected = base64.encode(Hmac(sha256, key).convert(message).bytes);
+    // Check every pair, so timing doesn't reveal which one matched.
+    for (final candidate in received) {
+      if (_constantTimeEquals(expected, candidate)) valid = true;
+    }
   }
   if (!valid) {
     throw WebhookVerificationException(
@@ -337,8 +369,40 @@ WebhookEvent verifyWebhook(
       reason: WebhookFailure.payload,
     );
   }
-  return _parseEvent(eventName.trim(), data, timestamp);
+  return _parseEvent(eventName.trim(), data, timestamp, webhookId);
 }
+
+/// The HMAC key: the base64 after `whsec_`, decoded. Either base64 alphabet,
+/// padding optional.
+List<int> _signingKey(String secret) {
+  var text = secret.trim();
+  if (text.startsWith(_secretPrefix)) {
+    text = text.substring(_secretPrefix.length);
+  }
+  text = text.replaceAll('-', '+').replaceAll('_', '/');
+  text = text.replaceFirst(RegExp(r'={1,2}$'), '');
+  List<int>? key;
+  if (RegExp(r'^[A-Za-z0-9+/]+$').hasMatch(text) && text.length % 4 != 1) {
+    try {
+      key = base64.decode(text.padRight((text.length + 3) ~/ 4 * 4, '='));
+    } on FormatException {
+      key = null;
+    }
+  }
+  if (key == null || key.isEmpty) {
+    throw ArgumentError.value(
+      '$_secretPrefix...',
+      'secrets',
+      'secret is not a webhook signing secret: expected whsec_ followed by '
+          'base64',
+    );
+  }
+  return key;
+}
+
+const _secretPrefix = 'whsec_';
+
+final _whitespace = RegExp(r'\s+');
 
 final _asciiDigits = RegExp(r'^[0-9]+$');
 
@@ -355,9 +419,19 @@ bool _constantTimeEquals(String a, String b) {
   return difference == 0;
 }
 
-WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
+WebhookEvent _parseEvent(
+  String name,
+  Object? data,
+  int timestamp,
+  String webhookId,
+) {
   if (data is! Map<String, Object?>) {
-    return UnknownWebhookEvent(event: name, timestamp: timestamp, raw: data);
+    return UnknownWebhookEvent(
+      event: name,
+      timestamp: timestamp,
+      raw: data,
+      webhookId: webhookId,
+    );
   }
   switch (name) {
     case 'job.completed':
@@ -384,6 +458,7 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         terminology: terminology is Map<String, Object?> ? terminology : null,
         timestamp: timestamp,
         raw: data,
+        webhookId: webhookId,
       );
     case 'job.failed':
       // A failed job has no result. With one, the body may be a
@@ -396,6 +471,7 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         error: _string(data['error']),
         timestamp: timestamp,
         raw: data,
+        webhookId: webhookId,
       );
     case 'spending.warning':
       // A spending event carries its credits. Without them, the body may be
@@ -411,6 +487,7 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         percentageUsed: percentage == null ? null : _roundHalfEven(percentage),
         timestamp: timestamp,
         raw: data,
+        webhookId: webhookId,
       );
     case 'spending.exhausted':
       final creditsUsed = _requiredNumber(data, 'creditsUsed');
@@ -422,9 +499,15 @@ WebhookEvent _parseEvent(String name, Object? data, int timestamp) {
         creditLimit: creditLimit,
         timestamp: timestamp,
         raw: data,
+        webhookId: webhookId,
       );
     default:
-      return UnknownWebhookEvent(event: name, timestamp: timestamp, raw: data);
+      return UnknownWebhookEvent(
+        event: name,
+        timestamp: timestamp,
+        raw: data,
+        webhookId: webhookId,
+      );
   }
 }
 
@@ -483,23 +566,4 @@ int _roundHalfEven(double value) {
   if (fraction != 0.5) return value.round();
   final lower = floor.toInt();
   return lower.isEven ? lower : lower + 1;
-}
-
-/// Formats a number for a dedupe key the same way in every EchoNova SDK:
-/// whole numbers without a decimal point, others in shortest form.
-String _numberKey(double? value) {
-  if (value == null) return '-';
-  if (value == value.truncateToDouble()) {
-    return BigInt.from(value).toString();
-  }
-  if (value.abs() < 1e-4) {
-    // Python's repr switches to exponent form below 1e-4 ("1e-05").
-    final text = value.toStringAsExponential();
-    final at = text.indexOf('e');
-    final mantissa = text.substring(0, at);
-    final exponent = int.parse(text.substring(at + 1));
-    final sign = exponent < 0 ? '-' : '+';
-    return '${mantissa}e$sign${exponent.abs().toString().padLeft(2, '0')}';
-  }
-  return value.toString();
 }
