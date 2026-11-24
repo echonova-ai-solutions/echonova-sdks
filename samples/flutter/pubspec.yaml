@@ -19,7 +19,7 @@ dependencies:
   # The stream-token call to the proxy (web only).
   http: ^1.6.0
   # Microphone capture as a PCM16 stream on Android, iOS and the web.
-  record: ^7.1.2
+  record: ^7.2.0
   # Text to Speech playback on the web (Web Audio).
   web: ^1.1.0
 
